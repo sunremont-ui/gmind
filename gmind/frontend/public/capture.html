@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Quick Capture</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+      background: #1e1e2e;
+      color: #cdd6f4;
+      padding: 12px;
+      overflow: hidden;
+    }
+    textarea {
+      width: 100%;
+      height: 72px;
+      padding: 8px 10px;
+      border: 1px solid #45475a;
+      border-radius: 8px;
+      background: #181825;
+      color: #cdd6f4;
+      font-size: 14px;
+      font-family: inherit;
+      resize: none;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    textarea:focus { border-color: #89b4fa; }
+    .tags-row {
+      display: flex;
+      gap: 4px;
+      flex-wrap: wrap;
+      margin-top: 6px;
+      min-height: 24px;
+    }
+    .tag-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+      padding: 2px 8px;
+      background: rgba(137, 180, 250, 0.15);
+      color: #89b4fa;
+      border-radius: 12px;
+      font-size: 11px;
+    }
+    .tag-chip button {
+      background: none;
+      border: none;
+      color: #89b4fa;
+      cursor: pointer;
+      padding: 0;
+      font-size: 13px;
+      line-height: 1;
+      opacity: 0.6;
+    }
+    .tag-chip button:hover { opacity: 1; }
+    .tag-input-row {
+      display: flex;
+      gap: 4px;
+      margin-top: 4px;
+    }
+    .tag-input-row input {
+      flex: 1;
+      padding: 3px 8px;
+      border: 1px solid #45475a;
+      border-radius: 6px;
+      background: #181825;
+      color: #cdd6f4;
+      font-size: 12px;
+      font-family: inherit;
+      outline: none;
+    }
+    .tag-input-row input:focus { border-color: #89b4fa; }
+    .tag-add-btn {
+      padding: 3px 10px;
+      border: none;
+      border-radius: 6px;
+      background: #89b4fa;
+      color: #1e1e2e;
+      font-size: 12px;
+      cursor: pointer;
+      font-weight: 600;
+    }
+    .tag-add-btn:disabled { opacity: 0.4; cursor: default; }
+    .preset-tags {
+      display: flex;
+      gap: 3px;
+      flex-wrap: wrap;
+      margin-top: 4px;
+    }
+    .preset-tag {
+      padding: 1px 8px;
+      border: 1px solid #45475a;
+      border-radius: 12px;
+      background: transparent;
+      color: #6c7086;
+      font-size: 11px;
+      cursor: pointer;
+      font-family: inherit;
+      transition: border-color 0.15s;
+    }
+    .preset-tag:hover { border-color: #89b4fa; color: #89b4fa; }
+    .bottom {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 8px;
+    }
+    .hint {
+      font-size: 12px;
+      color: #6c7086;
+    }
+    kbd {
+      padding: 1px 5px;
+      border: 1px solid #45475a;
+      border-radius: 4px;
+      font-size: 11px;
+      background: #313244;
+    }
+    button {
+      padding: 6px 16px;
+      border: none;
+      border-radius: 6px;
+      background: #89b4fa;
+      color: #1e1e2e;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    button:hover { background: #b4d0fb; }
+    button:disabled { opacity: 0.4; cursor: default; }
+    .status {
+      font-size: 12px;
+      color: #a6e3a1;
+      margin-top: 6px;
+    }
+  </style>
+</head>
+<body>
+  <textarea id="input" placeholder="Type a thought... (Ctrl+Enter to save)" autofocus></textarea>
+
+  <div id="tagChips" class="tags-row"></div>
+
+  <div class="tag-input-row">
+    <input id="tagInput" placeholder="Add tag..." />
+    <button id="tagAddBtn" class="tag-add-btn">+</button>
+  </div>
+
+  <div id="presetTags" class="preset-tags"></div>
+
+  <div class="bottom">
+    <span class="hint"><kbd>Esc</kbd> close &middot; <kbd>Ctrl+Enter</kbd> save</span>
+    <button id="saveBtn">Save</button>
+  </div>
+  <div id="status" class="status" style="display:none"></div>
+
+  <script>
+    const { invoke } = window.__TAURI__?.core || {};
+
+    const input = document.getElementById('input');
+    const saveBtn = document.getElementById('saveBtn');
+    const status = document.getElementById('status');
+    const tagInput = document.getElementById('tagInput');
+    const tagAddBtn = document.getElementById('tagAddBtn');
+    const tagChips = document.getElementById('tagChips');
+    const presetTags = document.getElementById('presetTags');
+
+    const TAG_PRESETS = ['idea', 'todo', 'fix', 'note', 'question', 'reference'];
+    let tags = [];
+
+    // Render preset tag buttons
+    TAG_PRESETS.forEach(t => {
+      const btn = document.createElement('button');
+      btn.className = 'preset-tag';
+      btn.textContent = '+ ' + t;
+      btn.addEventListener('click', () => addTag(t));
+      presetTags.appendChild(btn);
+    });
+
+    async function safeJson(res) {
+      const text = await res.text();
+      if (!text) return undefined;
+      return JSON.parse(text);
+    }
+
+    function addTag(t) {
+      const trimmed = t.trim().toLowerCase().replace(/\s+/g, '-');
+      if (!trimmed || tags.includes(trimmed)) return;
+      tags.push(trimmed);
+      renderTags();
+      tagInput.value = '';
+    }
+
+    function removeTag(t) {
+      tags = tags.filter(x => x !== t);
+      renderTags();
+    }
+
+    function renderTags() {
+      tagChips.innerHTML = '';
+      tags.forEach(t => {
+        const chip = document.createElement('span');
+        chip.className = 'tag-chip';
+        chip.innerHTML = t + ' <button data-tag="' + t + '">\u00d7</button>';
+        chip.querySelector('button').addEventListener('click', () => removeTag(t));
+        tagChips.appendChild(chip);
+      });
+    }
+
+    function buildTitle() {
+      const tagPart = tags.map(t => '[' + t + ']').join('');
+      const text = input.value.trim();
+      return tagPart ? tagPart + ' ' + text : text;
+    }
+
+    tagInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        addTag(tagInput.value);
+      } else if (e.key === 'Backspace' && !tagInput.value && tags.length > 0) {
+        removeTag(tags[tags.length - 1]);
+      }
+    });
+
+    tagAddBtn.addEventListener('click', () => addTag(tagInput.value));
+
+    async function doSave() {
+      const text = input.value.trim();
+      if (!text) return;
+
+      saveBtn.disabled = true;
+      saveBtn.textContent = 'Saving...';
+
+      try {
+        const title = buildTitle();
+        if (invoke) {
+          await invoke('quick_capture', { text: title });
+        } else {
+          // Fallback: direct API call when not in Tauri
+          const res = await fetch('http://localhost:8080/api/v1/workbooks');
+          const wbs = await safeJson(res) || [];
+          const inbox = wbs.find(w => w.title && w.title.includes('Inbox'));
+          if (!inbox) throw new Error('Inbox not found');
+          const wbRes = await fetch('http://localhost:8080/api/v1/workbooks/' + inbox.id);
+          const wb = await safeJson(wbRes);
+          if (!wb) throw new Error('Empty workbook response');
+          const rootId = wb.sheets?.[0]?.root_topic?.id;
+          if (!rootId) throw new Error('No root topic found');
+          const createRes = await fetch('http://localhost:8080/api/v1/workbooks/' + inbox.id + '/topics', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ title: title, parent_id: rootId }),
+          });
+          if (!createRes.ok) {
+            const errText = await createRes.text().catch(() => '');
+            throw new Error('Save failed' + (errText ? ': ' + errText : ''));
+          }
+        }
+        status.textContent = 'Saved!';
+        status.style.color = '#a6e3a1';
+        status.style.display = 'block';
+        input.value = '';
+        tags = [];
+        renderTags();
+        setTimeout(() => { status.style.display = 'none'; }, 2000);
+      } catch (err) {
+        status.textContent = 'Error: ' + err.message;
+        status.style.color = '#f38ba8';
+        status.style.display = 'block';
+      } finally {
+        saveBtn.disabled = false;
+        saveBtn.textContent = 'Save';
+      }
+    }
+
+    // Auto-close Tauri window (hide instead of close/destroy)
+    async function closeWindow() {
+      if (window.__TAURI__?.window) {
+        await window.__TAURI__.window.getCurrent().hide();
+      }
+    }
+
+    // Focus input on show
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden) input.focus();
+    });
+
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+        e.preventDefault();
+        doSave();
+      }
+      if (e.key === 'Escape') closeWindow();
+    });
+
+    saveBtn.addEventListener('click', doSave);
+
+    // Focus after load
+    setTimeout(() => input.focus(), 100);
+  </script>
+</body>
+</html>

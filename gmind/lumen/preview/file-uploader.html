@@ -1,0 +1,54 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Uploader</title><link rel="stylesheet" href="_card.css">
+<style>
+  .neu-card{ background:#ECF0F3; border-radius:18px; padding:24px;
+    box-shadow: 10px 10px 26px rgba(120,140,180,0.22), -10px -10px 26px #FFFFFF; }
+  .drop{ border-radius:16px;background:#ECF0F3;padding:28px;text-align:center;
+    box-shadow: inset 4px 4px 10px rgba(120,140,180,0.28), inset -4px -4px 10px #FFFFFF;
+    border: 1.5px dashed rgba(91,157,240,0.45); }
+  .drop .ico{ width:56px;height:56px;border-radius:16px;background:#ECF0F3;color:#5B9DF0;
+    display:flex;align-items:center;justify-content:center;margin:0 auto 12px;
+    box-shadow: 4px 4px 10px rgba(120,140,180,0.28), -4px -4px 10px #FFFFFF; }
+  .nbtn{ padding:9px 16px;border-radius:10px;border:0;font:600 13px 'Inter';cursor:pointer;color:#fff;
+    background:linear-gradient(135deg,#5B9DF0,#A78BFA);
+    box-shadow: 3px 3px 8px rgba(120,140,200,0.40), -3px -3px 8px #FFFFFF; }
+  .row-file{ display:flex;align-items:center;gap:12px;padding:12px;border-radius:12px;background:#ECF0F3;
+    box-shadow: 4px 4px 10px rgba(120,140,180,0.24), -4px -4px 10px #FFFFFF; }
+  .file-ico{ width:36px;height:36px;border-radius:9px;background:#ECF0F3;color:#5B9DF0;
+    display:flex;align-items:center;justify-content:center;
+    box-shadow: inset 2px 2px 5px rgba(120,140,180,0.28), inset -2px -2px 5px #FFFFFF; }
+  .nbar{ height:6px;border-radius:999px;background:#ECF0F3;position:relative;
+    box-shadow: inset 2px 2px 4px rgba(120,140,180,0.30), inset -2px -2px 4px #FFFFFF; }
+  .nfill{ position:absolute;left:0;top:0;height:6px;border-radius:999px;
+    background:linear-gradient(90deg,#5B9DF0,#A78BFA); }
+  .nfill.suc{ background:linear-gradient(90deg,#34D399,#10B981); }
+</style></head>
+<body>
+<div class="card neu-card">
+  <div class="lds-eyebrow">Uploader · audio</div>
+  <div class="drop">
+    <div class="ico">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+    </div>
+    <div style="font:600 14px 'Inter';margin-bottom:4px">Drop WAV, FLAC or MP3 here</div>
+    <div style="font:400 12px 'Inter';color:#57575F;margin-bottom:14px">Up to 200 MB · 24-bit / 96 kHz max</div>
+    <button class="nbtn">Choose files</button>
+  </div>
+
+  <div class="col" style="gap:10px">
+    <div class="row-file">
+      <div class="file-ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg></div>
+      <div style="flex:1;display:flex;flex-direction:column;gap:5px">
+        <div class="row" style="justify-content:space-between"><span style="font:500 13px 'Inter'">aurora-stems-take03.wav</span><span class="mono" style="color:#10B981">Done</span></div>
+        <div class="nbar"><div class="nfill suc" style="width:100%"></div></div>
+      </div>
+    </div>
+    <div class="row-file">
+      <div class="file-ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg></div>
+      <div style="flex:1;display:flex;flex-direction:column;gap:5px">
+        <div class="row" style="justify-content:space-between"><span style="font:500 13px 'Inter'">midnight-pad.flac</span><span class="mono" style="color:#57575F">62%  ·  18.4 / 29.7 MB</span></div>
+        <div class="nbar"><div class="nfill" style="width:62%"></div></div>
+      </div>
+    </div>
+  </div>
+</div></body></html>

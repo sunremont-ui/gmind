@@ -1,0 +1,66 @@
+/* ----- Lumen specimen-card shell -----
+   Cards are 700×<height> in the asset preview grid.
+   Each preview HTML imports this + colors_and_type.css. */
+@import url('../colors_and_type.css');
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: #ECF0F3;
+  color: var(--color-fg);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+.card {
+  width: 700px;
+  box-sizing: border-box;
+  padding: 24px;
+  background: #ECF0F3;
+  border-radius: 18px;
+  box-shadow: 10px 10px 26px rgba(120,140,180,0.22), -10px -10px 26px #FFFFFF;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.card.dark {
+  background: var(--gray-950);
+  color: var(--gray-50);
+}
+.card.split {
+  flex-direction: row;
+  padding: 0;
+  align-items: stretch;
+}
+.card.split > .half {
+  flex: 1;
+  padding: 24px;
+}
+.card.split > .half + .half {
+  border-left: 1px solid var(--color-border);
+}
+.row {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.col {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.swatch {
+  border-radius: 12px;
+  border: 1px solid var(--color-border);
+  box-shadow: var(--shadow-xs);
+}
+.label {
+  font: 500 12px/1.4 var(--font-sans);
+  color: var(--color-fg-muted);
+}
+.label.dark { color: rgba(255,255,255,0.6); }
+.mono {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--color-fg-subtle);
+}

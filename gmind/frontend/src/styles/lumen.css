@@ -1,0 +1,336 @@
+/* =============================================================
+   Lumen Design System — Tokens
+   Apple/Google-inspired: precision + expressive gradients.
+   Light + dark themes via [data-theme="dark"] on <html> or <body>.
+   ============================================================= */
+
+:root {
+  /* ---------- Brand primitives ---------- */
+  --lumen-indigo-50:  #EEF0FF;
+  --lumen-indigo-100: #DDE0FF;
+  --lumen-indigo-200: #BBC2FF;
+  --lumen-indigo-300: #94A0FF;
+  --lumen-indigo-400: #7782FF;
+  --lumen-indigo-500: #5B6CFF;  /* primary */
+  --lumen-indigo-600: #4A56DB;
+  --lumen-indigo-700: #3B45B0;
+  --lumen-indigo-800: #2C3486;
+  --lumen-indigo-900: #1F2562;
+
+  --lumen-violet-500: #8B5CF6;
+  --lumen-coral-500:  #EC4899;
+  --lumen-cyan-500:   #06B6D4;
+  --lumen-sky-500:    #0EA5E9;
+  --lumen-teal-500:   #14B8A6;
+
+  /* Semantic */
+  --color-success-500: #10B981;
+  --color-warning-500: #F59E0B;
+  --color-danger-500:  #EF4444;
+  --color-info-500:    #3B82F6;
+
+  /* Neutrals — true gray */
+  --gray-0:   #FFFFFF;
+  --gray-25:  #FBFBFC;
+  --gray-50:  #F7F7F8;
+  --gray-100: #EEEEF1;
+  --gray-150: #E4E4E9;
+  --gray-200: #D8D8DE;
+  --gray-300: #BFBFC7;
+  --gray-400: #9C9CA6;
+  --gray-500: #76767F;
+  --gray-600: #57575F;
+  --gray-700: #3F3F46;
+  --gray-800: #27272C;
+  --gray-850: #1B1B20;
+  --gray-900: #15151B;
+  --gray-950: #0A0A0F;
+
+  /* ---------- Light theme (default) ---------- */
+  --color-bg:           var(--gray-50);
+  --color-bg-elevated:  var(--gray-0);
+  --color-bg-sunken:    var(--gray-100);
+  --color-surface-1:    var(--gray-0);
+  --color-surface-2:    var(--gray-25);
+  --color-surface-3:    var(--gray-50);
+
+  --color-fg:          var(--gray-900);
+  --color-fg-muted:    var(--gray-600);
+  --color-fg-subtle:   var(--gray-500);
+  --color-fg-disabled: var(--gray-400);
+  --color-fg-on-accent:#FFFFFF;
+
+  --color-border:        rgba(0, 0, 0, 0.08);
+  --color-border-strong: rgba(0, 0, 0, 0.16);
+  --color-border-subtle: rgba(0, 0, 0, 0.05);
+
+  --color-primary:        var(--lumen-indigo-500);
+  --color-primary-hover:  var(--lumen-indigo-600);
+  --color-primary-press:  var(--lumen-indigo-700);
+  --color-primary-soft:   var(--lumen-indigo-50);
+  --color-primary-fg:     #FFFFFF;
+
+  --color-overlay-hover: rgba(0, 0, 0, 0.06);
+  --color-overlay-press: rgba(0, 0, 0, 0.10);
+  --color-scrim:         rgba(10, 10, 15, 0.45);
+
+  /* ---------- Gradients ---------- */
+  --gradient-aurora: linear-gradient(135deg, #5B6CFF 0%, #8B5CF6 50%, #EC4899 100%);
+  --gradient-aurora-soft: linear-gradient(135deg, rgba(91,108,255,0.12) 0%, rgba(139,92,246,0.10) 50%, rgba(236,72,153,0.10) 100%);
+  --gradient-tide: linear-gradient(135deg, #06B6D4 0%, #0EA5E9 100%);
+  --gradient-tide-soft: linear-gradient(135deg, rgba(6,182,212,0.14) 0%, rgba(14,165,233,0.10) 100%);
+  --gradient-ember: linear-gradient(135deg, #F59E0B 0%, #EC4899 100%);
+  --gradient-forest: linear-gradient(135deg, #10B981 0%, #06B6D4 100%);
+  --gradient-mesh:
+    radial-gradient(at 12% 18%, rgba(91,108,255,0.18) 0px, transparent 45%),
+    radial-gradient(at 88% 12%, rgba(236,72,153,0.14) 0px, transparent 45%),
+    radial-gradient(at 70% 90%, rgba(6,182,212,0.16) 0px, transparent 50%);
+  --gradient-protection-top:    linear-gradient(180deg, rgba(0,0,0,0.45) 0%, transparent 100%);
+  --gradient-protection-bottom: linear-gradient(0deg, rgba(0,0,0,0.55) 0%, transparent 100%);
+
+  /* ---------- Type ---------- */
+  --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+
+  --fs-display-xl: 64px;
+  --fs-display-lg: 48px;
+  --fs-display-md: 36px;
+  --fs-h1: 32px;
+  --fs-h2: 24px;
+  --fs-h3: 20px;
+  --fs-h4: 18px;
+  --fs-body-lg: 17px;
+  --fs-body:    15px;
+  --fs-body-sm: 13px;
+  --fs-caption: 12px;
+  --fs-eyebrow: 11px;
+
+  --lh-tight:   1.05;
+  --lh-snug:    1.2;
+  --lh-normal:  1.5;
+  --lh-relaxed: 1.65;
+
+  --tracking-tight:   -0.02em;
+  --tracking-snug:    -0.01em;
+  --tracking-normal:  0;
+  --tracking-wide:    0.01em;
+  --tracking-eyebrow: 0.08em;
+
+  --fw-regular:  400;
+  --fw-medium:   500;
+  --fw-semibold: 600;
+  --fw-bold:     700;
+
+  /* ---------- Spacing (4-pt) ---------- */
+  --space-0:  0;
+  --space-1:  4px;
+  --space-2:  8px;
+  --space-3:  12px;
+  --space-4:  16px;
+  --space-5:  20px;
+  --space-6:  24px;
+  --space-8:  32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
+  --space-20: 80px;
+
+  /* ---------- Radius ---------- */
+  --radius-xs:  4px;
+  --radius-sm:  8px;
+  --radius-md:  12px;
+  --radius-lg:  16px;
+  --radius-xl:  20px;
+  --radius-2xl: 28px;
+  --radius-full: 999px;
+
+  /* ---------- Shadows (two-layer, Apple-ish) ---------- */
+  --shadow-xs: 0 1px 2px rgba(15, 15, 25, 0.05);
+  --shadow-sm: 0 1px 2px rgba(15, 15, 25, 0.05), 0 2px 6px rgba(15, 15, 25, 0.05);
+  --shadow-md: 0 2px 4px rgba(15, 15, 25, 0.05), 0 8px 16px rgba(15, 15, 25, 0.08);
+  --shadow-lg: 0 4px 8px rgba(15, 15, 25, 0.06), 0 16px 32px rgba(15, 15, 25, 0.10);
+  --shadow-xl: 0 8px 16px rgba(15, 15, 25, 0.08), 0 32px 64px rgba(15, 15, 25, 0.14);
+  --shadow-glow-primary: 0 0 0 4px rgba(91, 108, 255, 0.15);
+  --shadow-inner: inset 0 1px 2px rgba(15, 15, 25, 0.06);
+
+  /* ---------- Motion ---------- */
+  --ease-standard:  cubic-bezier(0.32, 0.72, 0, 1);
+  --ease-emphasized: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-out:       cubic-bezier(0, 0, 0.2, 1);
+  --duration-quick: 120ms;
+  --duration-fast:  200ms;
+  --duration-base:  320ms;
+  --duration-slow:  500ms;
+
+  /* ---------- Layout ---------- */
+  --layout-sidebar:            256px;
+  --layout-sidebar-collapsed:  72px;
+  --layout-appbar:             56px;
+  --layout-statusbar:          32px;
+  --layout-container-max:      1280px;
+  --layout-gutter:             24px;
+}
+
+/* ============================================================
+   Dark theme
+   ============================================================ */
+[data-theme="dark"] {
+  --color-bg:           var(--gray-950);
+  --color-bg-elevated:  var(--gray-900);
+  --color-bg-sunken:    #050509;
+  --color-surface-1:    var(--gray-900);
+  --color-surface-2:    var(--gray-850);
+  --color-surface-3:    var(--gray-800);
+
+  --color-fg:           #F4F4F7;
+  --color-fg-muted:     #B4B4BD;
+  --color-fg-subtle:    #8A8A93;
+  --color-fg-disabled:  #5F5F68;
+  --color-fg-on-accent: #FFFFFF;
+
+  --color-border:        rgba(255, 255, 255, 0.10);
+  --color-border-strong: rgba(255, 255, 255, 0.18);
+  --color-border-subtle: rgba(255, 255, 255, 0.06);
+
+  --color-primary:        #7782FF;
+  --color-primary-hover:  #94A0FF;
+  --color-primary-press:  #BBC2FF;
+  --color-primary-soft:   rgba(91, 108, 255, 0.18);
+  --color-primary-fg:     #0A0A0F;
+
+  --color-overlay-hover: rgba(255, 255, 255, 0.06);
+  --color-overlay-press: rgba(255, 255, 255, 0.10);
+  --color-scrim:         rgba(0, 0, 0, 0.65);
+
+  --gradient-mesh:
+    radial-gradient(at 12% 18%, rgba(91,108,255,0.32) 0px, transparent 45%),
+    radial-gradient(at 88% 12%, rgba(236,72,153,0.22) 0px, transparent 45%),
+    radial-gradient(at 70% 90%, rgba(6,182,212,0.26) 0px, transparent 50%);
+
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.40);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.40), 0 2px 6px rgba(0, 0, 0, 0.40);
+  --shadow-md: 0 2px 4px rgba(0, 0, 0, 0.40), 0 8px 16px rgba(0, 0, 0, 0.50);
+  --shadow-lg: 0 4px 8px rgba(0, 0, 0, 0.45), 0 16px 32px rgba(0, 0, 0, 0.55);
+  --shadow-xl: 0 8px 16px rgba(0, 0, 0, 0.50), 0 32px 64px rgba(0, 0, 0, 0.65);
+  --shadow-glow-primary: 0 0 0 4px rgba(119, 130, 255, 0.25);
+  --shadow-inner: inset 0 1px 2px rgba(0, 0, 0, 0.50);
+}
+
+/* ============================================================
+   Semantic typography classes
+   ============================================================ */
+.lds-display-xl { font: var(--fw-bold) var(--fs-display-xl)/var(--lh-tight) var(--font-sans); letter-spacing: var(--tracking-tight); }
+.lds-display-lg { font: var(--fw-bold) var(--fs-display-lg)/var(--lh-tight) var(--font-sans); letter-spacing: var(--tracking-tight); }
+.lds-display-md { font: var(--fw-semibold) var(--fs-display-md)/var(--lh-snug) var(--font-sans); letter-spacing: var(--tracking-tight); }
+.lds-h1   { font: var(--fw-semibold) var(--fs-h1)/var(--lh-snug) var(--font-sans); letter-spacing: var(--tracking-snug); }
+.lds-h2   { font: var(--fw-semibold) var(--fs-h2)/var(--lh-snug) var(--font-sans); letter-spacing: var(--tracking-snug); }
+.lds-h3   { font: var(--fw-semibold) var(--fs-h3)/var(--lh-snug) var(--font-sans); }
+.lds-h4   { font: var(--fw-semibold) var(--fs-h4)/var(--lh-snug) var(--font-sans); }
+.lds-body-lg { font: var(--fw-regular) var(--fs-body-lg)/var(--lh-normal) var(--font-sans); }
+.lds-body    { font: var(--fw-regular) var(--fs-body)/var(--lh-normal) var(--font-sans); }
+.lds-body-sm { font: var(--fw-regular) var(--fs-body-sm)/var(--lh-normal) var(--font-sans); }
+.lds-caption { font: var(--fw-medium) var(--fs-caption)/var(--lh-normal) var(--font-sans); color: var(--color-fg-muted); }
+.lds-eyebrow { font: var(--fw-semibold) var(--fs-eyebrow)/1 var(--font-sans); letter-spacing: var(--tracking-eyebrow); text-transform: uppercase; color: var(--color-fg-muted); }
+.lds-mono    { font-family: var(--font-mono); font-feature-settings: "tnum" 1; }
+
+/* ============================================================
+   Base reset (scoped)
+   ============================================================ */
+.lds-root, body.lds-body {
+  background: var(--color-bg);
+  color: var(--color-fg);
+  font-family: var(--font-sans);
+  font-size: var(--fs-body);
+  line-height: var(--lh-normal);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-feature-settings: "ss01" 1, "cv11" 1;
+}
+
+/* ============================================================
+   Scrollbar (Webkit)
+   ============================================================ */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--color-border-strong); border-radius: var(--radius-full); }
+::-webkit-scrollbar-thumb:hover { background: var(--color-fg-disabled); }
+
+/* ============================================================
+   Focus ring
+   ============================================================ */
+:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+/* ============================================================
+   Lumen Neumorphic Range Slider
+   ============================================================ */
+input[type="range"].lumen-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+}
+input[type="range"].lumen-slider::-webkit-slider-runnable-track {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--color-bg-sunken);
+  box-shadow: inset 1px 1px 2px rgba(0,0,0,0.12), inset -1px -1px 2px rgba(255,255,255,0.7);
+}
+input[type="range"].lumen-slider::-moz-range-track {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--color-bg-sunken);
+  box-shadow: inset 1px 1px 2px rgba(0,0,0,0.12), inset -1px -1px 2px rgba(255,255,255,0.7);
+  border: none;
+}
+input[type="range"].lumen-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--color-bg-elevated);
+  box-shadow: 3px 3px 6px rgba(0,0,0,0.15), -3px -3px 6px rgba(255,255,255,0.8);
+  cursor: pointer;
+  margin-top: -7px;
+  border: none;
+  transition: box-shadow 0.15s ease;
+}
+input[type="range"].lumen-slider::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--color-bg-elevated);
+  box-shadow: 3px 3px 6px rgba(0,0,0,0.15), -3px -3px 6px rgba(255,255,255,0.8);
+  cursor: pointer;
+  border: none;
+  transition: box-shadow 0.15s ease;
+}
+input[type="range"].lumen-slider:hover::-webkit-slider-thumb {
+  box-shadow: 4px 4px 10px rgba(0,0,0,0.18), -4px -4px 10px rgba(255,255,255,0.85);
+}
+input[type="range"].lumen-slider:hover::-moz-range-thumb {
+  box-shadow: 4px 4px 10px rgba(0,0,0,0.18), -4px -4px 10px rgba(255,255,255,0.85);
+}
+input[type="range"].lumen-slider:active::-webkit-slider-thumb {
+  box-shadow: inset 1px 1px 2px rgba(0,0,0,0.12), inset -1px -1px 2px rgba(255,255,255,0.7);
+}
+input[type="range"].lumen-slider:active::-moz-range-thumb {
+  box-shadow: inset 1px 1px 2px rgba(0,0,0,0.12), inset -1px -1px 2px rgba(255,255,255,0.7);
+}
+
+[data-theme="dark"] input[type="range"].lumen-slider::-webkit-slider-runnable-track {
+  box-shadow: inset 1px 1px 2px rgba(0,0,0,0.5), inset -1px -1px 2px rgba(255,255,255,0.04);
+}
+[data-theme="dark"] input[type="range"].lumen-slider::-moz-range-track {
+  box-shadow: inset 1px 1px 2px rgba(0,0,0,0.5), inset -1px -1px 2px rgba(255,255,255,0.04);
+}
+[data-theme="dark"] input[type="range"].lumen-slider::-webkit-slider-thumb {
+  background: var(--color-bg-elevated);
+  box-shadow: 3px 3px 6px rgba(0,0,0,0.55), -3px -3px 6px rgba(255,255,255,0.05);
+}
+[data-theme="dark"] input[type="range"].lumen-slider::-moz-range-thumb {
+  background: var(--color-bg-elevated);
+  box-shadow: 3px 3px 6px rgba(0,0,0,0.55), -3px -3px 6px rgba(255,255,255,0.05);
+}

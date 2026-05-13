@@ -1,0 +1,292 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Mind map · interactive</title><link rel="stylesheet" href="_card.css">
+<style>
+  body{ margin:0; }
+  .neu-card{ background:#ECF0F3; border-radius:18px; padding:18px;
+    box-shadow: 10px 10px 26px rgba(120,140,180,0.22), -10px -10px 26px #FFFFFF; }
+  .stage{ position:relative; height:640px; background:#ECF0F3; border-radius:16px; overflow:hidden;
+    box-shadow: inset 5px 5px 12px rgba(120,140,180,0.26), inset -5px -5px 12px #FFFFFF;
+    background-image: radial-gradient(circle at 1px 1px, rgba(120,140,180,0.16) 1px, transparent 0);
+    background-size: 22px 22px;
+    cursor: grab; user-select:none;
+  }
+  .stage.is-panning{ cursor: grabbing; }
+  .canvas{ position:absolute; left:0; top:0; width:100%; height:100%; transform-origin: 0 0; }
+  .canvas svg{ position:absolute; inset:0; width:100%; height:100%; pointer-events:none; overflow:visible; }
+  .node{ position:absolute; transform:translate(-50%,-50%);
+    background:#ECF0F3; border-radius:14px; padding:9px 13px;
+    box-shadow: 5px 5px 12px rgba(120,140,180,0.30), -5px -5px 12px #FFFFFF;
+    display:flex; align-items:center; gap:9px; font:600 12.5px 'Inter'; color:#15151B;
+    white-space:nowrap; cursor:pointer; transition: box-shadow .15s ease, transform .15s ease;
+  }
+  .node:hover{ transform: translate(-50%,-50%) scale(1.04); }
+  .node.is-selected{ box-shadow: 6px 6px 14px rgba(91,140,240,0.45), -5px -5px 12px #FFFFFF,
+      inset 0 0 0 2px rgba(91,157,240,0.55); }
+  .node .ico{ width:24px;height:24px;border-radius:7px;display:flex;align-items:center;justify-content:center;color:#fff; }
+  .node .pill{ font:600 10px 'JetBrains Mono'; padding:2px 7px; border-radius:999px; color:#57575F;
+    background:#ECF0F3;
+    box-shadow: inset 1px 1px 2px rgba(120,140,180,0.30), inset -1px -1px 2px #FFFFFF; }
+  .node .toggle{ display:inline-flex; align-items:center; justify-content:center; width:18px; height:18px; border-radius:999px;
+    font:700 11px 'Inter'; color:#fff; background:linear-gradient(135deg,#5B9DF0,#A78BFA);
+    box-shadow: 1px 1px 3px rgba(120,140,200,0.40); }
+  .node.collapsed .toggle{ background:linear-gradient(135deg,#94A3B8,#64748B); }
+  .node.root{ padding:16px 22px; font:700 17px 'Inter'; letter-spacing:-0.01em; color:#fff;
+    background:linear-gradient(135deg,#5B9DF0 0%,#6F6BE8 55%,#A78BFA 100%);
+    box-shadow: 8px 8px 20px rgba(70,90,140,0.40), -6px -6px 16px #FFFFFF,
+      inset 1px 1px 2px rgba(255,255,255,0.4); }
+  .node.root .badge{ font:600 11px 'JetBrains Mono'; padding:2px 8px; border-radius:999px;
+    background: rgba(255,255,255,0.18); color:#fff; }
+  .node.leaf{ font:500 12px 'Inter'; padding:6px 10px; border-radius:11px;
+    box-shadow: 3px 3px 7px rgba(120,140,180,0.26), -3px -3px 7px #FFFFFF; }
+  .node.leaf .dot{ width:7px; height:7px; border-radius:999px; }
+
+  .toolbar{ position:absolute; right:14px; top:14px; display:flex; gap:6px; padding:5px; border-radius:11px; background:#ECF0F3;
+    box-shadow: inset 2px 2px 6px rgba(120,140,180,0.26), inset -2px -2px 6px #FFFFFF; z-index:5; }
+  .toolbar .btn{ width:32px;height:32px;border-radius:8px;background:#ECF0F3;display:flex;align-items:center;justify-content:center;
+    box-shadow: 2px 2px 5px rgba(120,140,180,0.26), -2px -2px 5px #FFFFFF; color:#2A3340; cursor:pointer;
+    font:600 14px 'Inter'; }
+  .toolbar .btn:active{ box-shadow: inset 2px 2px 5px rgba(120,140,180,0.30), inset -2px -2px 5px #FFFFFF; }
+  .toolbar .zoom-val{ min-width:54px; text-align:center; font:600 11px 'JetBrains Mono'; color:#2A3340;
+    display:flex; align-items:center; justify-content:center; }
+
+  .inspector{ position:absolute; left:14px; bottom:14px; width:240px; padding:14px; border-radius:14px; background:#ECF0F3;
+    box-shadow: 8px 8px 18px rgba(120,140,180,0.30), -8px -8px 18px #FFFFFF; z-index:5; font:500 12px 'Inter'; color:#2A3340; }
+  .inspector h4{ margin:0 0 4px; font:600 13px 'Inter'; color:#15151B; }
+  .inspector .meta{ font-size:11px; color:#57575F; margin-bottom:8px; }
+  .inspector .row{ display:flex; justify-content:space-between; padding:3px 0; border-top:1px solid rgba(120,140,180,0.22); }
+  .inspector .row:first-of-type{ border-top:0; }
+  .inspector .mono{ font-feature-settings:'tnum'; }
+  .hint{ position:absolute; left:50%; top:14px; transform:translateX(-50%); padding:6px 12px; border-radius:999px;
+    font:500 11px 'Inter'; color:#57575F; background:#ECF0F3;
+    box-shadow: inset 1px 1px 3px rgba(120,140,180,0.26), inset -1px -1px 3px #FFFFFF; z-index:5; }
+</style></head>
+<body>
+<div class="card neu-card">
+  <div class="lds-eyebrow">Mind map · interactive</div>
+  <div class="stage" id="stage">
+    <div class="hint">click node to collapse · drag canvas to pan · scroll / +− to zoom</div>
+    <div class="toolbar">
+      <div class="btn" id="zOut">−</div>
+      <div class="zoom-val" id="zVal">100%</div>
+      <div class="btn" id="zIn">+</div>
+      <div class="btn" id="zFit" title="Fit">⤢</div>
+    </div>
+    <div class="canvas" id="canvas">
+      <svg id="links"></svg>
+      <!-- nodes injected -->
+    </div>
+    <div class="inspector" id="insp">
+      <h4 id="iTitle">Lumen H2 Roadmap</h4>
+      <div class="meta" id="iMeta">Root · 4 branches</div>
+      <div class="row"><span>Visible nodes</span><span class="mono" id="iVis">—</span></div>
+      <div class="row"><span>Total nodes</span><span class="mono" id="iTot">—</span></div>
+      <div class="row"><span>Depth</span><span class="mono">3</span></div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ---- data model ---- */
+const tree = {
+  id:'root', label:'Lumen H2 Roadmap', kind:'root',
+  children:[
+    { id:'b1', label:'Performance', kind:'branch', tone:'blue', x:-330, y:-180,
+      children:[
+        { id:'b1a', label:'Worker pool v2',  kind:'leaf', x:-560, y:-260 },
+        { id:'b1b', label:'Streaming SSR',   kind:'leaf', x:-580, y:-180,
+          children:[
+            { id:'b1b1', label:'Cache invalidation', kind:'leaf', x:-770, y:-220 },
+            { id:'b1b2', label:'Hydration cost',     kind:'leaf', x:-770, y:-150 },
+          ] },
+        { id:'b1c', label:'Edge caching',    kind:'leaf', x:-560, y:-100 },
+      ] },
+    { id:'b2', label:'Creator tools', kind:'branch', tone:'warm', x:330, y:-180,
+      children:[
+        { id:'b2a', label:'Stem editor',     kind:'leaf', x:560, y:-260 },
+        { id:'b2b', label:'AI mastering',    kind:'leaf', x:580, y:-180,
+          children:[
+            { id:'b2b1', label:'Loudness target', kind:'leaf', x:770, y:-220 },
+            { id:'b2b2', label:'Reference match', kind:'leaf', x:770, y:-150 },
+          ] },
+        { id:'b2c', label:'Collab sessions', kind:'leaf', x:560, y:-100 },
+      ] },
+    { id:'b3', label:'Community', kind:'branch', tone:'violet', x:-330, y:180,
+      children:[
+        { id:'b3a', label:'Listener clubs',  kind:'leaf', x:-560, y:100 },
+        { id:'b3b', label:'Live rooms',      kind:'leaf', x:-580, y:180 },
+        { id:'b3c', label:'Creator AMA',     kind:'leaf', x:-560, y:260 },
+      ] },
+    { id:'b4', label:'Analytics', kind:'branch', tone:'green', x:330, y:180,
+      children:[
+        { id:'b4a', label:'Cohort retention', kind:'leaf', x:560, y:100,
+          children:[
+            { id:'b4a1', label:'Day-7 funnel',  kind:'leaf', x:770, y:60 },
+            { id:'b4a2', label:'Day-30 funnel', kind:'leaf', x:770, y:130 },
+          ] },
+        { id:'b4b', label:'Skip heatmap',    kind:'leaf', x:580, y:180 },
+        { id:'b4c', label:'Revenue mix',     kind:'leaf', x:560, y:260 },
+      ] },
+  ]
+};
+const TONES = {
+  blue:   { grad:'linear-gradient(135deg,#5B9DF0,#A78BFA)', dot:'#5B9DF0', stroke:'cBlue' },
+  warm:   { grad:'linear-gradient(135deg,#FB7185,#F59E0B)', dot:'#FB7185', stroke:'cWarm' },
+  violet: { grad:'linear-gradient(135deg,#A78BFA,#7C3AED)', dot:'#A78BFA', stroke:'cViolet' },
+  green:  { grad:'linear-gradient(135deg,#34D399,#10B981)', dot:'#34D399', stroke:'cGreen' },
+};
+const ICONS = {
+  blue:   '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>',
+  warm:   '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>',
+  violet: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>',
+  green:  '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>',
+};
+
+/* ---- state ---- */
+const collapsed = new Set();
+let zoom = 1, panX = 0, panY = 0;
+let selectedId = 'root';
+const stage = document.getElementById('stage');
+const canvas = document.getElementById('canvas');
+const linksSvg = document.getElementById('links');
+const zVal = document.getElementById('zVal');
+
+function originX(){ return stage.clientWidth/2; }
+function originY(){ return stage.clientHeight/2; }
+
+function countAll(n){ let c=1; for(const k of (n.children||[])) c+=countAll(k); return c; }
+function countVisible(n){
+  let c=1;
+  if(!collapsed.has(n.id)) for(const k of (n.children||[])) c+=countVisible(k);
+  return c;
+}
+
+/* ---- render ---- */
+function render(){
+  // clear nodes
+  [...canvas.querySelectorAll('.node')].forEach(n=>n.remove());
+  linksSvg.innerHTML = `<defs>
+    <linearGradient id="cBlue"   x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stop-color="#5B9DF0"/><stop offset="100%" stop-color="#A78BFA"/></linearGradient>
+    <linearGradient id="cWarm"   x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stop-color="#FB7185"/><stop offset="100%" stop-color="#F59E0B"/></linearGradient>
+    <linearGradient id="cViolet" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stop-color="#A78BFA"/><stop offset="100%" stop-color="#7C3AED"/></linearGradient>
+    <linearGradient id="cGreen"  x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stop-color="#34D399"/><stop offset="100%" stop-color="#10B981"/></linearGradient>
+  </defs>`;
+
+  // walk
+  function placeNode(n, parent, tone){
+    const px = originX() + (n.x||0);
+    const py = originY() + (n.y||0);
+    if(parent){
+      const ppx = originX() + (parent.x||0);
+      const ppy = originY() + (parent.y||0);
+      const mx = (ppx+px)/2;
+      const path = document.createElementNS('http://www.w3.org/2000/svg','path');
+      path.setAttribute('d', `M ${ppx} ${ppy} C ${mx} ${ppy}, ${mx} ${py}, ${px} ${py}`);
+      path.setAttribute('fill','none');
+      path.setAttribute('stroke', `url(#${TONES[tone].stroke})`);
+      path.setAttribute('stroke-width', n.kind==='branch'? 3 : 2);
+      path.setAttribute('stroke-opacity', n.kind==='branch'? 1 : 0.78);
+      path.setAttribute('stroke-linecap','round');
+      linksSvg.appendChild(path);
+    }
+
+    const el = document.createElement('div');
+    el.className = 'node ' + (n.kind||'leaf');
+    el.dataset.id = n.id;
+    el.style.left = px+'px';
+    el.style.top  = py+'px';
+    if(selectedId===n.id) el.classList.add('is-selected');
+    const hasChildren = (n.children||[]).length>0;
+    const isCollapsed = collapsed.has(n.id);
+    if(isCollapsed) el.classList.add('collapsed');
+
+    if(n.kind==='root'){
+      el.innerHTML = `<span>${n.label}</span><span class="badge">${countAll(tree)-1} nodes</span>`;
+    } else if(n.kind==='branch'){
+      el.innerHTML = `
+        <div class="ico" style="background:${TONES[tone].grad}">${ICONS[tone]}</div>
+        <span>${n.label}</span>
+        <span class="pill">${countAll(n)-1}</span>
+        ${hasChildren? `<span class="toggle">${isCollapsed?'+':'−'}</span>`:''}`;
+    } else {
+      el.innerHTML = `
+        <span class="dot" style="background:${TONES[tone].dot}"></span>
+        <span>${n.label}</span>
+        ${hasChildren? `<span class="toggle">${isCollapsed?'+':'−'}</span>`:''}`;
+    }
+
+    el.addEventListener('click', (e)=>{
+      e.stopPropagation();
+      selectedId = n.id;
+      if(hasChildren){
+        if(collapsed.has(n.id)) collapsed.delete(n.id); else collapsed.add(n.id);
+      }
+      render();
+    });
+    canvas.appendChild(el);
+
+    if(!isCollapsed){
+      for(const c of (n.children||[])) placeNode(c, n, tone || c.tone);
+    }
+  }
+  placeNode(tree, null, null);
+
+  // inspector
+  const node = findNode(tree, selectedId);
+  document.getElementById('iTitle').textContent = node.label;
+  document.getElementById('iMeta').textContent =
+    node.kind==='root' ? `Root · ${node.children.length} branches`
+    : node.kind==='branch' ? `Branch · ${(node.children||[]).length} children`
+    : `Leaf${(node.children||[]).length? ' · '+node.children.length+' sub-nodes':''}`;
+  document.getElementById('iVis').textContent = countVisible(tree);
+  document.getElementById('iTot').textContent = countAll(tree);
+
+  applyTransform();
+}
+function findNode(n, id){
+  if(n.id===id) return n;
+  for(const c of (n.children||[])){ const f = findNode(c,id); if(f) return f; }
+  return null;
+}
+
+/* ---- pan / zoom ---- */
+function applyTransform(){
+  canvas.style.transform = `translate(${panX}px, ${panY}px) scale(${zoom})`;
+  zVal.textContent = Math.round(zoom*100)+'%';
+}
+let dragging=false, sx=0, sy=0, sPanX=0, sPanY=0, moved=false;
+stage.addEventListener('mousedown', (e)=>{
+  if(e.target.closest('.node') || e.target.closest('.toolbar') || e.target.closest('.inspector')) return;
+  dragging=true; moved=false; stage.classList.add('is-panning');
+  sx=e.clientX; sy=e.clientY; sPanX=panX; sPanY=panY;
+});
+window.addEventListener('mousemove', (e)=>{
+  if(!dragging) return;
+  panX = sPanX + (e.clientX-sx);
+  panY = sPanY + (e.clientY-sy);
+  if(Math.abs(e.clientX-sx)+Math.abs(e.clientY-sy)>3) moved=true;
+  applyTransform();
+});
+window.addEventListener('mouseup', ()=>{ dragging=false; stage.classList.remove('is-panning'); });
+
+stage.addEventListener('wheel', (e)=>{
+  e.preventDefault();
+  const delta = -e.deltaY * 0.0015;
+  const next = Math.max(0.4, Math.min(2, zoom*(1+delta)));
+  // zoom toward cursor
+  const rect = stage.getBoundingClientRect();
+  const cx = e.clientX - rect.left, cy = e.clientY - rect.top;
+  const k = next/zoom;
+  panX = cx - (cx - panX)*k;
+  panY = cy - (cy - panY)*k;
+  zoom = next;
+  applyTransform();
+}, {passive:false});
+
+document.getElementById('zIn').onclick = ()=>{ zoom=Math.min(2, zoom*1.15); applyTransform(); };
+document.getElementById('zOut').onclick= ()=>{ zoom=Math.max(0.4, zoom/1.15); applyTransform(); };
+document.getElementById('zFit').onclick= ()=>{ zoom=1; panX=0; panY=0; applyTransform(); };
+
+render();
+window.addEventListener('resize', render);
+</script>
+</body></html>

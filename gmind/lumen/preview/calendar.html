@@ -1,0 +1,69 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Calendar</title><link rel="stylesheet" href="_card.css">
+<style>
+  .neu-card{ background:#ECF0F3; border-radius:18px; padding:24px;
+    box-shadow: 10px 10px 26px rgba(120,140,180,0.22), -10px -10px 26px #FFFFFF; }
+  .cal{ width:320px;background:#ECF0F3;border-radius:16px;padding:16px;
+    box-shadow: 6px 6px 14px rgba(120,140,180,0.28), -6px -6px 14px #FFFFFF; }
+  .cal .h{ display:flex;justify-content:space-between;align-items:center;margin-bottom:10px; }
+  .cal .h .nav{ width:30px;height:30px;border-radius:8px;background:#ECF0F3;display:flex;align-items:center;justify-content:center;cursor:pointer;
+    box-shadow: 2px 2px 5px rgba(120,140,180,0.26), -2px -2px 5px #FFFFFF; }
+  .cal .h .title{ font:600 14px 'Inter'; }
+  .cal .dow{ display:grid;grid-template-columns:repeat(7,1fr);gap:4px;font:600 11px 'Inter';color:#76767F;text-align:center;padding:0 2px;margin-bottom:4px; }
+  .cal .grid{ display:grid;grid-template-columns:repeat(7,1fr);gap:4px; }
+  .day{ aspect-ratio:1/1;display:flex;align-items:center;justify-content:center;border-radius:8px;
+    font:500 13px 'Inter';color:#15151B;cursor:pointer; font-feature-settings:'tnum'; }
+  .day.dim{ color:#9CA3AF; }
+  .day:hover{ background:#ECF0F3; box-shadow: 2px 2px 5px rgba(120,140,180,0.26), -2px -2px 5px #FFFFFF; }
+  .day.in-range{ background:rgba(91,157,240,0.10); border-radius:0; }
+  .day.range-start, .day.range-end{ background:linear-gradient(135deg,#5B9DF0,#A78BFA);color:#fff;
+    box-shadow: 2px 2px 6px rgba(120,140,200,0.40), -2px -2px 6px #FFFFFF; }
+  .day.range-start{ border-radius:8px 0 0 8px; }
+  .day.range-end{ border-radius:0 8px 8px 0; }
+  .day.today{ box-shadow: inset 2px 2px 5px rgba(120,140,180,0.28), inset -2px -2px 5px #FFFFFF; }
+</style></head>
+<body>
+<div class="card neu-card">
+  <div class="lds-eyebrow">Calendar · range</div>
+  <div class="row" style="gap:24px;align-items:flex-start;flex-wrap:wrap">
+    <div class="cal">
+      <div class="h"><div class="nav">‹</div><div class="title">May 2026</div><div class="nav">›</div></div>
+      <div class="dow"><div>S</div><div>M</div><div>T</div><div>W</div><div>T</div><div>F</div><div>S</div></div>
+      <div class="grid" id="cal"></div>
+    </div>
+    <div class="col" style="gap:10px;flex:1;min-width:200px">
+      <div style="font:600 14px 'Inter'">May 8 → May 14</div>
+      <div class="mono" style="color:#57575F">7 days · listener cohort</div>
+      <div style="height:1px;background:rgba(120,140,180,0.20);margin:6px 0"></div>
+      <div style="font:500 12px 'Inter';color:#57575F">Quick ranges</div>
+      <div class="row" style="gap:6px;flex-wrap:wrap">
+        <span style="padding:5px 11px;border-radius:8px;font:500 12px 'Inter';background:#ECF0F3;
+          box-shadow: 2px 2px 5px rgba(120,140,180,0.26), -2px -2px 5px #FFFFFF">Today</span>
+        <span style="padding:5px 11px;border-radius:8px;font:500 12px 'Inter';background:#ECF0F3;
+          box-shadow: 2px 2px 5px rgba(120,140,180,0.26), -2px -2px 5px #FFFFFF">7 days</span>
+        <span style="padding:5px 11px;border-radius:8px;font:500 12px 'Inter';color:#fff;
+          background:linear-gradient(135deg,#5B9DF0,#A78BFA);
+          box-shadow: 2px 2px 6px rgba(120,140,200,0.40), -2px -2px 6px #FFFFFF">30 days</span>
+        <span style="padding:5px 11px;border-radius:8px;font:500 12px 'Inter';background:#ECF0F3;
+          box-shadow: 2px 2px 5px rgba(120,140,180,0.26), -2px -2px 5px #FFFFFF">QTD</span>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+  // May 2026 · 1st = Friday
+  const cal=document.getElementById('cal');
+  // prev month tail (Apr 26..30) -> 5 dim cells
+  const tail=[26,27,28,29,30];
+  tail.forEach(n=>{ const d=document.createElement('div'); d.className='day dim'; d.textContent=n; cal.appendChild(d); });
+  for(let n=1;n<=31;n++){
+    const d=document.createElement('div'); d.className='day'; d.textContent=n;
+    if(n===10) d.classList.add('today');
+    if(n===8) d.classList.add('range-start');
+    if(n===14) d.classList.add('range-end');
+    if(n>8 && n<14) d.classList.add('in-range');
+    cal.appendChild(d);
+  }
+  for(let n=1;n<=6;n++){ const d=document.createElement('div'); d.className='day dim'; d.textContent=n; cal.appendChild(d); }
+</script>
+</body></html>

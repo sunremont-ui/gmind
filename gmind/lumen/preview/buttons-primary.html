@@ -1,0 +1,66 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Buttons — Primary</title><link rel="stylesheet" href="_card.css">
+<style>
+  .neu-card{ background:#ECF0F3; border-radius:18px; padding:24px;
+    box-shadow: 10px 10px 26px rgba(120,140,180,0.22), -10px -10px 26px #FFFFFF; }
+
+  /* Soft neumorph + gradient — raised by default, flattens on hover */
+  .nbtn{
+    position:relative; cursor:pointer; border:0;
+    padding:0; border-radius:12px;
+    font:600 14px 'Inter';
+    height:42px;
+    transition: box-shadow .2s ease, transform .15s ease;
+  }
+  .nbtn > span{
+    display:flex; align-items:center; justify-content:center;
+    height:100%; padding:0 22px; border-radius:inherit; color:#fff;
+  }
+  .nbtn:hover{ box-shadow:none !important; }
+  .nbtn:active{
+    box-shadow: inset 4px 4px 9px rgba(120,140,180,0.32), inset -4px -4px 9px #FFFFFF !important;
+  }
+  .nbtn:active > span{ filter:brightness(.96); }
+
+  /* Direction A · vivid gradient with tinted neumorph cushion */
+  .pst-sky{
+    background:linear-gradient(135deg,#7CB1F4 0%, #80D2AE 55%, #B9A1FB 100%);
+    box-shadow: 6px 6px 14px rgba(140,160,200,0.34), -6px -6px 14px #FFFFFF;
+  }
+  .pst-mint{
+    background:linear-gradient(135deg,#42B6EE 0%, #43C2B3 55%, #4FCD78 100%);
+    box-shadow: 6px 6px 14px rgba(120,180,200,0.36), -6px -6px 14px #FFFFFF;
+  }
+  .pst-blush{
+    background:linear-gradient(135deg,#F687C3 0%, #FC8794 50%, #F7AE34 100%);
+    box-shadow: 6px 6px 14px rgba(230,150,160,0.36), -6px -6px 14px #FFFFFF;
+  }
+
+  /* Direction B · pastel surface, tinted text, soft cushion */
+  .nbtn.tonal > span{ color:inherit; }
+  .ton-sky  { background:#E7F0FA; box-shadow: 6px 6px 14px rgba(160,180,210,0.32), -6px -6px 14px #FFFFFF; color:#2F6FB8; }
+  .ton-mint { background:#DEF1F0; box-shadow: 6px 6px 14px rgba(140,190,200,0.32), -6px -6px 14px #FFFFFF; color:#0F766E; }
+  .ton-blush{ background:#FBE4EE; box-shadow: 6px 6px 14px rgba(230,170,200,0.32), -6px -6px 14px #FFFFFF; color:#9D3267; }
+</style>
+</head>
+<body>
+<div class="card neu-card">
+  <div class="lds-eyebrow">Buttons · primary · two directions</div>
+
+  <div class="label" style="margin:0 0 -2px 0;color:#76767F">Direction A · vivid gradient on neumorph cushion</div>
+  <div class="row" style="gap:14px">
+    <button class="nbtn pst-sky"><span>Save changes</span></button>
+    <button class="nbtn pst-mint"><span>Publish</span></button>
+    <button class="nbtn pst-blush"><span>Get started</span></button>
+  </div>
+
+  <div class="label" style="margin:8px 0 -2px 0;color:#76767F">Direction B · soft pastel tonal</div>
+  <div class="row" style="gap:14px">
+    <button class="nbtn tonal ton-sky"><span>Save changes</span></button>
+    <button class="nbtn tonal ton-mint"><span>Publish</span></button>
+    <button class="nbtn tonal ton-blush"><span>Get started</span></button>
+  </div>
+
+  <div class="label">Soft neumorph by default — twin shadows tinted to match each button's hue lift it off the surface. Hover flattens the cushion; press recesses inward.</div>
+</div>
+</body></html>

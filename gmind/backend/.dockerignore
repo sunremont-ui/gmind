@@ -1,0 +1,6 @@
+*.exe
+*.test
+gmind.db
+.env
+.git
+ci

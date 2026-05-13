@@ -1,0 +1,29 @@
+# Build artifacts
+frontend/node_modules/
+frontend/dist/
+frontend/src-tauri/target/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+Thumbs.db
+.DS_Store
+Desktop.ini
+~$*
+
+# Debug/scratch
+nul
+*.tmp
+
+# Secrets
+.env
+.env.local
+*.pem
+*.key
+backend/gmind.db
+backend/gmind.db-shm
+backend/gmind.db-wal

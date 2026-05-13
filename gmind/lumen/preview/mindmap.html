@@ -1,0 +1,157 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Mind map</title><link rel="stylesheet" href="_card.css">
+<style>
+  .neu-card{ background:#ECF0F3; border-radius:18px; padding:24px;
+    box-shadow: 10px 10px 26px rgba(120,140,180,0.22), -10px -10px 26px #FFFFFF; }
+  .map{ position:relative; height:560px; background:#ECF0F3; border-radius:16px; overflow:hidden;
+    box-shadow: inset 5px 5px 12px rgba(120,140,180,0.26), inset -5px -5px 12px #FFFFFF;
+    background-image:
+      radial-gradient(circle at 1px 1px, rgba(120,140,180,0.16) 1px, transparent 0);
+    background-size: 22px 22px;
+  }
+  .map svg{ position:absolute; inset:0; width:100%; height:100%; pointer-events:none; }
+  .node{ position:absolute; transform:translate(-50%,-50%);
+    background:#ECF0F3; border-radius:14px; padding:10px 14px;
+    box-shadow: 5px 5px 12px rgba(120,140,180,0.30), -5px -5px 12px #FFFFFF;
+    display:flex; align-items:center; gap:10px; font:600 13px 'Inter'; color:#15151B;
+    white-space:nowrap;
+  }
+  .node .ico{ width:26px; height:26px; border-radius:8px; display:flex; align-items:center; justify-content:center; color:#fff;
+    box-shadow: inset 1px 1px 3px rgba(255,255,255,0.5); }
+  .node.root{ padding:18px 26px; font:700 18px 'Inter'; letter-spacing:-0.01em; color:#fff;
+    background:linear-gradient(135deg,#5B9DF0 0%,#6F6BE8 55%,#A78BFA 100%);
+    box-shadow: 8px 8px 20px rgba(70,90,140,0.40), -6px -6px 16px #FFFFFF,
+      inset 1px 1px 2px rgba(255,255,255,0.4);
+  }
+  .node.root .badge{ font:600 11px 'JetBrains Mono'; padding:2px 8px; border-radius:999px;
+    background: rgba(255,255,255,0.18); color:#fff;
+    box-shadow: inset 1px 1px 2px rgba(255,255,255,0.25); }
+  .node.b1 .ico{ background:linear-gradient(135deg,#5B9DF0,#A78BFA); }
+  .node.b2 .ico{ background:linear-gradient(135deg,#FB7185,#F59E0B); }
+  .node.b3 .ico{ background:linear-gradient(135deg,#34D399,#10B981); }
+  .node.b4 .ico{ background:linear-gradient(135deg,#A78BFA,#7C3AED); }
+  .node.leaf{ font:500 12px 'Inter'; padding:7px 11px; border-radius:11px;
+    box-shadow: 3px 3px 7px rgba(120,140,180,0.26), -3px -3px 7px #FFFFFF; }
+  .node.leaf .dot{ width:7px; height:7px; border-radius:999px; }
+  .node .pill{ font:600 10px 'JetBrains Mono'; padding:2px 7px; border-radius:999px; color:#57575F;
+    background:#ECF0F3;
+    box-shadow: inset 1px 1px 2px rgba(120,140,180,0.30), inset -1px -1px 2px #FFFFFF; }
+  .node.collapsed::after{
+    content:"+ 4"; position:absolute; right:-26px; top:50%; transform:translateY(-50%);
+    font:600 10px 'JetBrains Mono'; color:#57575F; padding:2px 7px; border-radius:999px; background:#ECF0F3;
+    box-shadow: inset 1px 1px 2px rgba(120,140,180,0.30), inset -1px -1px 2px #FFFFFF;
+  }
+  .toolbar{ position:absolute; right:14px; top:14px; display:flex; gap:6px; padding:5px; border-radius:11px; background:#ECF0F3;
+    box-shadow: inset 2px 2px 6px rgba(120,140,180,0.26), inset -2px -2px 6px #FFFFFF; z-index:5; }
+  .toolbar > div{ width:30px; height:30px; border-radius:8px; background:#ECF0F3; display:flex; align-items:center; justify-content:center;
+    box-shadow: 2px 2px 5px rgba(120,140,180,0.26), -2px -2px 5px #FFFFFF; color:#2A3340; cursor:pointer; }
+  .legend{ position:absolute; left:14px; bottom:14px; display:flex; gap:8px; flex-wrap:wrap; z-index:5; }
+  .chip{ display:inline-flex; align-items:center; gap:6px; padding:5px 10px; border-radius:999px; background:#ECF0F3;
+    box-shadow: 3px 3px 7px rgba(120,140,180,0.22), -3px -3px 7px #FFFFFF; font:500 11px 'Inter'; color:#2A3340; }
+  .chip .sw{ width:10px; height:10px; border-radius:999px; }
+</style></head>
+<body>
+<div class="card neu-card">
+  <div class="lds-eyebrow">Mind map · roadmap H2</div>
+  <div class="map">
+
+    <!-- connectors first so nodes draw on top -->
+    <svg viewBox="0 0 1000 560" preserveAspectRatio="none">
+      <defs>
+        <linearGradient id="cBlue" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stop-color="#5B9DF0"/><stop offset="100%" stop-color="#A78BFA"/></linearGradient>
+        <linearGradient id="cWarm" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stop-color="#FB7185"/><stop offset="100%" stop-color="#F59E0B"/></linearGradient>
+        <linearGradient id="cGreen" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stop-color="#34D399"/><stop offset="100%" stop-color="#10B981"/></linearGradient>
+        <linearGradient id="cViolet" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stop-color="#A78BFA"/><stop offset="100%" stop-color="#7C3AED"/></linearGradient>
+      </defs>
+
+      <!-- root → branches -->
+      <path d="M 500 280 C 380 270, 320 150, 220 130" fill="none" stroke="url(#cBlue)"   stroke-width="3" stroke-linecap="round"/>
+      <path d="M 500 280 C 620 270, 700 160, 800 130" fill="none" stroke="url(#cWarm)"   stroke-width="3" stroke-linecap="round"/>
+      <path d="M 500 280 C 380 290, 320 420, 220 450" fill="none" stroke="url(#cViolet)" stroke-width="3" stroke-linecap="round"/>
+      <path d="M 500 280 C 620 290, 700 420, 800 450" fill="none" stroke="url(#cGreen)"  stroke-width="3" stroke-linecap="round"/>
+
+      <!-- left-top → leaves -->
+      <path d="M 220 130 C 160 120, 130 70,  60  60"  fill="none" stroke="url(#cBlue)" stroke-width="2" stroke-opacity=".75" stroke-linecap="round"/>
+      <path d="M 220 130 C 160 140, 130 175, 60 190"  fill="none" stroke="url(#cBlue)" stroke-width="2" stroke-opacity=".75" stroke-linecap="round"/>
+      <path d="M 220 130 C 180 145, 150 220, 90 250"  fill="none" stroke="url(#cBlue)" stroke-width="2" stroke-opacity=".75" stroke-linecap="round"/>
+
+      <!-- right-top → leaves -->
+      <path d="M 800 130 C 870 115, 900 70,  960 60"  fill="none" stroke="url(#cWarm)" stroke-width="2" stroke-opacity=".75" stroke-linecap="round"/>
+      <path d="M 800 130 C 870 140, 900 180, 960 200" fill="none" stroke="url(#cWarm)" stroke-width="2" stroke-opacity=".75" stroke-linecap="round"/>
+
+      <!-- left-bottom → leaves -->
+      <path d="M 220 450 C 150 440, 130 410, 60 400"  fill="none" stroke="url(#cViolet)" stroke-width="2" stroke-opacity=".75" stroke-linecap="round"/>
+      <path d="M 220 450 C 160 460, 130 500, 60 520"  fill="none" stroke="url(#cViolet)" stroke-width="2" stroke-opacity=".75" stroke-linecap="round"/>
+
+      <!-- right-bottom → leaves -->
+      <path d="M 800 450 C 870 440, 900 400, 960 390" fill="none" stroke="url(#cGreen)" stroke-width="2" stroke-opacity=".75" stroke-linecap="round"/>
+      <path d="M 800 450 C 870 460, 900 510, 960 525" fill="none" stroke="url(#cGreen)" stroke-width="2" stroke-opacity=".75" stroke-linecap="round"/>
+    </svg>
+
+    <!-- root -->
+    <div class="node root" style="left:50%; top:50%">
+      <span>Lumen H2 Roadmap</span>
+      <span class="badge">42 nodes</span>
+    </div>
+
+    <!-- branch 1 -->
+    <div class="node b1" style="left:22%; top:23%">
+      <div class="ico">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+      </div>
+      Performance
+      <span class="pill">9</span>
+    </div>
+    <div class="node leaf" style="left:6%;  top:11%"><span class="dot" style="background:#5B9DF0"></span>Worker pool v2</div>
+    <div class="node leaf" style="left:6%;  top:34%"><span class="dot" style="background:#5B9DF0"></span>Streaming SSR</div>
+    <div class="node leaf collapsed" style="left:9%;  top:45%"><span class="dot" style="background:#5B9DF0"></span>Edge caching</div>
+
+    <!-- branch 2 -->
+    <div class="node b2" style="left:80%; top:23%">
+      <div class="ico">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+      </div>
+      Creator tools
+      <span class="pill">12</span>
+    </div>
+    <div class="node leaf" style="left:96%; top:11%"><span class="dot" style="background:#FB7185"></span>Stem editor</div>
+    <div class="node leaf" style="left:96%; top:36%"><span class="dot" style="background:#FB7185"></span>AI mastering</div>
+
+    <!-- branch 3 -->
+    <div class="node b4" style="left:22%; top:80%">
+      <div class="ico">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+      </div>
+      Community
+      <span class="pill">7</span>
+    </div>
+    <div class="node leaf" style="left:6%;  top:71%"><span class="dot" style="background:#A78BFA"></span>Listener clubs</div>
+    <div class="node leaf" style="left:6%;  top:93%"><span class="dot" style="background:#A78BFA"></span>Live rooms</div>
+
+    <!-- branch 4 -->
+    <div class="node b3" style="left:80%; top:80%">
+      <div class="ico">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+      </div>
+      Analytics
+      <span class="pill">14</span>
+    </div>
+    <div class="node leaf" style="left:96%; top:70%"><span class="dot" style="background:#34D399"></span>Cohort retention</div>
+    <div class="node leaf" style="left:96%; top:94%"><span class="dot" style="background:#34D399"></span>Skip heatmap</div>
+
+    <div class="toolbar">
+      <div title="Zoom out">−</div>
+      <div title="Reset" class="mono" style="font:600 11px 'JetBrains Mono'">100%</div>
+      <div title="Zoom in">+</div>
+      <div title="Fit">⤢</div>
+    </div>
+
+    <div class="legend">
+      <span class="chip"><span class="sw" style="background:linear-gradient(135deg,#5B9DF0,#A78BFA)"></span>Performance</span>
+      <span class="chip"><span class="sw" style="background:linear-gradient(135deg,#FB7185,#F59E0B)"></span>Creator tools</span>
+      <span class="chip"><span class="sw" style="background:linear-gradient(135deg,#A78BFA,#7C3AED)"></span>Community</span>
+      <span class="chip"><span class="sw" style="background:linear-gradient(135deg,#34D399,#10B981)"></span>Analytics</span>
+    </div>
+  </div>
+  <div class="label">Radial mind map: gradient root in the center, four colour-coded branches flow out via cubic-bezier connectors. Branch nodes show child counts; leaves with a "+ N" pill mark collapsed sub-trees. Plot lives on a recessed dotted-grid canvas with a floating zoom toolbar.</div>
+</div></body></html>

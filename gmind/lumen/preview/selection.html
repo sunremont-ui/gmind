@@ -1,0 +1,50 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Selection controls</title><link rel="stylesheet" href="_card.css">
+<style>
+  .neu-card{ background:#ECF0F3; border-radius:18px; padding:24px;
+    box-shadow: 10px 10px 26px rgba(120,140,180,0.22), -10px -10px 26px #FFFFFF; }
+  .nbox-on{ width:22px;height:22px;border-radius:7px;background:#ECF0F3;display:flex;align-items:center;justify-content:center;
+    box-shadow: inset 3px 3px 6px rgba(120,140,180,0.32), inset -3px -3px 6px #FFFFFF; color:#5B9DF0; }
+  .nbox-off{ width:22px;height:22px;border-radius:7px;background:#ECF0F3;
+    box-shadow: 3px 3px 7px rgba(120,140,180,0.22), -3px -3px 7px #FFFFFF; }
+  .nrad-on{ width:22px;height:22px;border-radius:999px;background:#ECF0F3;display:flex;align-items:center;justify-content:center;
+    box-shadow: inset 3px 3px 6px rgba(120,140,180,0.32), inset -3px -3px 6px #FFFFFF; }
+  .nrad-on::after{ content:""; width:10px;height:10px;border-radius:999px;background:linear-gradient(135deg,#5B9DF0,#A78BFA);
+    box-shadow: 1px 1px 3px rgba(120,140,200,0.45); }
+  .nrad-off{ width:22px;height:22px;border-radius:999px;background:#ECF0F3;
+    box-shadow: 3px 3px 7px rgba(120,140,180,0.22), -3px -3px 7px #FFFFFF; }
+  .nswt{ width:46px;height:26px;border-radius:999px;background:#ECF0F3;padding:3px;display:flex;align-items:center;
+    box-shadow: inset 3px 3px 6px rgba(120,140,180,0.30), inset -3px -3px 6px #FFFFFF; }
+  .nswt > div{ width:20px;height:20px;border-radius:999px;background:#ECF0F3;
+    box-shadow: 2px 2px 5px rgba(120,140,180,0.35), -2px -2px 5px #FFFFFF; transition:transform .2s ease, background .2s ease; }
+  .nswt.on > div{ transform:translateX(20px); background:linear-gradient(135deg,#5B9DF0,#A78BFA); }
+  .ntrack{ height:8px;border-radius:999px;background:#ECF0F3;position:relative;
+    box-shadow: inset 2px 2px 5px rgba(120,140,180,0.30), inset -2px -2px 5px #FFFFFF; }
+  .nfill{ position:absolute;left:0;top:0;height:8px;width:60%;border-radius:999px;background:linear-gradient(90deg,#5B9DF0,#A78BFA); }
+  .nthumb{ position:absolute;left:60%;top:50%;width:18px;height:18px;border-radius:999px;background:#ECF0F3;transform:translate(-50%,-50%);
+    box-shadow: 3px 3px 7px rgba(120,140,180,0.35), -3px -3px 7px #FFFFFF; }
+</style>
+</head>
+<body>
+<div class="card neu-card">
+  <div class="lds-eyebrow">Selection</div>
+  <div class="row" style="gap:28px;align-items:center;flex-wrap:wrap">
+    <div class="col" style="gap:12px">
+      <div class="row" style="gap:10px;align-items:center"><div class="nbox-on"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></div><span style="font:500 14px 'Inter'">Notify me</span></div>
+      <div class="row" style="gap:10px;align-items:center"><div class="nbox-off"></div><span style="font:500 14px 'Inter';color:#57575F">Subscribe</span></div>
+    </div>
+    <div class="col" style="gap:12px">
+      <div class="row" style="gap:10px;align-items:center"><div class="nrad-on"></div><span style="font:500 14px 'Inter'">Daily digest</span></div>
+      <div class="row" style="gap:10px;align-items:center"><div class="nrad-off"></div><span style="font:500 14px 'Inter';color:#57575F">Real-time</span></div>
+    </div>
+    <div class="col" style="gap:14px">
+      <div class="row" style="gap:10px;align-items:center"><div class="nswt on"><div></div></div><span style="font:500 14px 'Inter'">On</span></div>
+      <div class="row" style="gap:10px;align-items:center"><div class="nswt"><div></div></div><span style="font:500 14px 'Inter';color:#57575F">Off</span></div>
+    </div>
+    <div class="col" style="gap:8px;flex:1;min-width:160px">
+      <div class="ntrack"><div class="nfill"></div><div class="nthumb"></div></div>
+      <span style="font:500 12px 'Inter';color:#57575F">Volume · 60</span>
+    </div>
+  </div>
+</div>
+</body></html>

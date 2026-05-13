@@ -1,0 +1,44 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Chart · area</title><link rel="stylesheet" href="_card.css"></head>
+<body>
+<div class="card">
+  <div style="display:flex;justify-content:space-between;align-items:flex-end">
+    <div>
+      <div class="lds-eyebrow">Streaming hours · last 7 days</div>
+      <div style="font:600 26px/1.1 'Inter';letter-spacing:-0.02em;font-feature-settings:'tnum';margin-top:6px">412 805 h</div>
+    </div>
+    <div style="display:inline-flex;background:#EEEEF1;padding:3px;border-radius:8px">
+      <div style="padding:4px 10px;background:#fff;border-radius:6px;font:600 12px 'Inter'">7d</div>
+      <div style="padding:4px 10px;font:500 12px 'Inter';color:#57575F">30d</div>
+      <div style="padding:4px 10px;font:500 12px 'Inter';color:#57575F">All</div>
+    </div>
+  </div>
+  <svg viewBox="0 0 700 220" style="width:100%;height:220px">
+    <defs>
+      <linearGradient id="areaA" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="#5B6CFF" stop-opacity="0.45"/>
+        <stop offset="100%" stop-color="#5B6CFF" stop-opacity="0"/>
+      </linearGradient>
+      <linearGradient id="areaB" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="#EC4899" stop-opacity="0.30"/>
+        <stop offset="100%" stop-color="#EC4899" stop-opacity="0"/>
+      </linearGradient>
+    </defs>
+    <!-- gridlines -->
+    <line x1="0" y1="50" x2="700" y2="50" stroke="rgba(0,0,0,0.06)"/>
+    <line x1="0" y1="110" x2="700" y2="110" stroke="rgba(0,0,0,0.06)"/>
+    <line x1="0" y1="170" x2="700" y2="170" stroke="rgba(0,0,0,0.06)"/>
+    <!-- area B (background) -->
+    <path d="M0 150 L100 130 L200 145 L300 110 L400 125 L500 90 L600 100 L700 80 L700 220 L0 220 Z" fill="url(#areaB)"/>
+    <path d="M0 150 L100 130 L200 145 L300 110 L400 125 L500 90 L600 100 L700 80" stroke="#EC4899" stroke-width="2" fill="none"/>
+    <!-- area A (foreground) -->
+    <path d="M0 170 L100 130 L200 140 L300 80 L400 95 L500 60 L600 75 L700 40 L700 220 L0 220 Z" fill="url(#areaA)"/>
+    <path d="M0 170 L100 130 L200 140 L300 80 L400 95 L500 60 L600 75 L700 40" stroke="#5B6CFF" stroke-width="2.5" fill="none"/>
+    <!-- focus marker -->
+    <circle cx="500" cy="60" r="6" fill="#fff" stroke="#5B6CFF" stroke-width="2.5"/>
+  </svg>
+  <div class="row" style="justify-content:space-between;font:500 11px 'Inter';color:#9C9CA6">
+    <span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span><span>Now</span>
+  </div>
+</div>
+</body></html>

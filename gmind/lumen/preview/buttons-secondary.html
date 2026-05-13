@@ -1,0 +1,65 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Buttons — Secondary &amp; Icon</title><link rel="stylesheet" href="_card.css">
+<style>
+  .neu-card{ background:#ECF0F3; border-radius:18px; padding:24px;
+    box-shadow: 10px 10px 26px rgba(120,140,180,0.22), -10px -10px 26px #FFFFFF; }
+  /* Soft neumorph button — raised by default, flattens on hover, recessed on press */
+  .nbtn{
+    position:relative; cursor:pointer; border:0;
+    border-radius:12px;
+    font:600 14px 'Inter';
+    padding:0 18px; height:40px;
+    color:#15151B;
+    background:#ECF0F3;
+    box-shadow: 5px 5px 12px rgba(120,140,180,0.28), -5px -5px 12px #FFFFFF;
+    transition: box-shadow .2s ease, background .2s ease, transform .15s ease;
+  }
+  .nbtn:hover{
+    background:#E5EAF1;
+    box-shadow:none;
+  }
+  .nbtn:active{
+    box-shadow: inset 4px 4px 9px rgba(120,140,180,0.32), inset -4px -4px 9px #FFFFFF;
+  }
+
+  /* Tonal — soft blue tint */
+  .nbtn-tonal{ color:#3B45B0; background:#EAEEF8; }
+  .nbtn-tonal:hover{ background:#E1E6F4; }
+
+  /* Text only — flat, no shadow */
+  .nbtn-text{ background:transparent; box-shadow:none; padding:0 14px; color:#5B6CFF; }
+  .nbtn-text:hover{ background:rgba(91,108,255,.08); box-shadow:none; }
+  .nbtn-text:active{ box-shadow:none; }
+
+  /* Danger — soft red tint */
+  .nbtn-danger{ color:#B91C1C; background:#F8E8E8; }
+  .nbtn-danger:hover{ background:#F2DDDD; }
+
+  .nbtn-sm{ height:36px; padding:0 12px; font:500 13px 'Inter'; display:inline-flex; align-items:center; gap:6px; }
+  .nbtn-icon{ width:36px; height:36px; padding:0; display:inline-flex; align-items:center; justify-content:center; color:#57575F; }
+</style>
+</head>
+<body>
+<div class="card neu-card">
+  <div class="lds-eyebrow">Buttons · secondary &amp; icon</div>
+
+  <div class="row" style="gap:14px">
+    <button class="nbtn">Cancel</button>
+    <button class="nbtn nbtn-tonal">Tonal</button>
+    <button class="nbtn nbtn-text">Text only</button>
+    <button class="nbtn nbtn-danger">Delete</button>
+  </div>
+
+  <div class="row" style="gap:14px">
+    <button class="nbtn nbtn-sm">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"></path></svg>
+      Add filter
+    </button>
+    <button class="nbtn nbtn-icon">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"></circle><circle cx="12" cy="5" r="1"></circle><circle cx="12" cy="19" r="1"></circle></svg>
+    </button>
+  </div>
+
+  <div class="label">Soft neumorph by default — twin shadows lift each button off the surface. Hover flattens the shadow, active state recesses it inward.</div>
+</div>
+</body></html>

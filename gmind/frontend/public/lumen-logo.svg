@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <defs>
+    <linearGradient id="lumenGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#5B9DF0"></stop>
+      <stop offset="55%" stop-color="#5DC79A"></stop>
+      <stop offset="100%" stop-color="#A78BFA"></stop>
+    </linearGradient>
+  </defs>
+  <rect x="2" y="2" width="60" height="60" rx="16" fill="#FFFFFF" stroke="#E6E8EE" stroke-width="1"></rect>
+  <path d="M20 18 L20 46 L44 46" stroke="url(#lumenGrad)" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" fill="none"></path>
+  <circle cx="44" cy="20" r="4" fill="url(#lumenGrad)"></circle>
+</svg>

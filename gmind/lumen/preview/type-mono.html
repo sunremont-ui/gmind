@@ -1,0 +1,28 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Type — Mono</title><link rel="stylesheet" href="_card.css">
+<style>
+  .neu-card{ background:#ECF0F3; border-radius:18px; padding:24px;
+    box-shadow: 10px 10px 26px rgba(120,140,180,0.22), -10px -10px 26px #FFFFFF; }
+  .code-block{ margin:0; font:500 14px/1.6 'JetBrains Mono',monospace;
+    background:#ECF0F3; color:#3A3A45; padding:20px; border-radius:14px;
+    box-shadow: inset 6px 6px 14px rgba(120,140,180,0.28), inset -6px -6px 14px #FFFFFF; }
+  .num-pill{ font-family:'JetBrains Mono',monospace; font-feature-settings:'tnum';
+    font-size:14px; color:#15151B; background:#ECF0F3; padding:10px 16px; border-radius:12px;
+    box-shadow: 4px 4px 10px rgba(120,140,180,0.22), -4px -4px 10px #FFFFFF; }
+</style>
+</head>
+<body>
+<div class="card neu-card">
+  <div class="lds-eyebrow">JetBrains Mono · code &amp; data</div>
+  <pre class="code-block"><span style="color:#5B9DF0">const</span> <span style="color:#0EA5E9">stream</span> = <span style="color:#5B9DF0">await</span> Lumen.<span style="color:#C04A8C">connect</span>({
+  source: <span style="color:#2F7A4D">'studio'</span>,
+  bitrate: <span style="color:#A85A1F">320</span>,
+});</pre>
+  <div class="row" style="gap:14px">
+    <div class="num-pill">12,847.50 ms</div>
+    <div class="num-pill">99.984%</div>
+    <div class="num-pill">02:14:08</div>
+  </div>
+  <div class="label">Tabular nums on by default — numbers line up across rows in tables and player timestamps. Code block uses recessed inset; numerics sit on raised pills.</div>
+</div>
+</body></html>

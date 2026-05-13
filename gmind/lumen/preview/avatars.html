@@ -1,0 +1,48 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Avatars</title><link rel="stylesheet" href="_card.css">
+<style>
+  .neu-card{ background:#ECF0F3; border-radius:18px; padding:24px;
+    box-shadow: 10px 10px 26px rgba(120,140,180,0.22), -10px -10px 26px #FFFFFF; }
+  .av{ display:flex;align-items:center;justify-content:center;color:#fff;border-radius:999px;
+    box-shadow: 4px 4px 10px rgba(120,140,180,0.30), -4px -4px 10px #FFFFFF; }
+  .av.s24{ width:24px;height:24px;font:600 10px 'Inter'; box-shadow: 2px 2px 5px rgba(120,140,180,0.28), -2px -2px 5px #FFFFFF; }
+  .av.s32{ width:32px;height:32px;font:600 12px 'Inter'; box-shadow: 3px 3px 7px rgba(120,140,180,0.28), -3px -3px 7px #FFFFFF; }
+  .av.s40{ width:40px;height:40px;font:600 14px 'Inter'; }
+  .av.s48{ width:48px;height:48px;font:600 16px 'Inter'; }
+  .av.s64{ width:64px;height:64px;font:700 22px 'Inter';
+    box-shadow: 6px 6px 14px rgba(120,140,180,0.32), -6px -6px 14px #FFFFFF; }
+  .ring{ position:relative; }
+  .ring::after{ content:""; position:absolute;bottom:0;right:0;width:14px;height:14px;border-radius:999px;
+    background:linear-gradient(135deg,#34D399,#10B981);
+    box-shadow: 2px 2px 5px rgba(80,160,120,0.45), inset 0 0 0 2px #ECF0F3; }
+  .stack{ display:flex;align-items:center; }
+  .stack > .av{ width:36px;height:36px;font:600 13px 'Inter';
+    box-shadow: 3px 3px 7px rgba(120,140,180,0.28), -3px -3px 7px #FFFFFF, inset 0 0 0 2px #ECF0F3; }
+  .stack > .av + .av{ margin-left:-10px; }
+  .more{ background:#ECF0F3 !important;color:#57575F !important;
+    box-shadow: inset 3px 3px 6px rgba(120,140,180,0.30), inset -3px -3px 6px #FFFFFF, inset 0 0 0 2px #ECF0F3 !important; }
+</style>
+</head>
+<body>
+<div class="card neu-card">
+  <div class="lds-eyebrow">Avatars</div>
+  <div class="row" style="gap:16px;align-items:center">
+    <div class="av s24" style="background:linear-gradient(135deg,#5B9DF0,#A78BFA)">AR</div>
+    <div class="av s32" style="background:linear-gradient(135deg,#0EA5E9,#14B8A6)">JM</div>
+    <div class="av s40" style="background:linear-gradient(135deg,#F59E0B,#EC4899)">SK</div>
+    <div class="ring">
+      <div class="av s48" style="background:linear-gradient(135deg,#10B981,#06B6D4)">TM</div>
+    </div>
+    <div class="av s64" style="background:linear-gradient(135deg,#5B9DF0,#5DC79A,#A78BFA)">L</div>
+  </div>
+  <div class="row" style="gap:0;align-items:center">
+    <div class="stack">
+      <div class="av" style="background:linear-gradient(135deg,#5B9DF0,#A78BFA)">AR</div>
+      <div class="av" style="background:linear-gradient(135deg,#0EA5E9,#14B8A6)">JM</div>
+      <div class="av" style="background:linear-gradient(135deg,#F59E0B,#EC4899)">SK</div>
+      <div class="av more">+4</div>
+    </div>
+    <div style="margin-left:14px;font:500 13px 'Inter';color:#57575F">7 collaborators</div>
+  </div>
+</div>
+</body></html>

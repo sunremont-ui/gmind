@@ -1,0 +1,15 @@
+node_modules/
+dist/
+target/
+*.exe
+*.test
+.env
+gmind.db
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+llama-config.json
+.DS_Store
+Thumbs.db
+*.log

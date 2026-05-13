@@ -1,0 +1,34 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Logo</title><link rel="stylesheet" href="_card.css">
+<style>
+  .plinth {
+    background: #ECF0F3;
+    border-radius: 20px;
+    box-shadow:
+      6px 6px 14px rgba(120,140,180,0.32),
+      -6px -6px 14px rgba(255,255,255,0.95);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .plinth.lg { width: 96px; height: 96px; border-radius: 22px; }
+  .plinth.sm { width: 68px; height: 68px; border-radius: 16px; }
+  .plinth.word {
+    padding: 18px 26px;
+    border-radius: 18px;
+  }
+  .plinth.word.sm { padding: 14px 20px; border-radius: 14px; }
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="lds-eyebrow">Brand mark</div>
+  <div class="row" style="gap:24px;align-items:center;flex-wrap:wrap">
+    <div class="plinth lg"><img src="../assets/lumen-logo.svg" width="60" height="60" alt="Lumen mark"/></div>
+    <div class="plinth word"><img src="../assets/lumen-wordmark.svg" height="44" alt="Lumen wordmark"/></div>
+    <div class="plinth sm"><img src="../assets/lumen-logo.svg" width="40" height="40" alt="Lumen mark sm"/></div>
+    <div class="plinth word sm"><img src="../assets/lumen-wordmark.svg" height="30" alt="Lumen wordmark sm"/></div>
+  </div>
+  <div class="label">Each mark sits on a raised neumorph plinth — soft `#ECF0F3` surface with paired blue-shadow + white-light edges. Logo gradient (blue → sage → violet) reads cleanly off the cushion.</div>
+</div>
+</body></html>

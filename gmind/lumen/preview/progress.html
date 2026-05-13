@@ -1,0 +1,64 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Progress</title><link rel="stylesheet" href="_card.css">
+<style>
+  .neu-card{ background:#ECF0F3; border-radius:18px; padding:24px;
+    box-shadow: 10px 10px 26px rgba(120,140,180,0.22), -10px -10px 26px #FFFFFF; }
+  .nbar{ height:10px;border-radius:999px;background:#ECF0F3;position:relative;
+    box-shadow: inset 3px 3px 7px rgba(120,140,180,0.30), inset -3px -3px 7px #FFFFFF; }
+  .nfill{ position:absolute;left:0;top:0;height:10px;border-radius:999px;
+    background:linear-gradient(90deg,#5B9DF0,#A78BFA); }
+  .nfill.suc{ background:linear-gradient(90deg,#34D399,#10B981); }
+  .nfill.warn{ background:linear-gradient(90deg,#FCD34D,#F59E0B); }
+  .indet{ position:absolute;height:10px;width:30%;border-radius:999px;
+    background:linear-gradient(90deg,#5B9DF0,#A78BFA);
+    animation: slide 1.6s ease-in-out infinite; }
+  @keyframes slide{
+    0%{ left:-30%; } 100%{ left:100%; }
+  }
+  .ring-wrap{ width:88px;height:88px;border-radius:999px;background:#ECF0F3;
+    display:flex;align-items:center;justify-content:center;
+    box-shadow: 6px 6px 14px rgba(120,140,180,0.30), -6px -6px 14px #FFFFFF; position:relative; }
+  .ring-wrap .num{ position:absolute;font:600 16px 'Inter';color:#15151B; font-feature-settings:'tnum'; }
+  .skel{ height:14px;border-radius:7px;background:#ECF0F3;
+    box-shadow: inset 2px 2px 5px rgba(120,140,180,0.28), inset -2px -2px 5px #FFFFFF;
+    position:relative; overflow:hidden; }
+  .skel::after{ content:"";position:absolute;inset:0;
+    background:linear-gradient(90deg,transparent,rgba(255,255,255,0.55),transparent);
+    transform:translateX(-100%); animation: shimmer 1.6s infinite; }
+  @keyframes shimmer{ to{ transform:translateX(100%); } }
+</style></head>
+<body>
+<div class="card neu-card">
+  <div class="lds-eyebrow">Progress &amp; loaders</div>
+
+  <div class="col" style="gap:8px;flex:1">
+    <div class="row" style="justify-content:space-between"><span style="font:500 12px 'Inter';color:#57575F">Uploading session</span><span class="mono" style="font-feature-settings:'tnum'">62%</span></div>
+    <div class="nbar"><div class="nfill" style="width:62%"></div></div>
+  </div>
+  <div class="col" style="gap:8px;flex:1">
+    <div class="row" style="justify-content:space-between"><span style="font:500 12px 'Inter';color:#57575F">Sync</span><span class="mono" style="font-feature-settings:'tnum'">100%</span></div>
+    <div class="nbar"><div class="nfill suc" style="width:100%"></div></div>
+  </div>
+  <div class="col" style="gap:8px;flex:1">
+    <div class="row" style="justify-content:space-between"><span style="font:500 12px 'Inter';color:#57575F">Indeterminate</span><span class="mono" style="font-feature-settings:'tnum'">…</span></div>
+    <div class="nbar"><div class="indet"></div></div>
+  </div>
+
+  <div class="row" style="gap:18px;align-items:center;margin-top:8px">
+    <div class="ring-wrap">
+      <svg width="88" height="88" viewBox="0 0 88 88">
+        <defs><linearGradient id="rg" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#5B9DF0"/><stop offset="100%" stop-color="#A78BFA"/></linearGradient></defs>
+        <circle cx="44" cy="44" r="34" fill="none" stroke="rgba(120,140,180,0.18)" stroke-width="6"/>
+        <circle cx="44" cy="44" r="34" fill="none" stroke="url(#rg)" stroke-width="6" stroke-linecap="round"
+          stroke-dasharray="213.6" stroke-dashoffset="64" transform="rotate(-90 44 44)"/>
+      </svg>
+      <div class="num">70%</div>
+    </div>
+    <div class="col" style="gap:10px;flex:1">
+      <div class="skel" style="width:60%"></div>
+      <div class="skel" style="width:90%"></div>
+      <div class="skel" style="width:75%"></div>
+    </div>
+  </div>
+  <div class="label">Recessed track + raised gradient fill. Determinate / success / indeterminate / radial progress / shimmer skeleton.</div>
+</div></body></html>

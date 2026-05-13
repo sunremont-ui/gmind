@@ -1,0 +1,68 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Form inputs</title><link rel="stylesheet" href="_card.css">
+<style>
+  .neu-card{ background:#ECF0F3; border-radius:18px; padding:24px;
+    box-shadow: 10px 10px 26px rgba(120,140,180,0.22), -10px -10px 26px #FFFFFF; }
+  .field{ display:flex; flex-direction:column; gap:6px; }
+  .field > .lbl{ font:500 13px 'Inter'; color:#3F3F46; }
+  .field > .hint{ font:400 12px 'Inter'; color:#76767F; }
+  .field > .err{ font:500 12px 'Inter'; color:#B91C1C; display:flex; align-items:center; gap:5px; }
+
+  .ninput{
+    display:block; width:100%; height:42px; box-sizing:border-box;
+    border:1px solid rgba(120,140,180,0.35); border-radius:12px; padding:0 14px;
+    background:#ECF0F3; color:#15151B;
+    font:400 14px 'Inter'; outline:none;
+    box-shadow: inset 4px 4px 9px rgba(120,140,180,0.27), inset -4px -4px 9px #FFFFFF;
+    transition: box-shadow .25s ease, background .2s ease, border-color .2s ease;
+  }
+  .ninput::placeholder{ color:#9CA3AF; }
+  .ninput:hover{ background:#E8ECF2; border-color:rgba(120,140,180,0.5); }
+  .ninput:focus{
+    border-color:#5B9DF0;
+    box-shadow:
+      inset 4px 4px 9px rgba(120,140,180,0.27), inset -4px -4px 9px #FFFFFF,
+      0 0 0 3px rgba(91,157,240,0.18);
+  }
+  .ninput.is-error{
+    border-color:#EF4444;
+    box-shadow:
+      inset 4px 4px 9px rgba(180,80,80,0.27), inset -4px -4px 9px #FFFFFF,
+      0 0 0 3px rgba(239,68,68,0.16);
+    animation: shake .45s cubic-bezier(.36,.07,.19,.97);
+  }
+  @keyframes shake{
+    10%,90%{ transform:translateX(-1px); }
+    20%,80%{ transform:translateX(2px); }
+    30%,50%,70%{ transform:translateX(-3px); }
+    40%,60%{ transform:translateX(3px); }
+  }
+</style>
+</head>
+<body>
+<div class="card neu-card">
+  <div class="lds-eyebrow">Inputs · text fields</div>
+  <div class="col" style="gap:14px;max-width:420px">
+
+    <label class="field">
+      <span class="lbl">Workspace name</span>
+      <input class="ninput" value="Lumen Studio"/>
+    </label>
+
+    <label class="field">
+      <span class="lbl">Email <span style="color:#EF4444">*</span></span>
+      <input class="ninput" value="aria@lumen.studio" autofocus/>
+      <span class="hint">We'll send a confirmation link.</span>
+    </label>
+
+    <label class="field">
+      <span class="lbl">Bitrate</span>
+      <input class="ninput is-error" value="not-a-number"/>
+      <span class="err">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M12 8v4M12 16h.01"></path></svg>
+        Enter a number between 64 and 320.
+      </span>
+    </label>
+  </div>
+</div>
+</body></html>

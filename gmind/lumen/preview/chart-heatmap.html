@@ -1,0 +1,49 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Chart · heatmap</title><link rel="stylesheet" href="_card.css">
+<style>
+  .neu-card{ background:#ECF0F3; border-radius:18px; padding:24px;
+    box-shadow: 10px 10px 26px rgba(120,140,180,0.22), -10px -10px 26px #FFFFFF; }
+  .well{ background:#ECF0F3;border-radius:14px;padding:14px;
+    box-shadow: inset 4px 4px 9px rgba(120,140,180,0.28), inset -4px -4px 9px #FFFFFF; }
+  .grid{ display:grid; grid-template-columns:36px repeat(24, 1fr); gap:3px; align-items:center; }
+  .lbl{ font:500 11px 'Inter'; color:#76767F; }
+  .cell{ aspect-ratio:1/1;border-radius:4px; }
+  .scale{ display:flex;align-items:center;gap:6px;font:500 11px 'Inter';color:#57575F; }
+  .scale .bar{ width:130px;height:10px;border-radius:5px;
+    background:linear-gradient(90deg,#E5EAF5,#A8C4F4,#5B9DF0,#6F6BE8,#A78BFA); }
+</style></head>
+<body>
+<div class="card neu-card">
+  <div class="lds-eyebrow">Listening heatmap · last 7 days</div>
+  <div class="well">
+    <div class="grid" id="g"></div>
+  </div>
+  <div class="row" style="justify-content:space-between">
+    <span class="mono" style="color:#57575F">Hour →</span>
+    <div class="scale"><span>Quiet</span><span class="bar"></span><span>Peak</span></div>
+  </div>
+</div>
+<script>
+  const days=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+  const seed=[2,1,1,0,1,2,3,5,8,12,15,16,12,9,8,10,14,18,22,25,21,15,8,5];
+  const noise=()=>Math.random()*4-2;
+  const stops=[
+    [0,'#E8ECF3'],[3,'#D6E0F1'],[6,'#B8CDEB'],[10,'#94B5F0'],
+    [14,'#7197ED'],[18,'#5B85F0'],[22,'#7C72E9'],[26,'#A78BFA']
+  ];
+  const colorFor=v=>{ for(let i=stops.length-1;i>=0;i--) if(v>=stops[i][0]) return stops[i][1]; return stops[0][1]; };
+  const g=document.getElementById('g');
+  // header
+  const h=document.createElement('div'); h.className='lbl'; h.textContent=''; g.appendChild(h);
+  for(let i=0;i<24;i++){ const c=document.createElement('div'); c.className='lbl'; c.style.textAlign='center';
+    c.textContent=(i%6===0)? (i===0?'12a':i===12?'12p':(i<12?i+'a':(i-12)+'p')) : ''; g.appendChild(c); }
+  for(let d=0; d<7; d++){
+    const lab=document.createElement('div'); lab.className='lbl'; lab.textContent=days[d]; g.appendChild(lab);
+    for(let h2=0; h2<24; h2++){
+      const v=Math.max(0, seed[h2] + (d>=5? 4 : 0) + noise());
+      const cell=document.createElement('div'); cell.className='cell'; cell.style.background=colorFor(v);
+      g.appendChild(cell);
+    }
+  }
+</script>
+</body></html>

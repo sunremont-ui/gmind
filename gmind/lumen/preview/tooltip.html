@@ -1,0 +1,40 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Tooltip &amp; popover</title><link rel="stylesheet" href="_card.css">
+<style>
+  .neu-card{ background:#ECF0F3; border-radius:18px; padding:32px;
+    box-shadow: 10px 10px 26px rgba(120,140,180,0.22), -10px -10px 26px #FFFFFF; }
+  .anchor{ display:inline-flex;align-items:center;justify-content:center;
+    width:38px;height:38px;border-radius:10px;background:#ECF0F3;color:#2A3340;
+    box-shadow: 4px 4px 10px rgba(120,140,180,0.30), -4px -4px 10px #FFFFFF; }
+  .tip{ position:absolute; padding:7px 11px; border-radius:8px;
+    background:#15151B; color:#fff; font:500 12px 'Inter'; white-space:nowrap;
+    box-shadow: 0 8px 18px rgba(15,15,25,.25); }
+  .tip::after{ content:""; position:absolute; width:8px; height:8px; background:inherit;
+    transform: translate(-50%,0) rotate(45deg); left:50%; bottom:-3px; }
+  .pop{ width:240px; padding:14px; border-radius:14px; background:#ECF0F3;
+    box-shadow: 10px 10px 22px rgba(120,140,180,0.30), -10px -10px 22px #FFFFFF; }
+  .pop h4{ margin:0 0 4px; font:600 13px 'Inter'; }
+  .pop p{ margin:0; font:400 12px/1.5 'Inter'; color:#57575F; }
+  .pop .row-btn{ margin-top:12px; display:flex; gap:8px; }
+  .nbtn{ padding:6px 12px; border-radius:8px; border:0; font:600 12px 'Inter'; cursor:pointer;
+    background:#ECF0F3; color:#15151B;
+    box-shadow: 3px 3px 7px rgba(120,140,180,0.26), -3px -3px 7px #FFFFFF; }
+  .nbtn.primary{ background:linear-gradient(135deg,#5B9DF0,#A78BFA); color:#fff;
+    box-shadow: 3px 3px 8px rgba(120,140,200,0.40), -3px -3px 8px #FFFFFF; }
+</style></head>
+<body>
+<div class="card neu-card">
+  <div class="lds-eyebrow">Tooltip · popover</div>
+  <div class="row" style="gap:48px;align-items:flex-start;flex-wrap:wrap">
+    <div style="position:relative;padding-top:46px">
+      <div class="tip" style="left:50%;top:0;transform:translateX(-50%)">Save changes ⌘S</div>
+      <div class="anchor"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"></path></svg></div>
+    </div>
+    <div class="pop">
+      <h4>Invite collaborators</h4>
+      <p>Up to 5 viewers free. Editors require a Pro seat.</p>
+      <div class="row-btn"><button class="nbtn primary">Invite</button><button class="nbtn">Later</button></div>
+    </div>
+  </div>
+  <div class="label">Tooltip — dark micro-label, single line. Popover — neumorph card, 240 px, used for confirmations and inline help.</div>
+</div></body></html>

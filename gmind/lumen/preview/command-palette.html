@@ -1,0 +1,59 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Command palette</title><link rel="stylesheet" href="_card.css">
+<style>
+  .neu-card{ background:#ECF0F3; border-radius:18px; padding:24px;
+    box-shadow: 10px 10px 26px rgba(120,140,180,0.22), -10px -10px 26px #FFFFFF; }
+  .palette{ width:480px;margin:0 auto;background:#ECF0F3;border-radius:16px;padding:6px;
+    box-shadow: 12px 12px 28px rgba(70,90,130,0.28), -12px -12px 28px #FFFFFF; }
+  .search{ display:flex;align-items:center;gap:10px;padding:11px 14px;border-radius:12px;background:#ECF0F3;color:#15151B;
+    box-shadow: inset 3px 3px 7px rgba(120,140,180,0.28), inset -3px -3px 7px #FFFFFF; }
+  .search input{ border:0;background:transparent;flex:1;font:400 14px 'Inter';outline:none;color:inherit; }
+  .group-lbl{ padding:10px 12px 4px;font:600 11px 'Inter';color:#76767F;letter-spacing:0.06em;text-transform:uppercase; }
+  .item{ display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:10px;cursor:pointer; font:500 14px 'Inter'; }
+  .item .ico{ width:30px;height:30px;border-radius:8px;background:#ECF0F3;color:#2A3340;display:flex;align-items:center;justify-content:center;
+    box-shadow: inset 2px 2px 5px rgba(120,140,180,0.26), inset -2px -2px 5px #FFFFFF; }
+  .item .kbd{ margin-left:auto;display:flex;gap:4px; }
+  .item .kbd span{ font:600 10px 'JetBrains Mono';padding:2px 6px;border-radius:5px;background:#ECF0F3;color:#57575F;
+    box-shadow: inset 1px 1px 2px rgba(120,140,180,0.30), inset -1px -1px 2px #FFFFFF; }
+  .item.is-active{ background:#ECF0F3;
+    box-shadow: 3px 3px 8px rgba(120,140,180,0.28), -3px -3px 8px #FFFFFF; }
+  .item.is-active .ico{ background:linear-gradient(135deg,#5B9DF0,#A78BFA);color:#fff;
+    box-shadow: 2px 2px 5px rgba(120,140,200,0.40), -2px -2px 5px #FFFFFF; }
+</style></head>
+<body>
+<div class="card neu-card">
+  <div class="lds-eyebrow">Command palette · ⌘K</div>
+  <div class="palette">
+    <div class="search">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#76767F" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <input value="invite" />
+      <span class="mono" style="color:#9CA3AF">⌘ K</span>
+    </div>
+    <div class="group-lbl">Workspace</div>
+    <div class="item is-active">
+      <div class="ico"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 11h-6M19 8v6"/></svg></div>
+      Invite collaborators
+      <div class="kbd"><span>I</span></div>
+    </div>
+    <div class="item">
+      <div class="ico"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5M2 12l10 5 10-5"/></svg></div>
+      Create new session
+      <div class="kbd"><span>⌘</span><span>N</span></div>
+    </div>
+    <div class="group-lbl">Navigation</div>
+    <div class="item">
+      <div class="ico"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg></div>
+      Go to home
+      <div class="kbd"><span>G</span><span>H</span></div>
+    </div>
+    <div class="item">
+      <div class="ico"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg></div>
+      Open public dashboard
+      <div class="kbd"><span>G</span><span>D</span></div>
+    </div>
+  </div>
+  <div class="row" style="justify-content:space-between;font:500 11px 'Inter';color:#76767F;padding:0 8px">
+    <span>↑↓ navigate · ↵ select · esc close</span>
+    <span class="mono">42 results</span>
+  </div>
+</div></body></html>

@@ -1,0 +1,65 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Tabs &amp; segmented</title><link rel="stylesheet" href="_card.css">
+<style>
+  .neu-card{ background:#ECF0F3; border-radius:18px; padding:24px;
+    box-shadow: 10px 10px 26px rgba(120,140,180,0.22), -10px -10px 26px #FFFFFF; }
+
+  /* underline tabs ---------------------------------------- */
+  .tabs{ position:relative; display:flex; gap:6px; padding:6px;
+    background:#ECF0F3; border-radius:14px;
+    box-shadow: inset 4px 4px 9px rgba(120,140,180,0.28), inset -4px -4px 9px #FFFFFF; }
+  .tab{ padding:8px 14px; font:500 14px 'Inter'; color:#76767F; cursor:pointer;
+    border-radius:10px; transition:color .15s ease, background .2s ease, box-shadow .2s ease; }
+  .tab:hover{ color:#15151B; }
+  .tab.is-active{ color:#15151B; font-weight:600; background:#ECF0F3;
+    box-shadow: 4px 4px 10px rgba(120,140,180,0.25), -4px -4px 10px #FFFFFF; }
+
+  /* segmented (track) ------------------------------------- */
+  .seg{ display:inline-flex; padding:5px; border-radius:12px;
+    background:#ECF0F3;
+    box-shadow: inset 4px 4px 9px rgba(120,140,180,0.28), inset -4px -4px 9px #FFFFFF; }
+  .seg > div{ padding:7px 14px; font:500 13px 'Inter'; color:#57575F; border-radius:8px;
+    cursor:pointer; transition:color .15s ease, background .2s ease, box-shadow .2s ease; }
+  .seg > div:hover{ color:#15151B; }
+  .seg > .is-active{ background:#ECF0F3; color:#15151B; font-weight:600;
+    box-shadow: 3px 3px 7px rgba(120,140,180,0.25), -3px -3px 7px #FFFFFF; }
+
+  /* segmented (gradient active) --------------------------- */
+  .seg2{ display:inline-flex; padding:5px; border-radius:12px;
+    background:#ECF0F3;
+    box-shadow: inset 4px 4px 9px rgba(120,140,180,0.28), inset -4px -4px 9px #FFFFFF; }
+  .seg2 > div{ padding:7px 14px; font:500 13px 'Inter'; color:#57575F; border-radius:8px; cursor:pointer; }
+  .seg2 > div:hover{ color:#15151B; }
+  .seg2 > .is-active{ background:linear-gradient(135deg,#5B9DF0,#A78BFA); color:#fff; font-weight:600;
+    box-shadow: 3px 3px 8px rgba(120,140,200,0.40), -3px -3px 8px #FFFFFF; }
+</style>
+</head>
+<body>
+<div class="card neu-card">
+  <div class="lds-eyebrow">Tabs · segmented</div>
+
+  <div class="tabs">
+    <div class="tab is-active">Overview</div>
+    <div class="tab">Tracks</div>
+    <div class="tab">Listeners</div>
+    <div class="tab">Revenue</div>
+    <div class="tab">Settings</div>
+  </div>
+
+  <div class="row" style="gap:14px;flex-wrap:wrap">
+    <div class="seg">
+      <div class="is-active">Day</div>
+      <div>Week</div>
+      <div>Month</div>
+      <div>Year</div>
+    </div>
+    <div class="seg2">
+      <div class="is-active">List</div>
+      <div>Grid</div>
+      <div>Map</div>
+    </div>
+  </div>
+
+  <div class="label">Tracks are recessed; the active option lifts out of the groove. Variant 2 fills the active pill with the brand gradient on the same neumorph cushion.</div>
+</div>
+</body></html>

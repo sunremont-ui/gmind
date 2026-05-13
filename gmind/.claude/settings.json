@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find \"d:/Gmind/lumen\" -type f 2>/dev/null || find \"d:/Gmind/gmind/lumen\" -type f 2>/dev/null)",
+      "Read(//d/Gmind/**)",
+      "Bash(npx tsc *)",
+      "Bash(Get-ChildItem -Path \"d:\\\\Gmind\\\\gmind\" -Recurse -Filter \"*.md\" -ErrorAction SilentlyContinue)",
+      "Bash(Select-Object -ExpandProperty FullName)",
+      "Bash(npx --yes tsc --noEmit)",
+      "Bash(cd \"/d/Gmind/gmind/frontend/src/components\" && grep -rn --include=\"*.tsx\" \"'white'\\\\|#e2e8f0\\\\|#f1f5f9\\\\|#1e293b\\\\|#334155\\\\|#475569\\\\|#fafafa\\\\|#f8fafc\\\\|background: 'white'\" . 2>/dev/null | grep -v \".test.tsx\")",
+      "Read(//d/d/Gmind/gmind/frontend/src/**)",
+      "Bash(Get-ChildItem -Path \"d:\\\\Gmind\\\\gmind\" -Directory)",
+      "Bash(Select-Object Name)"
+    ]
+  }
+}

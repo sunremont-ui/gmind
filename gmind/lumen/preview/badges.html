@@ -1,0 +1,53 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Badges &amp; chips</title><link rel="stylesheet" href="_card.css">
+<style>
+  .neu-card{ background:#ECF0F3; border-radius:18px; padding:24px;
+    box-shadow: 10px 10px 26px rgba(120,140,180,0.22), -10px -10px 26px #FFFFFF; }
+  .npill{
+    display:inline-flex; align-items:center; gap:6px;
+    padding:5px 12px; border-radius:999px;
+    font:600 12px 'Inter'; background:#ECF0F3;
+    box-shadow: 3px 3px 7px rgba(120,140,180,0.22), -3px -3px 7px #FFFFFF;
+  }
+  .npill.lg{ padding:7px 14px; font:500 13px 'Inter'; }
+  .npill .dot{ width:7px; height:7px; border-radius:999px; }
+  .pill-live   { color:#047857; } .pill-live   .dot{ background:linear-gradient(135deg,#34D399,#10B981); box-shadow:0 0 0 3px rgba(52,211,153,.18); }
+  .pill-beta   { color:#3B45B0; } .pill-beta   .dot{ background:linear-gradient(135deg,#A5B4FC,#6366F1); }
+  .pill-warn   { color:#92400E; } .pill-warn   .dot{ background:linear-gradient(135deg,#FCD34D,#D97706); }
+  .pill-fail   { color:#B91C1C; } .pill-fail   .dot{ background:linear-gradient(135deg,#FDA4AF,#DC2626); }
+  .pill-draft  { color:#3F3F46; } .pill-draft  .dot{ background:linear-gradient(135deg,#D4D4D8,#71717A); }
+  .pill-pro    { color:#3B45B0; }
+  .pill-pro    .dot{ background:linear-gradient(135deg,#A5B4FC,#C4B5FD,#FBCFE8); }
+  /* second row — large filter chips */
+  .npill.is-active{ background:#E5EAF1; color:#15151B;
+    box-shadow: inset 3px 3px 6px rgba(120,140,180,0.30), inset -3px -3px 6px #FFFFFF; }
+  .count{ background:#ECF0F3; color:#57575F; padding:0 7px; border-radius:999px; font-size:11px; line-height:18px;
+    box-shadow: inset 2px 2px 4px rgba(120,140,180,0.30), inset -2px -2px 4px #FFFFFF; }
+</style>
+</head>
+<body>
+<div class="card neu-card">
+  <div class="lds-eyebrow">Badges &amp; chips · soft neumorph</div>
+
+  <div class="row" style="gap:10px;flex-wrap:wrap">
+    <span class="npill pill-live"><span class="dot"></span>Live</span>
+    <span class="npill pill-beta">Beta</span>
+    <span class="npill pill-warn">Warning</span>
+    <span class="npill pill-fail">Failed</span>
+    <span class="npill pill-draft">Draft</span>
+    <span class="npill pill-pro"><span class="dot"></span>Pro</span>
+  </div>
+
+  <div class="row" style="gap:10px;flex-wrap:wrap">
+    <span class="npill lg">All <span class="count">142</span></span>
+    <span class="npill lg is-active">Music</span>
+    <span class="npill lg">Podcasts</span>
+    <span class="npill lg">Video</span>
+    <span class="npill lg pill-beta">Studio
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><line x1="6" y1="6" x2="18" y2="18"></line><line x1="18" y1="6" x2="6" y2="18"></line></svg>
+    </span>
+  </div>
+
+  <div class="label">Status pills sit raised on the surface; active filter chips press inward. Status meaning carried by tinted text and a tiny gradient dot rather than a filled background.</div>
+</div>
+</body></html>

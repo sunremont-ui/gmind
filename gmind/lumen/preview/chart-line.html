@@ -1,0 +1,52 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Chart · line</title><link rel="stylesheet" href="_card.css">
+<style>
+  .neu-card{ background:#ECF0F3; border-radius:18px; padding:24px;
+    box-shadow: 10px 10px 26px rgba(120,140,180,0.22), -10px -10px 26px #FFFFFF; }
+  .well{ background:#ECF0F3; border-radius:16px; padding:18px;
+    box-shadow: inset 5px 5px 11px rgba(120,140,180,0.28), inset -5px -5px 11px #FFFFFF; }
+  .legend{ display:inline-flex;align-items:center;gap:8px;padding:7px 14px;border-radius:999px;background:#ECF0F3;
+    box-shadow: 3px 3px 7px rgba(120,140,180,0.26), -3px -3px 7px #FFFFFF; font:500 12px 'Inter';color:#2A3340; }
+  .dot{ width:10px;height:10px;border-radius:999px; }
+  .ann{ position:absolute;padding:5px 9px;border-radius:8px;background:#15151B;color:#fff;font:600 11px 'Inter';
+    font-feature-settings:'tnum'; box-shadow: 0 6px 14px rgba(15,15,25,.30); transform:translate(-50%,-130%); }
+  .ann::after{ content:"";position:absolute;left:50%;bottom:-3px;width:8px;height:8px;background:inherit;
+    transform:translate(-50%,0) rotate(45deg); }
+</style></head>
+<body>
+<div class="card neu-card">
+  <div class="lds-eyebrow">Listener growth · 12 mo</div>
+  <div class="well" style="position:relative">
+    <svg viewBox="0 0 700 260" style="width:100%;height:240px">
+      <defs>
+        <linearGradient id="lg1" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stop-color="#5B9DF0"/><stop offset="100%" stop-color="#A78BFA"/></linearGradient>
+        <linearGradient id="lg2" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="#5B9DF0" stop-opacity=".25"/>
+          <stop offset="100%" stop-color="#A78BFA" stop-opacity="0"/>
+        </linearGradient>
+        <linearGradient id="lg3" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stop-color="#5DC79A"/><stop offset="100%" stop-color="#34D399"/></linearGradient>
+      </defs>
+      <!-- gridlines -->
+      <g stroke="rgba(120,140,180,.18)" stroke-dasharray="3 4">
+        <line x1="0" y1="50" x2="700" y2="50"/><line x1="0" y1="120" x2="700" y2="120"/><line x1="0" y1="190" x2="700" y2="190"/>
+      </g>
+      <!-- area -->
+      <path d="M0 200 L60 170 L120 175 L180 140 L240 150 L300 110 L360 120 L420 80 L480 100 L540 70 L600 60 L700 40 L700 240 L0 240 Z" fill="url(#lg2)"/>
+      <!-- prior series -->
+      <path d="M0 215 L60 200 L120 195 L180 180 L240 170 L300 155 L360 165 L420 150 L480 140 L540 145 L600 130 L700 120"
+        fill="none" stroke="url(#lg3)" stroke-width="3" stroke-linecap="round" stroke-dasharray="4 6" stroke-opacity=".75"/>
+      <!-- current series -->
+      <path d="M0 200 L60 170 L120 175 L180 140 L240 150 L300 110 L360 120 L420 80 L480 100 L540 70 L600 60 L700 40"
+        fill="none" stroke="url(#lg1)" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"
+        style="filter: drop-shadow(0 4px 8px rgba(120,140,200,.35))"/>
+      <!-- focus point -->
+      <circle cx="540" cy="70" r="6" fill="#fff" stroke="#A78BFA" stroke-width="3"/>
+      <circle cx="540" cy="70" r="11" fill="rgba(167,139,250,.18)"/>
+    </svg>
+    <div class="ann" style="left:540px;top:62px">Oct · 184k</div>
+  </div>
+  <div class="row" style="gap:10px">
+    <span class="legend"><span class="dot" style="background:linear-gradient(135deg,#5B9DF0,#A78BFA)"></span>This year</span>
+    <span class="legend"><span class="dot" style="background:linear-gradient(135deg,#5DC79A,#34D399)"></span>Prior year</span>
+  </div>
+</div></body></html>

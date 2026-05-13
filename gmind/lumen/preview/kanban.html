@@ -1,0 +1,75 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Kanban</title><link rel="stylesheet" href="_card.css">
+<style>
+  .neu-card{ background:#ECF0F3; border-radius:18px; padding:24px;
+    box-shadow: 10px 10px 26px rgba(120,140,180,0.22), -10px -10px 26px #FFFFFF; }
+  .board{ display:grid; grid-template-columns:1fr 1fr 1fr; gap:14px; }
+  .col-k{ background:#ECF0F3; border-radius:14px; padding:12px;
+    box-shadow: inset 4px 4px 9px rgba(120,140,180,0.24), inset -4px -4px 9px #FFFFFF;
+    display:flex;flex-direction:column;gap:10px; }
+  .col-h{ display:flex;align-items:center;gap:8px;font:600 12px 'Inter';color:#2A3340;padding:0 4px; }
+  .col-h .dot{ width:8px;height:8px;border-radius:999px; }
+  .count{ margin-left:auto;font:600 11px 'JetBrains Mono';color:#57575F;
+    padding:1px 7px;border-radius:999px;background:#ECF0F3;
+    box-shadow: inset 1px 1px 3px rgba(120,140,180,0.30), inset -1px -1px 3px #FFFFFF; }
+  .ticket{ background:#ECF0F3;border-radius:11px;padding:11px;
+    box-shadow: 4px 4px 10px rgba(120,140,180,0.24), -4px -4px 10px #FFFFFF;
+    display:flex;flex-direction:column;gap:6px; }
+  .ticket .ttl{ font:600 13px 'Inter';color:#15151B; line-height:1.35; }
+  .ticket .meta{ display:flex;justify-content:space-between;align-items:center;font:500 11px 'Inter';color:#57575F; }
+  .tag{ display:inline-block;font:600 10px 'Inter';padding:2px 8px;border-radius:999px;color:#fff;
+    box-shadow: 1px 1px 3px rgba(120,140,180,0.30); }
+  .av{ width:22px;height:22px;border-radius:999px;color:#fff;display:flex;align-items:center;justify-content:center;
+    font:600 10px 'Inter';
+    box-shadow: 2px 2px 4px rgba(120,140,180,0.30), -2px -2px 4px #FFFFFF; }
+</style></head>
+<body>
+<div class="card neu-card">
+  <div class="lds-eyebrow">Kanban · release tracking</div>
+  <div class="board">
+    <div class="col-k">
+      <div class="col-h"><span class="dot" style="background:linear-gradient(135deg,#94A3B8,#64748B)"></span>Backlog<span class="count">12</span></div>
+      <div class="ticket">
+        <span class="tag" style="background:linear-gradient(135deg,#94A3B8,#64748B);align-self:flex-start">Spec</span>
+        <div class="ttl">Spatial audio export pipeline</div>
+        <div class="meta"><span>L-218</span><div class="av" style="background:linear-gradient(135deg,#5B9DF0,#A78BFA)">AR</div></div>
+      </div>
+      <div class="ticket">
+        <span class="tag" style="background:linear-gradient(135deg,#A78BFA,#7C3AED);align-self:flex-start">Research</span>
+        <div class="ttl">Listener cohort segmentation</div>
+        <div class="meta"><span>L-219</span><div class="av" style="background:linear-gradient(135deg,#F472B6,#FB7185)">SK</div></div>
+      </div>
+    </div>
+    <div class="col-k">
+      <div class="col-h"><span class="dot" style="background:linear-gradient(135deg,#5B9DF0,#A78BFA)"></span>In progress<span class="count">3</span></div>
+      <div class="ticket">
+        <span class="tag" style="background:linear-gradient(135deg,#5B9DF0,#A78BFA);align-self:flex-start">Design</span>
+        <div class="ttl">Neumorph token review</div>
+        <div class="meta"><span>L-201 · 4h</span><div class="av" style="background:linear-gradient(135deg,#0EA5E9,#14B8A6)">JM</div></div>
+      </div>
+      <div class="ticket">
+        <span class="tag" style="background:linear-gradient(135deg,#FB7185,#F59E0B);align-self:flex-start">Bug</span>
+        <div class="ttl">Audio dock seek-bar drift on Safari</div>
+        <div class="meta"><span>L-204 · 1h</span><div class="av" style="background:linear-gradient(135deg,#5B9DF0,#A78BFA)">AR</div></div>
+      </div>
+      <div class="ticket">
+        <span class="tag" style="background:linear-gradient(135deg,#34D399,#10B981);align-self:flex-start">Build</span>
+        <div class="ttl">Lumen Pro upgrade flow</div>
+        <div class="meta"><span>L-209 · 6h</span><div class="av" style="background:linear-gradient(135deg,#F59E0B,#EC4899)">TM</div></div>
+      </div>
+    </div>
+    <div class="col-k">
+      <div class="col-h"><span class="dot" style="background:linear-gradient(135deg,#34D399,#10B981)"></span>Shipped<span class="count">7</span></div>
+      <div class="ticket">
+        <span class="tag" style="background:linear-gradient(135deg,#34D399,#10B981);align-self:flex-start">Released</span>
+        <div class="ttl">Soft neumorph rollout · 2026.05</div>
+        <div class="meta"><span>L-188</span><div class="av" style="background:linear-gradient(135deg,#5B9DF0,#5DC79A)">L</div></div>
+      </div>
+      <div class="ticket">
+        <span class="tag" style="background:linear-gradient(135deg,#34D399,#10B981);align-self:flex-start">Released</span>
+        <div class="ttl">Heatmap chart for engagement</div>
+        <div class="meta"><span>L-179</span><div class="av" style="background:linear-gradient(135deg,#0EA5E9,#14B8A6)">JM</div></div>
+      </div>
+    </div>
+  </div>
+</div></body></html>

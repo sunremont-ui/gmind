@@ -1,0 +1,7 @@
+{
+  "system": "You are an agent in Gmind. Override example.",
+  "roles": {
+    "researcher": "Custom researcher prompt here.",
+    "expander": "Custom expander prompt here."
+  }
+}

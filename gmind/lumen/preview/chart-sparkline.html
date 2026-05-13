@@ -1,0 +1,69 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Chart · sparkline</title><link rel="stylesheet" href="_card.css">
+<style>
+  .neu-card{ background:#ECF0F3; border-radius:18px; padding:24px;
+    box-shadow: 10px 10px 26px rgba(120,140,180,0.22), -10px -10px 26px #FFFFFF; }
+  .grid{ display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+  .kpi{ background:#ECF0F3; border-radius:14px; padding:14px;
+    box-shadow: 6px 6px 14px rgba(120,140,180,0.26), -6px -6px 14px #FFFFFF; }
+  .lbl{ font:500 12px 'Inter';color:#57575F; }
+  .val{ font:600 22px 'Inter';letter-spacing:-0.01em;font-feature-settings:'tnum'; }
+  .delta{ font:600 12px 'Inter';font-feature-settings:'tnum'; }
+  .up{ color:#10B981; } .dn{ color:#DC2626; }
+  svg.spark{ width:100%; height:42px; margin-top:8px; }
+</style></head>
+<body>
+<div class="card neu-card">
+  <div class="lds-eyebrow">Sparklines · KPI grid</div>
+  <div class="grid">
+    <div class="kpi">
+      <div class="row" style="justify-content:space-between"><span class="lbl">Streams · 24h</span><span class="delta up">▲ 8.2%</span></div>
+      <div class="val">142,809</div>
+      <svg class="spark" viewBox="0 0 280 42" preserveAspectRatio="none">
+        <defs><linearGradient id="s1"><stop offset="0%" stop-color="#5B9DF0"/><stop offset="100%" stop-color="#A78BFA"/></linearGradient></defs>
+        <path d="M0 30 L20 28 L40 24 L60 26 L80 18 L100 22 L120 14 L140 16 L160 10 L180 14 L200 6 L220 12 L240 8 L260 14 L280 4"
+          fill="none" stroke="url(#s1)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </div>
+    <div class="kpi">
+      <div class="row" style="justify-content:space-between"><span class="lbl">Skip rate</span><span class="delta dn">▼ 2.1%</span></div>
+      <div class="val">14.8%</div>
+      <svg class="spark" viewBox="0 0 280 42" preserveAspectRatio="none">
+        <defs><linearGradient id="s2"><stop offset="0%" stop-color="#FB7185"/><stop offset="100%" stop-color="#F59E0B"/></linearGradient></defs>
+        <path d="M0 8 L20 12 L40 10 L60 14 L80 16 L100 12 L120 18 L140 22 L160 20 L180 26 L200 24 L220 30 L240 28 L260 34 L280 32"
+          fill="none" stroke="url(#s2)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </div>
+    <div class="kpi">
+      <div class="row" style="justify-content:space-between"><span class="lbl">Active sessions</span><span class="delta up">▲ 12.4%</span></div>
+      <div class="val">2,481</div>
+      <svg class="spark" viewBox="0 0 280 42" preserveAspectRatio="none">
+        <defs><linearGradient id="s3"><stop offset="0%" stop-color="#34D399"/><stop offset="100%" stop-color="#10B981"/></linearGradient></defs>
+        <path d="M0 30 Q40 26 80 28 T160 18 T240 12 T280 8" fill="none" stroke="url(#s3)" stroke-width="2.4" stroke-linecap="round"/>
+      </svg>
+    </div>
+    <div class="kpi">
+      <div class="row" style="justify-content:space-between"><span class="lbl">Revenue · MTD</span><span class="delta up">▲ 4.6%</span></div>
+      <div class="val">$48.2k</div>
+      <svg class="spark" viewBox="0 0 280 42" preserveAspectRatio="none">
+        <defs><linearGradient id="s4"><stop offset="0%" stop-color="#A78BFA"/><stop offset="100%" stop-color="#5B9DF0"/></linearGradient></defs>
+        <g fill="url(#s4)">
+          <rect x="4"   y="20" width="14" height="18" rx="3"/>
+          <rect x="24"  y="14" width="14" height="24" rx="3"/>
+          <rect x="44"  y="22" width="14" height="16" rx="3"/>
+          <rect x="64"  y="10" width="14" height="28" rx="3"/>
+          <rect x="84"  y="16" width="14" height="22" rx="3"/>
+          <rect x="104" y="6"  width="14" height="32" rx="3"/>
+          <rect x="124" y="14" width="14" height="24" rx="3"/>
+          <rect x="144" y="20" width="14" height="18" rx="3"/>
+          <rect x="164" y="8"  width="14" height="30" rx="3"/>
+          <rect x="184" y="12" width="14" height="26" rx="3"/>
+          <rect x="204" y="6"  width="14" height="32" rx="3"/>
+          <rect x="224" y="2"  width="14" height="36" rx="3"/>
+          <rect x="244" y="10" width="14" height="28" rx="3"/>
+          <rect x="264" y="4"  width="14" height="34" rx="3"/>
+        </g>
+      </svg>
+    </div>
+  </div>
+</div></body></html>

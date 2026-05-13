@@ -1,0 +1,50 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Breadcrumbs &amp; pagination</title><link rel="stylesheet" href="_card.css">
+<style>
+  .neu-card{ background:#ECF0F3; border-radius:18px; padding:24px;
+    box-shadow: 10px 10px 26px rgba(120,140,180,0.22), -10px -10px 26px #FFFFFF; }
+  .crumb{ display:inline-flex;align-items:center;gap:8px;padding:6px;border-radius:11px;background:#ECF0F3;
+    box-shadow: inset 3px 3px 7px rgba(120,140,180,0.26), inset -3px -3px 7px #FFFFFF; }
+  .crumb a{ padding:4px 10px;border-radius:8px;font:500 13px 'Inter';color:#57575F;text-decoration:none; }
+  .crumb a.is-active{ color:#15151B;font-weight:600;background:#ECF0F3;
+    box-shadow: 2px 2px 5px rgba(120,140,180,0.26), -2px -2px 5px #FFFFFF; }
+  .sep{ color:#9CA3AF;font-size:12px; }
+  .page{ display:inline-flex;gap:6px;padding:5px;border-radius:11px;background:#ECF0F3;
+    box-shadow: inset 3px 3px 7px rgba(120,140,180,0.26), inset -3px -3px 7px #FFFFFF; }
+  .page > div{ width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;
+    font:600 13px 'Inter';color:#57575F;cursor:pointer;font-feature-settings:'tnum'; }
+  .page > div:hover{ color:#15151B; }
+  .page > .is-active{ background:linear-gradient(135deg,#5B9DF0,#A78BFA);color:#fff;
+    box-shadow: 2px 2px 6px rgba(120,140,200,0.40), -2px -2px 6px #FFFFFF; }
+  .page .ellipsis{ cursor:default; }
+  .page .nav{ background:#ECF0F3; box-shadow: 2px 2px 5px rgba(120,140,180,0.26), -2px -2px 5px #FFFFFF; color:#15151B; }
+</style></head>
+<body>
+<div class="card neu-card">
+  <div class="lds-eyebrow">Breadcrumbs</div>
+  <div class="crumb">
+    <a href="#">Workspaces</a>
+    <span class="sep">›</span>
+    <a href="#">Lumen Studio</a>
+    <span class="sep">›</span>
+    <a href="#">Sessions</a>
+    <span class="sep">›</span>
+    <a href="#" class="is-active">Late night drive</a>
+  </div>
+
+  <div class="lds-eyebrow" style="margin-top:14px">Pagination</div>
+  <div class="row" style="gap:14px;align-items:center">
+    <div class="page">
+      <div class="nav">‹</div>
+      <div>1</div>
+      <div class="is-active">2</div>
+      <div>3</div>
+      <div>4</div>
+      <div class="ellipsis">…</div>
+      <div>12</div>
+      <div class="nav">›</div>
+    </div>
+    <span style="font:500 12px 'Inter';color:#57575F" class="mono">Page 2 of 12 · 248 results</span>
+  </div>
+  <div class="label">Recessed groove holds raised active page (gradient pill) and raised nav arrows. Crumbs follow the same logic — current node is the only raised cap.</div>
+</div></body></html>
