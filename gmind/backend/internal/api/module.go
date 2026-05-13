@@ -38,6 +38,10 @@ func (h *AgentHandler) RegisterRoutes(r chiRouter) {
 	r.Get("/tasks/{taskID}", h.GetTask)
 	r.Post("/tasks/{taskID}/approve", h.ApproveTask)
 	r.Post("/tasks/{taskID}/reject", h.RejectTask)
+
+	// Task log endpoints (SSE streaming + REST history)
+	r.Get("/tasks/{taskID}/stream", h.StreamTaskLogs)
+	r.Get("/tasks/{taskID}/logs", h.GetTaskLogs)
 }
 
 func (h *AgentHandler) ListAgents(w http.ResponseWriter, r *http.Request) {

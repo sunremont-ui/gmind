@@ -82,6 +82,27 @@ func main() {
 			Payload: event.Payload,
 		})
 		hub.BroadcastAll(msg)
+
+		// Also forward task log events to SSE brokers
+		if event.Type == "agent:task_log" {
+			pl := event.Payload
+			taskID, _ := pl["task_id"].(string)
+			agentID, _ := pl["agent_id"].(string)
+			level, _ := pl["level"].(string)
+			message, _ := pl["message"].(string)
+			toolName, _ := pl["tool_name"].(string)
+			toolArgs, _ := pl["tool_args"].(string)
+			result, _ := pl["result"].(string)
+			content, _ := pl["content"].(string)
+			step := 0
+			if v, ok := pl["step"].(float64); ok {
+				step = int(v)
+			}
+			api.PublishTaskLogStructured(taskID, agentID, level, toolName, toolArgs, result, message, step)
+			if content != "" {
+				api.PublishTaskLog(taskID, agentID, level, content)
+			}
+		}
 	})
 
 	handler := api.New(db, hub, cfg.LlamaConfigPath, registry)

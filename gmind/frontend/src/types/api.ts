@@ -195,3 +195,16 @@ export interface ListCollaboratorsResponse {
   users: string[]
 }
 
+export interface TaskLogMessage {
+  task_id: string
+  agent_id: string
+  step?: number
+  level: string
+  message?: string
+  content?: string
+  tool_name?: string
+  tool_args?: string
+  result?: string
+  time: string
+}
+

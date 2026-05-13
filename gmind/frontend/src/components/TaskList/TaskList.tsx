@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useAgentStore } from '../../store/agent'
 import type { AgentTask } from '../../types/agent'
+import { TaskLogPanel } from './TaskLogPanel'
 import { colors, fonts, fontSizes, fontWeights, spacing, radii, shadows, transitions } from '../../styles/tokens'
 
 const STATUS_COLORS: Record<string, string> = {
@@ -32,6 +33,7 @@ export function TaskList({ workbookId }: Props) {
   const subscribeToEvents = useAgentStore(s => s.subscribeToEvents)
   const [expanded, setExpanded] = useState<string | null>(null)
   const [acting, setActing] = useState<string | null>(null)
+  const [logTaskId, setLogTaskId] = useState<string | null>(null)
 
   useEffect(() => {
     fetchTasks()
@@ -49,6 +51,10 @@ export function TaskList({ workbookId }: Props) {
     setActing(id)
     try { await rejectTask(id) } catch { /* ignore */ }
     setActing(null)
+  }
+
+  const handleViewLogs = (taskId: string) => {
+    setLogTaskId(taskId)
   }
 
   const agentMap = new Map(agents.map(a => [a.id, a]))
@@ -123,6 +129,26 @@ export function TaskList({ workbookId }: Props) {
                   {task.status === 'failed' && (
                     <span style={{ fontSize: fontSizes.caption, color: colors.red, flexShrink: 0 }}>Error</span>
                   )}
+                  {(task.status === 'running' || task.status === 'done' || task.status === 'failed') && (
+                    <button
+                      onClick={e => { e.stopPropagation(); handleViewLogs(task.id) }}
+                      title="View live logs"
+                      style={{
+                        padding: `${spacing.xxs}px ${spacing.sm}px`,
+                        background: 'none',
+                        border: 'none',
+                        cursor: 'pointer',
+                        color: colors.textQuaternary,
+                        fontSize: fontSizes.body,
+                        fontFamily: fonts.ui,
+                        transition: `color ${transitions.fast}`,
+                      }}
+                      onMouseEnter={e => e.currentTarget.style.color = colors.accent}
+                      onMouseLeave={e => e.currentTarget.style.color = colors.textQuaternary}
+                    >
+                      📋
+                    </button>
+                  )}
                 </div>
                 {expanded === task.id && (
                   <div style={{
@@ -175,6 +201,14 @@ export function TaskList({ workbookId }: Props) {
             </p>
           )}
         </div>
+      )}
+
+      {/* Live Logs Modal */}
+      {logTaskId && (
+        <TaskLogPanel
+          taskId={logTaskId}
+          onClose={() => setLogTaskId(null)}
+        />
       )}
     </div>
   )

@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react'
 import { useAgentStore } from '../../store/agent'
-import { AGENT_ROLES, type AgentInfo } from '../../types/agent'
+import { AGENT_ROLES, type AgentInfo, type TaskSubmitRequest } from '../../types/agent'
 import { TaskList } from '../TaskList/TaskList'
+import { TaskSubmitDialog } from './TaskSubmitDialog'
 import { colors, fonts, fontSizes, fontWeights, spacing, radii, shadows, transitions, z } from '../../styles/tokens'
 
 interface AgentPanelProps {
@@ -11,12 +12,15 @@ interface AgentPanelProps {
 
 export function AgentPanel({ workbookId, onClose }: AgentPanelProps) {
   const agents = useAgentStore(s => s.agents)
+  const tasks = useAgentStore(s => s.tasks)
   const loading = useAgentStore(s => s.loading)
   const fetchAgents = useAgentStore(s => s.fetchAgents)
   const createAgent = useAgentStore(s => s.createAgent)
   const deleteAgent = useAgentStore(s => s.deleteAgent)
+  const submitTask = useAgentStore(s => s.submitTask)
   const subscribeToEvents = useAgentStore(s => s.subscribeToEvents)
   const [showCreate, setShowCreate] = useState(false)
+  const [submitDialog, setSubmitDialog] = useState<{ agentId: string; role: string } | null>(null)
   const [tab, setTab] = useState<'agents' | 'tasks'>('agents')
 
   useEffect(() => {
@@ -42,9 +46,13 @@ export function AgentPanel({ workbookId, onClose }: AgentPanelProps) {
     }
   }
 
+  const handleSubmitTask = async (agentId: string, req: { action: string; params?: Record<string, unknown>; workbook_id?: string }) => {
+    return await submitTask(agentId, req)
+  }
+
   return (
     <div style={{
-      width: 320,
+      width: 360,
       background: colors.bgSecondary,
       borderLeft: `1px solid ${colors.separator}`,
       display: 'flex',
@@ -53,6 +61,7 @@ export function AgentPanel({ workbookId, onClose }: AgentPanelProps) {
       fontFamily: fonts.ui,
       overflowY: 'auto',
     }}>
+      {/* Header */}
       <div style={{
         display: 'flex',
         alignItems: 'center',
@@ -62,9 +71,11 @@ export function AgentPanel({ workbookId, onClose }: AgentPanelProps) {
       }}>
         <div style={{ display: 'flex', gap: spacing.xs }}>
           <TabButton active={tab === 'agents'} onClick={() => setTab('agents')}>Agents</TabButton>
-          <TabButton active={tab === 'tasks'} onClick={() => setTab('tasks')}>Tasks</TabButton>
+          <TabButton active={tab === 'tasks'} onClick={() => setTab('tasks')}>
+            Tasks {tasks.length > 0 && <Badge count={tasks.length} />}
+          </TabButton>
         </div>
-        <div style={{ display: 'flex', gap: spacing.sm }}>
+        <div style={{ display: 'flex', gap: spacing.sm, alignItems: 'center' }}>
           {tab === 'agents' && (
             <button
               onClick={() => setShowCreate(true)}
@@ -89,7 +100,7 @@ export function AgentPanel({ workbookId, onClose }: AgentPanelProps) {
           <button
             onClick={onClose}
             style={{
-              padding: `${spacing.xs}px ${spacing.md}px`,
+              padding: `${spacing.xxs}px ${spacing.md}px`,
               background: 'none',
               border: 'none',
               cursor: 'pointer',
@@ -106,6 +117,7 @@ export function AgentPanel({ workbookId, onClose }: AgentPanelProps) {
         </div>
       </div>
 
+      {/* Content */}
       <div style={{ flex: 1, overflow: 'auto', padding: spacing.md }}>
         {tab === 'agents' ? (
           loading ? (
@@ -117,26 +129,87 @@ export function AgentPanel({ workbookId, onClose }: AgentPanelProps) {
               No agents yet. Click "+ New" to create one.
             </div>
           ) : (
-            agents.map(a => (
-              <AgentCard key={a.id} agent={a} onDelete={handleDeleteAgent} />
-            ))
+            <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.sm }}>
+              {agents.map(a => (
+                <AgentCard
+                  key={a.id}
+                  agent={a}
+                  onDelete={handleDeleteAgent}
+                  onSubmitTask={() => setSubmitDialog({ agentId: a.id, role: AGENT_ROLES.find(r => r.id === a.role)?.label || a.role })}
+                />
+              ))}
+            </div>
           )
         ) : (
           <TaskList workbookId={workbookId} />
         )}
       </div>
 
+      {/* Create Agent Dialog */}
       {showCreate && (
         <AgentCreateDialog
           onSelect={handleCreateAgent}
           onClose={() => setShowCreate(false)}
         />
       )}
+
+      {/* Submit Task Dialog */}
+      {submitDialog && (
+        <TaskSubmitDialog
+          agentId={submitDialog.agentId}
+          agentRole={submitDialog.role}
+          workbookId={workbookId}
+          onSubmit={handleSubmitTask}
+          onClose={() => setSubmitDialog(null)}
+        />
+      )}
     </div>
   )
 }
 
-function AgentCard({ agent, onDelete }: { agent: AgentInfo; onDelete: (id: string) => void }) {
+function Badge({ count }: { count: number }) {
+  return (
+    <span style={{
+      background: colors.orange,
+      color: colors.textInverse,
+      fontSize: fontSizes.caption,
+      fontWeight: fontWeights.bold,
+      minWidth: 18, height: 18,
+      borderRadius: 9,
+      display: 'inline-flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: '0 4px',
+      marginLeft: spacing.xs,
+    }}>
+      {count}
+    </span>
+  )
+}
+
+function TabButton({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        padding: `${spacing.xs}px ${spacing.lg}px`,
+        border: 'none',
+        borderRadius: radii.sm,
+        cursor: 'pointer',
+        fontSize: fontSizes.label,
+        fontWeight: fontWeights.semibold,
+        background: active ? colors.accentLight : 'transparent',
+        color: active ? colors.accent : colors.textSecondary,
+        fontFamily: fonts.ui,
+        transition: `all ${transitions.fast}`,
+      }}
+    >
+      {children}
+    </button>
+  )
+}
+
+function AgentCard({ agent, onDelete, onSubmitTask }: { agent: AgentInfo; onDelete: (id: string) => void; onSubmitTask: () => void }) {
   const role = AGENT_ROLES.find(r => r.id === agent.role)
 
   const statusColor = agent.status === 'working' ? colors.green
@@ -163,22 +236,44 @@ function AgentCard({ agent, onDelete }: { agent: AgentInfo; onDelete: (id: strin
             {role?.label || agent.role}
           </span>
         </div>
-        <button
-          onClick={() => onDelete(agent.id)}
-          style={{
-            padding: `${spacing.xxs}px ${spacing.sm}px`,
-            background: 'none',
-            border: 'none',
-            cursor: 'pointer',
-            color: colors.textQuaternary,
-            fontSize: fontSizes.body,
-            transition: `color ${transitions.fast}`,
-          }}
-          onMouseEnter={e => e.currentTarget.style.color = colors.red}
-          onMouseLeave={e => e.currentTarget.style.color = colors.textQuaternary}
-        >
-          ✕
-        </button>
+        <div style={{ display: 'flex', gap: spacing.xs, alignItems: 'center' }}>
+          <button
+            onClick={onSubmitTask}
+            title="Submit task to this agent"
+            style={{
+              padding: `${spacing.xxs}px ${spacing.sm}px`,
+              background: colors.accentLight,
+              border: 'none',
+              borderRadius: radii.sm,
+              cursor: 'pointer',
+              color: colors.accent,
+              fontSize: fontSizes.body,
+              fontWeight: fontWeights.semibold,
+              fontFamily: fonts.ui,
+              transition: `all ${transitions.fast}`,
+            }}
+            onMouseEnter={e => e.currentTarget.style.background = colors.accent}
+            onMouseLeave={e => e.currentTarget.style.background = colors.accentLight}
+          >
+            ⚡
+          </button>
+          <button
+            onClick={() => onDelete(agent.id)}
+            style={{
+              padding: `${spacing.xxs}px ${spacing.sm}px`,
+              background: 'none',
+              border: 'none',
+              cursor: 'pointer',
+              color: colors.textQuaternary,
+              fontSize: fontSizes.body,
+              transition: `color ${transitions.fast}`,
+            }}
+            onMouseEnter={e => e.currentTarget.style.color = colors.red}
+            onMouseLeave={e => e.currentTarget.style.color = colors.textQuaternary}
+          >
+            ✕
+          </button>
+        </div>
       </div>
       <div style={{ display: 'flex', gap: spacing.sm, flexWrap: 'wrap' }}>
         <Tag label={agent.provider || 'default'} color={colors.accent} />
@@ -186,28 +281,6 @@ function AgentCard({ agent, onDelete }: { agent: AgentInfo; onDelete: (id: strin
         <Tag label={agent.status} color={statusColor} />
       </div>
     </div>
-  )
-}
-
-function TabButton({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
-  return (
-    <button
-      onClick={onClick}
-      style={{
-        padding: `${spacing.xs}px ${spacing.lg}px`,
-        border: 'none',
-        borderRadius: radii.sm,
-        cursor: 'pointer',
-        fontSize: fontSizes.label,
-        fontWeight: fontWeights.semibold,
-        background: active ? colors.accentLight : 'transparent',
-        color: active ? colors.accent : colors.textSecondary,
-        fontFamily: fonts.ui,
-        transition: `all ${transitions.fast}`,
-      }}
-    >
-      {children}
-    </button>
   )
 }
 
@@ -233,12 +306,12 @@ function AgentCreateDialog({ onSelect, onClose }: { onSelect: (roleId: string, p
   return (
     <div style={{
       position: 'fixed', inset: 0,
-      background: colors.scrim,
+      background: 'rgba(0,0,0,0.5)',
       display: 'flex', alignItems: 'center', justifyContent: 'center',
-      zIndex: z.modalBackdrop,
+      zIndex: 1000,
     }}>
       <div style={{
-        background: colors.bgTertiary,
+        background: colors.bgSecondary,
         borderRadius: 18,
         padding: spacing.xxxl,
         width: 400, maxHeight: '80vh', overflow: 'auto',

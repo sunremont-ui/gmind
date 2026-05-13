@@ -29,6 +29,7 @@ func ReActLoop(
 	executor *ToolExecutor,
 	prompts *PromptStore,
 	logger core.Logger,
+	eventBus core.EventBus,
 	task *Task,
 	maxCalls int,
 ) (string, error) {
@@ -70,6 +71,17 @@ func ReActLoop(
 		if err != nil {
 			msg := fmt.Sprintf("LLM call %d failed: %v", i+1, err)
 			logger.Error(msg)
+			eventBus.Publish(core.Event{
+				Type:   "agent:task_log",
+				Source: "agent",
+				Payload: map[string]any{
+					"task_id": task.ID,
+					"agent_id": task.AgentID,
+					"step":     i + 1,
+					"message":  msg,
+					"level":    "error",
+				},
+			})
 			return "", errors.New(msg)
 		}
 
@@ -78,6 +90,21 @@ func ReActLoop(
 		}
 
 		msg := resp.Message
+
+		// Publish LLM thought event
+		eventBus.Publish(core.Event{
+			Type:   "agent:task_log",
+			Source: "agent",
+			Payload: map[string]any{
+				"task_id":  task.ID,
+				"agent_id": task.AgentID,
+				"step":     i + 1,
+				"role":     "assistant",
+				"content":  msg.Content,
+				"tool_calls": len(msg.ToolCalls),
+				"level":    "info",
+			},
+		})
 
 		// Add assistant message to history
 		messages = append(messages, msg)
@@ -96,6 +123,20 @@ func ReActLoop(
 
 			logger.Debug("tool call", "agent", agentInfo.ID, "tool", tc.Name, "args", tc.Arguments)
 
+			// Publish tool call event
+			eventBus.Publish(core.Event{
+				Type:   "agent:task_log",
+				Source: "agent",
+				Payload: map[string]any{
+					"task_id":   task.ID,
+					"agent_id":  task.AgentID,
+					"step":      i + 1,
+					"tool_name": tc.Name,
+					"tool_args": tc.Arguments,
+					"level":     "debug",
+				},
+			})
+
 			// Validate JSON schema before executing
 			var argsRaw json.RawMessage
 			if err := json.Unmarshal([]byte(tc.Arguments), &argsRaw); err != nil {
@@ -104,6 +145,17 @@ func ReActLoop(
 					Role:       "tool",
 					ToolCallID: tc.ID,
 					Content:    errMsg,
+				})
+				eventBus.Publish(core.Event{
+					Type:   "agent:task_log",
+					Source: "agent",
+					Payload: map[string]any{
+						"task_id":  task.ID,
+						"agent_id": task.AgentID,
+						"step":     i + 1,
+						"message":  errMsg,
+						"level":    "warn",
+					},
 				})
 				continue
 			}
@@ -122,6 +174,17 @@ func ReActLoop(
 					ToolCallID: tc.ID,
 					Content:    "unknown tool: " + tc.Name,
 				})
+				eventBus.Publish(core.Event{
+					Type:   "agent:task_log",
+					Source: "agent",
+					Payload: map[string]any{
+						"task_id":  task.ID,
+						"agent_id": task.AgentID,
+						"step":     i + 1,
+						"message":  "unknown tool: " + tc.Name,
+						"level":    "warn",
+					},
+				})
 				continue
 			}
 
@@ -130,8 +193,32 @@ func ReActLoop(
 			if err != nil {
 				logger.Warn("tool error", "tool", tc.Name, "error", err)
 				resultJSON, _ = json.Marshal(map[string]string{"error": err.Error()})
+				eventBus.Publish(core.Event{
+					Type:   "agent:task_log",
+					Source: "agent",
+					Payload: map[string]any{
+						"task_id":  task.ID,
+						"agent_id": task.AgentID,
+						"step":     i + 1,
+						"tool_name": tc.Name,
+						"message":  err.Error(),
+						"level":    "error",
+					},
+				})
 			} else {
 				resultJSON, _ = json.Marshal(result)
+				eventBus.Publish(core.Event{
+					Type:   "agent:task_log",
+					Source: "agent",
+					Payload: map[string]any{
+						"task_id":   task.ID,
+						"agent_id":  task.AgentID,
+						"step":      i + 1,
+						"tool_name": tc.Name,
+						"result":    string(resultJSON),
+						"level":     "debug",
+					},
+				})
 			}
 
 			messages = append(messages, LLMMessage{
@@ -193,7 +280,7 @@ func RunTask(
 	})
 
 	start := time.Now()
-	result, err := ReActLoop(ctx, provider, model, agentInfo, executor, prompts, logger, task, task.MaxCalls)
+	result, err := ReActLoop(ctx, provider, model, agentInfo, executor, prompts, logger, eventBus, task, task.MaxCalls)
 	duration := time.Since(start)
 
 	if err != nil {

@@ -1,7 +1,7 @@
 // Re-export auto-generated API types (source of truth)
 export type {
   Workbook, Sheet, Topic, Position, Relationship,
-  ErrorCode, ErrorResponse,
+  ErrorCode, ErrorResponse, TaskLogMessage,
   CreateWorkbookRequest, CreateSheetRequest, CreateTopicRequest, UpdateTopicRequest,
   MoveTopicRequest, CreateRelationshipRequest, CopyTopicToWorkbookRequest,
   SwitchAIProviderRequest, AIGenerateRequest, AIChatRequest, AIChatResponse, AISuggestion,
