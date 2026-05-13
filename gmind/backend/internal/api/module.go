@@ -31,6 +31,7 @@ func (h *AgentHandler) RegisterRoutes(r chiRouter) {
 	r.Get("/agents", h.ListAgents)
 	r.Post("/agents", h.CreateAgent)
 	r.Delete("/agents/{id}", h.DeleteAgent)
+	r.Patch("/agents/{id}", h.UpdateAgent)
 
 	// Task endpoints
 	r.Post("/agents/{id}/tasks", h.SubmitTask)
@@ -101,6 +102,47 @@ func (h *AgentHandler) DeleteAgent(w http.ResponseWriter, r *http.Request) {
 
 	h.module.Registry().Unregister(id)
 	writeJSON(w, http.StatusNoContent, nil)
+}
+
+func (h *AgentHandler) UpdateAgent(w http.ResponseWriter, r *http.Request) {
+	id := extractPathParam(r, "id")
+	if id == "" {
+		writeError(w, http.StatusBadRequest, "id is required")
+		return
+	}
+
+	var req struct {
+		Provider string `json:"provider,omitempty"`
+		Model    string `json:"model,omitempty"`
+	}
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	if req.Provider == "" && req.Model == "" {
+		writeError(w, http.StatusBadRequest, "at least one of provider or model is required")
+		return
+	}
+
+	agent := h.module.Registry().Get(id)
+	if agent == nil {
+		writeError(w, http.StatusNotFound, "agent not found")
+		return
+	}
+
+	if req.Provider != "" {
+		agent.Provider = req.Provider
+	}
+	if req.Model != "" {
+		agent.Model = req.Model
+	}
+
+	if err := h.module.Manager().UpdateModel(id, agent.Provider, agent.Model); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	writeJSON(w, http.StatusOK, agent)
 }
 
 type submitTaskRequest struct {

@@ -13,6 +13,7 @@ interface AgentState {
   fetchTasks: () => Promise<void>
   createAgent: (req: AgentCreateRequest) => Promise<void>
   deleteAgent: (id: string) => Promise<void>
+  updateAgent: (id: string, provider?: string, model?: string) => Promise<AgentInfo>
   submitTask: (agentId: string, req: TaskSubmitRequest) => Promise<string | undefined>
   approveTask: (taskId: string) => Promise<void>
   rejectTask: (taskId: string) => Promise<void>
@@ -54,17 +55,30 @@ export const useAgentStore = create<AgentState>((set, get) => ({
     }
   },
 
-  deleteAgent: async (id: string) => {
-    try {
-      await agentApi.deleteAgent(id)
-      await get().fetchAgents()
-    } catch (err) {
-      set({ error: err instanceof Error ? err.message : 'Failed to delete agent' })
-      throw err
-    }
-  },
+deleteAgent: async (id: string) => {
+     try {
+       await agentApi.deleteAgent(id)
+       await get().fetchAgents()
+     } catch (err) {
+       set({ error: err instanceof Error ? err.message : 'Failed to delete agent' })
+       throw err
+     }
+   },
 
-  submitTask: async (agentId: string, req: TaskSubmitRequest) => {
+   updateAgent: async (id: string, provider?: string, model?: string) => {
+     try {
+       const updated = await agentApi.updateAgent(id, provider, model)
+       set((state) => ({
+         agents: state.agents.map(a => a.id === id ? { ...a, ...updated } : a),
+       }))
+       return updated
+     } catch (err) {
+       set({ error: err instanceof Error ? err.message : 'Failed to update agent' })
+       throw err
+     }
+   },
+
+   submitTask: async (agentId: string, req: TaskSubmitRequest) => {
     try {
       const { task_id } = await agentApi.submitTask(agentId, req)
       await get().fetchTasks()

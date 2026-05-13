@@ -284,3 +284,15 @@ func (m *Manager) StartWorker(agentID string, pool *WorkerPool) {
 	}
 	pool.StartWorker(agent)
 }
+
+// UpdateModel updates the model and optionally provider for an agent.
+func (m *Manager) UpdateModel(agentID, provider, model string) error {
+	ag := m.registry.Get(agentID)
+	if ag == nil {
+		return fmt.Errorf("agent %s not found", agentID)
+	}
+	ag.Provider = provider
+	ag.Model = model
+	m.logger.Info("agent model updated", "id", agentID, "provider", provider, "model", model)
+	return nil
+}

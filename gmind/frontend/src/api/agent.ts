@@ -29,10 +29,17 @@ export const agentApi = {
       body: JSON.stringify(req),
     }),
 
-  deleteAgent: (id: string) =>
-    agentFetch<void>(`/agents/${id}`, { method: 'DELETE' }),
+deleteAgent: (id: string) =>
+     agentFetch<void>(`/agents/${id}`, { method: 'DELETE' }),
 
-  listTasks: (agentID?: string) => {
+   updateAgent: (id: string, provider?: string, model?: string) =>
+     agentFetch<AgentInfo>(`/agents/${id}`, {
+       method: 'PATCH',
+       headers: { 'Content-Type': 'application/json' },
+       body: JSON.stringify({ provider, model }),
+     }),
+
+   listTasks: (agentID?: string) => {
     const params = agentID ? `?agent_id=${agentID}` : ''
     return agentFetch<AgentTask[]>(`/tasks${params}`)
   },

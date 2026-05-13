@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useAgentStore } from '../../store/agent'
 import { AGENT_ROLES, type AgentInfo, type TaskSubmitRequest } from '../../types/agent'
 import { TaskList } from '../TaskList/TaskList'
@@ -18,6 +18,7 @@ export function AgentPanel({ workbookId, onClose }: AgentPanelProps) {
   const createAgent = useAgentStore(s => s.createAgent)
   const deleteAgent = useAgentStore(s => s.deleteAgent)
   const submitTask = useAgentStore(s => s.submitTask)
+  const updateAgent = useAgentStore(s => s.updateAgent)
   const subscribeToEvents = useAgentStore(s => s.subscribeToEvents)
   const [showCreate, setShowCreate] = useState(false)
   const [submitDialog, setSubmitDialog] = useState<{ agentId: string; role: string } | null>(null)
@@ -46,11 +47,23 @@ export function AgentPanel({ workbookId, onClose }: AgentPanelProps) {
     }
   }
 
-  const handleSubmitTask = async (agentId: string, req: { action: string; params?: Record<string, unknown>; workbook_id?: string }) => {
-    return await submitTask(agentId, req)
-  }
+const handleSubmitTask = async (agentId: string, req: { action: string; params?: Record<string, unknown>; workbook_id?: string }) => {
+     return await submitTask(agentId, req)
+   }
 
-  return (
+const handleUpdateAgent = async (agentId: string, provider?: string, model?: string) => {
+      try {
+        await updateAgent(agentId, provider, model)
+      } catch (err) {
+        console.error('Failed to update agent:', err)
+      }
+    }
+
+    const handleUpdateModel = async (agentId: string, model: string) => {
+      await handleUpdateAgent(agentId, undefined, model)
+    }
+
+   return (
     <div style={{
       width: 360,
       background: colors.bgSecondary,
@@ -130,14 +143,15 @@ export function AgentPanel({ workbookId, onClose }: AgentPanelProps) {
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.sm }}>
-              {agents.map(a => (
-                <AgentCard
-                  key={a.id}
-                  agent={a}
-                  onDelete={handleDeleteAgent}
-                  onSubmitTask={() => setSubmitDialog({ agentId: a.id, role: AGENT_ROLES.find(r => r.id === a.role)?.label || a.role })}
-                />
-              ))}
+{agents.map(a => (
+                 <AgentCard
+                   key={a.id}
+                   agent={a}
+                   onDelete={handleDeleteAgent}
+                   onSubmitTask={() => setSubmitDialog({ agentId: a.id, role: AGENT_ROLES.find(r => r.id === a.role)?.label || a.role })}
+                   onUpdateModel={handleUpdateModel}
+                 />
+               ))}
             </div>
           )
         ) : (
@@ -209,12 +223,26 @@ function TabButton({ active, onClick, children }: { active: boolean; onClick: ()
   )
 }
 
-function AgentCard({ agent, onDelete, onSubmitTask }: { agent: AgentInfo; onDelete: (id: string) => void; onSubmitTask: () => void }) {
+function AgentCard({ agent, onDelete, onSubmitTask, onUpdateModel }: { agent: AgentInfo; onDelete: (id: string) => void; onSubmitTask: () => void; onUpdateModel: (agentId: string, model: string) => void }) {
   const role = AGENT_ROLES.find(r => r.id === agent.role)
 
   const statusColor = agent.status === 'working' ? colors.green
     : agent.status === 'error' ? colors.red
     : colors.textQuaternary
+
+  const MODEL_PRESETS = [
+    { value: 'gpt-4o', label: 'GPT-4o' },
+    { value: 'gpt-4o-mini', label: 'GPT-4o Mini' },
+    { value: 'gpt-3.5-turbo', label: 'GPT-3.5 Turbo' },
+    { value: 'o1-preview', label: 'o1 Preview' },
+    { value: 'o3-mini', label: 'o3 Mini' },
+    { value: 'claude-sonnet', label: 'Claude Sonnet' },
+    { value: 'yandex-gpt', label: 'Yandex GPT' },
+  ]
+
+  const handleModelChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    onUpdateModel(agent.id, e.target.value)
+  }
 
   return (
     <div style={{
@@ -237,6 +265,27 @@ function AgentCard({ agent, onDelete, onSubmitTask }: { agent: AgentInfo; onDele
           </span>
         </div>
         <div style={{ display: 'flex', gap: spacing.xs, alignItems: 'center' }}>
+          <select
+            value={agent.model || 'gpt-4o'}
+            onChange={handleModelChange}
+            disabled={agent.status === 'working'}
+            style={{
+              padding: `${spacing.xxs}px ${spacing.sm}px`,
+              border: `1px solid ${colors.separator}`,
+              borderRadius: radii.sm,
+              background: agent.status === 'working' ? colors.bgTertiary : colors.bg,
+              color: colors.text,
+              fontSize: fontSizes.caption,
+              fontFamily: fonts.mono,
+              outline: 'none',
+              cursor: agent.status === 'working' ? 'default' : 'pointer',
+              opacity: agent.status === 'working' ? 0.5 : 1,
+            }}
+          >
+            {MODEL_PRESETS.map(m => (
+              <option key={m.value} value={m.value}>{m.label}</option>
+            ))}
+          </select>
           <button
             onClick={onSubmitTask}
             title="Submit task to this agent"
