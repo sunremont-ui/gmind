@@ -1,11 +1,12 @@
 import { useState } from 'react'
-import type { TaskSubmitRequest } from '../../types/agent'
+import type { TaskSubmitRequest, AgentInfo } from '../../types/agent'
 import { colors, fonts, fontSizes, fontWeights, spacing, radii, shadows, transitions } from '../../styles/tokens'
 
 interface TaskSubmitDialogProps {
   agentId: string
   agentRole: string
   workbookId: string
+  agents: AgentInfo[]
   onSubmit: (agentId: string, req: TaskSubmitRequest) => Promise<string | undefined>
   onClose: () => void
 }
@@ -22,10 +23,11 @@ const TASK_ACTIONS = [
   { value: 'custom', label: 'Custom Action', desc: 'Enter a custom action name' },
 ]
 
-export function TaskSubmitDialog({ agentId, agentRole, workbookId, onSubmit, onClose }: TaskSubmitDialogProps) {
+export function TaskSubmitDialog({ agentId, agentRole, workbookId, agents, onSubmit, onClose }: TaskSubmitDialogProps) {
   const [action, setAction] = useState('')
   const [customAction, setCustomAction] = useState('')
   const [params, setParams] = useState('')
+  const [chainToAgentId, setChainToAgentId] = useState('')
   const [submitting, setSubmitting] = useState(false)
 
   const selectedAction = TASK_ACTIONS.find(a => a.value === action)
@@ -48,12 +50,15 @@ export function TaskSubmitDialog({ agentId, agentRole, workbookId, onSubmit, onC
         action: effectiveAction.trim(),
         params: parsedParams,
         workbook_id: workbookId,
+        chain_to_agent_id: chainToAgentId || undefined,
       })
       onClose()
     } finally {
       setSubmitting(false)
     }
   }
+
+  const otherAgents = agents.filter(a => a.id !== agentId && a.status !== 'working')
 
   return (
     <div style={{
@@ -67,7 +72,7 @@ export function TaskSubmitDialog({ agentId, agentRole, workbookId, onSubmit, onC
         background: colors.bgSecondary,
         borderRadius: 16,
         padding: spacing.xxxl,
-        width: 460, maxHeight: '80vh', overflow: 'auto',
+        width: 480, maxHeight: '85vh', overflow: 'auto',
         boxShadow: shadows.neuLg,
         border: 'none',
       }}>
@@ -78,6 +83,7 @@ export function TaskSubmitDialog({ agentId, agentRole, workbookId, onSubmit, onC
           Submit Task to {agentRole}
         </h2>
 
+        {/* Action selector */}
         <div style={{ marginBottom: spacing.lg }}>
           <div style={{
             fontSize: fontSizes.caption, color: colors.textSecondary,
@@ -127,6 +133,40 @@ export function TaskSubmitDialog({ agentId, agentRole, workbookId, onSubmit, onC
           </div>
         </div>
 
+        {/* Chain selector */}
+        {otherAgents.length > 0 && (
+          <div style={{ marginBottom: spacing.lg }}>
+            <div style={{
+              fontSize: fontSizes.caption, color: colors.textSecondary,
+              marginBottom: spacing.xs, fontWeight: fontWeights.medium,
+            }}>
+              Chain to agent (optional)
+            </div>
+            <select
+              value={chainToAgentId}
+              onChange={e => setChainToAgentId(e.target.value)}
+              style={{
+                width: '100%', padding: `${spacing.sm}px ${spacing.md}px`,
+                border: `1px solid ${colors.separator}`, borderRadius: radii.sm,
+                background: colors.bg, color: colors.text,
+                fontSize: fontSizes.label, fontFamily: fonts.ui,
+                outline: 'none', cursor: 'pointer',
+              }}
+            >
+              <option value="">— No chain —</option>
+              {otherAgents.map(a => {
+                const role = AGENT_ROLES.find(r => r.id === a.role)
+                return (
+                  <option key={a.id} value={a.id}>
+                    {role?.label || a.role} ({a.model})
+                  </option>
+                )
+              })}
+            </select>
+          </div>
+        )}
+
+        {/* Parameters */}
         <div style={{ marginBottom: spacing.lg }}>
           <div style={{
             fontSize: fontSizes.caption, color: colors.textSecondary,
@@ -148,6 +188,7 @@ export function TaskSubmitDialog({ agentId, agentRole, workbookId, onSubmit, onC
           />
         </div>
 
+        {/* Buttons */}
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: spacing.sm }}>
           <button
             onClick={onClose}
@@ -189,3 +230,13 @@ export function TaskSubmitDialog({ agentId, agentRole, workbookId, onSubmit, onC
     </div>
   )
 }
+
+const AGENT_ROLES = [
+  { id: 'researcher', label: 'Researcher', color: '#3b82f6' },
+  { id: 'organizer', label: 'Organizer', color: '#22c55e' },
+  { id: 'critic', label: 'Critic', color: '#ef4444' },
+  { id: 'expander', label: 'Expander', color: '#a855f7' },
+  { id: 'summarizer', label: 'Summarizer', color: '#f59e0b' },
+  { id: 'editor', label: 'Editor', color: '#06b6d4' },
+  { id: 'analyst', label: 'Analyst', color: '#ec4899' },
+]

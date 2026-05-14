@@ -42,6 +42,8 @@ export interface TaskSubmitRequest {
   workbook_id?: string
   sheet_id?: string
   topic_id?: string
+  chain_to_agent_id?: string
+  chain_from_task_id?: string
 }
 
 export const AGENT_ROLES = [

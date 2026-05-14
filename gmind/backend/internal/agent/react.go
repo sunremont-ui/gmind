@@ -259,6 +259,7 @@ func RunTask(
 	taskQueue *TaskQueue,
 	eventBus core.EventBus,
 	logger core.Logger,
+	manager *Manager,
 	taskID string,
 ) {
 	task, err := taskQueue.Get(taskID)
@@ -313,4 +314,28 @@ func RunTask(
 		},
 	})
 	logger.Info("task completed", "id", task.ID, "duration", duration.String())
+
+	// Auto-chain: if the task specifies a follow-up agent, submit a new task
+	if task.ChainToAgentID != "" && manager != nil {
+		chainTaskID, cerr := manager.SubmitTask(
+			task.ChainToAgentID,
+			"process_chain_result",
+			map[string]any{
+				"previous_task_id":  task.ID,
+				"previous_result":   result,
+				"previous_agent_id": task.AgentID,
+			},
+			task.WorkbookID,
+			task.SheetID,
+			task.TopicID,
+			"", // no idempotency key for auto-chained tasks
+			"", // no further chaining by default
+			task.ID,
+		)
+		if cerr != nil {
+			logger.Warn("failed to submit chained task", "error", cerr)
+		} else {
+			logger.Info("chained task submitted", "chain_from", task.ID, "chain_to", chainTaskID)
+		}
+	}
 }

@@ -233,21 +233,23 @@ func NewManager(registry *Registry, taskQueue *TaskQueue, logger core.Logger) *M
 // SubmitTask enqueues a task for a specific agent and returns the task ID.
 // If HITALEnabled is true and the action is mutating, the task is created in pending_approval.
 // If idempotencyKey is non-empty and a task with that key exists, the existing task ID is returned.
-func (m *Manager) SubmitTask(agentID, action string, params map[string]any, workbookID, sheetID, topicID, idempotencyKey string) (string, error) {
+func (m *Manager) SubmitTask(agentID, action string, params map[string]any, workbookID, sheetID, topicID, idempotencyKey, chainToAgentID, chainFromTaskID string) (string, error) {
 	ag := m.registry.Get(agentID)
 	if ag == nil {
 		return "", fmt.Errorf("agent %s not found", agentID)
 	}
 
 	task := &Task{
-		AgentID:        agentID,
-		Action:         action,
-		Params:         params,
-		WorkbookID:     workbookID,
-		SheetID:        sheetID,
-		TopicID:        topicID,
-		MaxCalls:       10,
-		IdempotencyKey: idempotencyKey,
+		AgentID:         agentID,
+		Action:          action,
+		Params:          params,
+		WorkbookID:      workbookID,
+		SheetID:         sheetID,
+		TopicID:         topicID,
+		MaxCalls:        10,
+		IdempotencyKey:  idempotencyKey,
+		ChainToAgentID:  chainToAgentID,
+		ChainFromTaskID: chainFromTaskID,
 	}
 
 	initialStatus := TaskQueued

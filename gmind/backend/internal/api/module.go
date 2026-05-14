@@ -146,12 +146,14 @@ func (h *AgentHandler) UpdateAgent(w http.ResponseWriter, r *http.Request) {
 }
 
 type submitTaskRequest struct {
-	Action         string         `json:"action"`
-	Params         map[string]any `json:"params,omitempty"`
-	WorkbookID     string         `json:"workbook_id,omitempty"`
-	SheetID        string         `json:"sheet_id,omitempty"`
-	TopicID        string         `json:"topic_id,omitempty"`
-	IdempotencyKey string         `json:"idempotency_key,omitempty"`
+	Action          string         `json:"action"`
+	Params          map[string]any `json:"params,omitempty"`
+	WorkbookID      string         `json:"workbook_id,omitempty"`
+	SheetID         string         `json:"sheet_id,omitempty"`
+	TopicID         string         `json:"topic_id,omitempty"`
+	IdempotencyKey  string         `json:"idempotency_key,omitempty"`
+	ChainToAgentID  string         `json:"chain_to_agent_id,omitempty"`
+	ChainFromTaskID string         `json:"chain_from_task_id,omitempty"`
 }
 
 func (h *AgentHandler) SubmitTask(w http.ResponseWriter, r *http.Request) {
@@ -177,7 +179,7 @@ func (h *AgentHandler) SubmitTask(w http.ResponseWriter, r *http.Request) {
 		ik = r.Header.Get("Idempotency-Key")
 	}
 
-	taskID, err := h.module.Manager().SubmitTask(agentID, req.Action, req.Params, req.WorkbookID, req.SheetID, req.TopicID, ik)
+	taskID, err := h.module.Manager().SubmitTask(agentID, req.Action, req.Params, req.WorkbookID, req.SheetID, req.TopicID, ik, req.ChainToAgentID, req.ChainFromTaskID)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return

@@ -13,15 +13,16 @@ import (
 
 // WorkerPool manages goroutine workers that pull and execute tasks.
 type WorkerPool struct {
-	mu        sync.RWMutex
-	workers   map[string]context.CancelFunc // agentID → cancel
-	taskQueue *TaskQueue
-	executor  *ToolExecutor
-	prompts   *PromptStore
-	logger    core.Logger
-	eventBus  core.EventBus
-	provider  LLMProvider
-	model     string
+	mu       sync.RWMutex
+	workers  map[string]context.CancelFunc // agentID → cancel
+	queue    *TaskQueue
+	manager  *Manager
+	executor *ToolExecutor
+	prompts  *PromptStore
+	logger   core.Logger
+	eventBus core.EventBus
+	provider LLMProvider
+	model    string
 }
 
 // NewWorkerPool creates a new worker pool.
@@ -32,10 +33,12 @@ func NewWorkerPool(
 	logger core.Logger,
 	eventBus core.EventBus,
 	wikiStore *wiki.Store,
+	manager *Manager,
 ) *WorkerPool {
 	return &WorkerPool{
 		workers:   make(map[string]context.CancelFunc),
-		taskQueue: taskQueue,
+		queue:     taskQueue,
+		manager:   manager,
 		executor:  NewToolExecutor(s, eventBus, logger, wikiStore),
 		prompts:   prompts,
 		logger:    logger,
@@ -122,7 +125,7 @@ func (wp *WorkerPool) runWorkerLoop(ctx context.Context, agentInfo *AgentInfo) {
 		select {
 		case <-ctx.Done():
 			return
-		case <-wp.taskQueue.Signal():
+		case <-wp.queue.Signal():
 			// Woken up — a new task was enqueued
 		case <-poll.C:
 			// Fallback poll for safety
@@ -132,7 +135,7 @@ func (wp *WorkerPool) runWorkerLoop(ctx context.Context, agentInfo *AgentInfo) {
 
 // tryProcessTask attempts to dequeue and run one task. Returns true if a task was found.
 func (wp *WorkerPool) tryProcessTask(ctx context.Context, agentInfo *AgentInfo) bool {
-	task := wp.taskQueue.Dequeue(agentInfo.ID)
+	task := wp.queue.Dequeue(agentInfo.ID)
 	if task == nil {
 		return false
 	}
@@ -140,14 +143,15 @@ func (wp *WorkerPool) tryProcessTask(ctx context.Context, agentInfo *AgentInfo) 
 	wp.mu.RLock()
 	provider := wp.provider
 	model := wp.model
+	manager := wp.manager
 	wp.mu.RUnlock()
 
 	if provider == nil {
-		wp.taskQueue.Fail(task.ID, &errNoAI{})
+		wp.queue.Fail(task.ID, &errNoAI{})
 		return true
 	}
 
-	go RunTask(ctx, provider, model, agentInfo, wp.executor, wp.prompts, wp.taskQueue, wp.eventBus, wp.logger, task.ID)
+	go RunTask(ctx, provider, model, agentInfo, wp.executor, wp.prompts, wp.queue, wp.eventBus, wp.logger, manager, task.ID)
 	return true
 }
 

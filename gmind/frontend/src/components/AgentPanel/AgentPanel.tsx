@@ -167,16 +167,17 @@ const handleUpdateAgent = async (agentId: string, provider?: string, model?: str
         />
       )}
 
-      {/* Submit Task Dialog */}
-      {submitDialog && (
-        <TaskSubmitDialog
-          agentId={submitDialog.agentId}
-          agentRole={submitDialog.role}
-          workbookId={workbookId}
-          onSubmit={handleSubmitTask}
-          onClose={() => setSubmitDialog(null)}
-        />
-      )}
+{/* Submit Task Dialog */}
+       {submitDialog && (
+         <TaskSubmitDialog
+           agentId={submitDialog.agentId}
+           agentRole={submitDialog.role}
+           workbookId={workbookId}
+           agents={agents}
+           onSubmit={handleSubmitTask}
+           onClose={() => setSubmitDialog(null)}
+         />
+       )}
     </div>
   )
 }

@@ -68,7 +68,7 @@ func main() {
 	taskStore := store.NewTaskStore(db.DB())
 	agentModule.InitTaskStore(taskStore)
 
-	wp := agent.NewWorkerPool(agentModule.TaskQueue, db, agentModule.PromptStore, logger, eventBus, wikiStore)
+	wp := agent.NewWorkerPool(agentModule.TaskQueue, db, agentModule.PromptStore, logger, eventBus, wikiStore, agentModule.Manager())
 	wp.SetAIEndpoint(cfg.AIAPIKey, cfg.AIEndpoint, cfg.AIModel)
 	agentModule.WorkerPool = wp
 

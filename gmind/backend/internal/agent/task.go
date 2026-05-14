@@ -22,20 +22,22 @@ const (
 )
 
 type Task struct {
-	ID             string          `json:"id"`
-	AgentID        string          `json:"agent_id"`
-	Action         string          `json:"action"`
-	Params         map[string]any  `json:"params"`
-	WorkbookID     string          `json:"workbook_id"`
-	SheetID        string          `json:"sheet_id,omitempty"`
-	TopicID        string          `json:"topic_id,omitempty"`
-	CreatedAt      time.Time       `json:"created_at"`
-	UpdatedAt      time.Time       `json:"updated_at"`
-	Status         TaskStatus      `json:"status"`
-	Result         json.RawMessage `json:"result,omitempty"`
-	Error          string          `json:"error,omitempty"`
-	MaxCalls       int             `json:"max_calls"`
-	IdempotencyKey string          `json:"idempotency_key,omitempty"`
+	ID              string          `json:"id"`
+	AgentID         string          `json:"agent_id"`
+	Action          string          `json:"action"`
+	Params          map[string]any  `json:"params"`
+	WorkbookID      string          `json:"workbook_id"`
+	SheetID         string          `json:"sheet_id,omitempty"`
+	TopicID         string          `json:"topic_id,omitempty"`
+	CreatedAt       time.Time       `json:"created_at"`
+	UpdatedAt       time.Time       `json:"updated_at"`
+	Status          TaskStatus      `json:"status"`
+	Result          json.RawMessage `json:"result,omitempty"`
+	Error           string          `json:"error,omitempty"`
+	MaxCalls        int             `json:"max_calls"`
+	IdempotencyKey  string          `json:"idempotency_key,omitempty"`
+	ChainToAgentID  string          `json:"chain_to_agent_id,omitempty"`
+	ChainFromTaskID string          `json:"chain_from_task_id,omitempty"`
 }
 
 // TaskQueue is a FIFO queue per agent with SQLite persistence.
