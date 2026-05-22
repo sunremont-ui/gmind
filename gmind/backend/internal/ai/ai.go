@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"strings"
 	"sync"
 
 	"github.com/gmind/backend/internal/model"
@@ -92,6 +94,74 @@ Keep topics concise (2-5 words each). Maximum 3 levels deep.`
 	}
 
 	return &result, nil
+}
+
+// GenerateMindMapStream streams topics one by one as the LLM produces them.
+// It asks the LLM to output one JSON object per line; each complete line is parsed and sent to topicCh.
+func (a *AI) GenerateMindMapStream(ctx context.Context, prompt string, topicCh chan<- GenerateTopic) error {
+	a.mu.RLock()
+	client := a.client
+	modelName := a.model
+	a.mu.RUnlock()
+
+	systemPrompt := `You are a mind map generator. Output each top-level topic as a separate JSON line with no extra text:
+{"title":"Topic","children":[{"title":"Sub-topic","children":[]}]}
+One JSON object per line. Keep topics concise (2-5 words). Maximum 3 levels deep.`
+
+	stream, err := client.CreateChatCompletionStream(ctx, openai.ChatCompletionRequest{
+		Model: modelName,
+		Messages: []openai.ChatCompletionMessage{
+			{Role: openai.ChatMessageRoleSystem, Content: systemPrompt},
+			{Role: openai.ChatMessageRoleUser, Content: prompt},
+		},
+		Temperature: 0.7,
+	})
+	if err != nil {
+		return fmt.Errorf("ai generate stream: %w", err)
+	}
+	defer stream.Close()
+
+	var buf strings.Builder
+	for {
+		resp, err := stream.Recv()
+		if errors.Is(err, io.EOF) {
+			break
+		}
+		if err != nil {
+			return fmt.Errorf("stream recv: %w", err)
+		}
+		if len(resp.Choices) == 0 {
+			continue
+		}
+		for _, ch := range resp.Choices[0].Delta.Content {
+			if ch == '\n' {
+				line := strings.TrimSpace(buf.String())
+				buf.Reset()
+				if line == "" {
+					continue
+				}
+				var topic GenerateTopic
+				if json.Unmarshal([]byte(line), &topic) == nil && topic.Title != "" {
+					topicCh <- topic
+				}
+			} else {
+				buf.WriteRune(ch)
+			}
+		}
+	}
+
+	// flush any remaining content (no trailing newline)
+	if buf.Len() > 0 {
+		line := strings.TrimSpace(buf.String())
+		if line != "" {
+			var topic GenerateTopic
+			if json.Unmarshal([]byte(line), &topic) == nil && topic.Title != "" {
+				topicCh <- topic
+			}
+		}
+	}
+
+	return nil
 }
 
 func (a *AI) ExpandTopic(ctx context.Context, title string, existingChildren []string) (*GenerateResult, error) {

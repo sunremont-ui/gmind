@@ -111,6 +111,21 @@ type Client struct {
 - Показывает количество онлайн пользователей
 - Открывает панель со списком: цветная точка + имя
 
+## Comments on Nodes
+
+**Где**: `frontend/src/components/Comments/CommentsPanel.tsx`, `backend/internal/store/comment.go`, `backend/migrations/002_comments.up.sql`
+
+Реализована система комментариев к топикам mindmap:
+
+- **Иконка 💬** на каждой ноде холста (TopicNode.tsx + renderer.tsx + MindMap.tsx handler)
+- Клик по 💬 открывает `CommentsPanel` как модальное окно
+- **API endpoints:**
+  - `GET /api/v1/topics/{topicID}/comments` — список комментариев топика
+  - `POST /api/v1/topics/{topicID}/comments` — добавить комментарий (требует `X-User-ID`)
+  - `DELETE /api/v1/comments/{id}` — удалить комментарий
+- **Backend:** `backend/internal/store/comment.go` — CRUD + миграция `002_comments.up.sql`
+- Комментарии имеют `id`, `topic_id`, `user_id`, `content`, `created_at`, `updated_at`
+
 ## Особенности
 - Сервер **не хранит** операции — только релеит. Консистентность через REST API (full reload при переподключении / сложных операциях)
 - `update` message остаётся как fallback для полной перезагрузки

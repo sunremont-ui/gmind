@@ -27,6 +27,7 @@ interface RendererProps {
   onTopicEditSave: (id: string, title: string) => void
   onTopicEditCancel: () => void
   onTopicNotesClick?: (id: string, notes: string) => void
+  onTopicCommentsClick?: (id: string) => void
   onTopicFoldToggle?: (id: string) => void
   cursors?: Map<string, import('../types').CursorPosition>
   reorderTarget?: { parentId: string; insertIndex: number; nodeHeight?: number } | null
@@ -54,6 +55,7 @@ export function MindMapRenderer({
   onTopicEditSave,
   onTopicEditCancel,
   onTopicNotesClick,
+  onTopicCommentsClick,
   onTopicFoldToggle,
   cursors,
   reorderTarget,
@@ -137,6 +139,7 @@ export function MindMapRenderer({
            onEditSave={onTopicEditSave}
            onEditCancel={onTopicEditCancel}
             onNotesClick={onTopicNotesClick}
+            onCommentsClick={onTopicCommentsClick}
             onFoldToggle={onTopicFoldToggle}
             onExpandToggle={onTopicExpandToggle}
         />
@@ -174,7 +177,7 @@ export function MindMapRenderer({
     dragOverTopicId, draggingTopicId, editingTopicId,
     onTopicSelect, onTopicDoubleClick, onTopicContextMenu,
     onTopicDragStart, onTopicDragOver, onTopicDrop,
-    onTopicEditSave, onTopicEditCancel, onTopicFoldToggle,
+    onTopicEditSave, onTopicEditCancel, onTopicCommentsClick, onTopicFoldToggle,
     expandedTopicIds, onTopicExpandToggle,
   ])
 
@@ -238,6 +241,7 @@ export function MindMapRenderer({
             onEditSave={onTopicEditSave}
             onEditCancel={onTopicEditCancel}
             onNotesClick={onTopicNotesClick}
+            onCommentsClick={onTopicCommentsClick}
             onFoldToggle={onTopicFoldToggle}
             onExpandToggle={onTopicExpandToggle}
           />

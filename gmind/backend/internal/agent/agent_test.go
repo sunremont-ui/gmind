@@ -273,7 +273,8 @@ func TestToolExecutor(t *testing.T) {
 		t.Fatal("NewToolExecutor returned nil")
 	}
 
-	callbacks := exec.getCallbacks()
+	dummyTask := &Task{ID: "test", AgentID: "test-agent"}
+	callbacks := exec.getCallbacks(dummyTask)
 	expectedTools := []string{
 		"create_topic", "update_topic", "create_multiple_topics",
 		"add_note", "get_topic", "get_workbook",

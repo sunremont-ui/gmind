@@ -5,8 +5,14 @@
   "windows": ["main", "capture"],
   "permissions": [
     "core:default",
+    "core:webview:allow-set-webview-focus",
     "shell:allow-open",
+    "shell:allow-execute",
+    "shell:allow-spawn",
     "dialog:default",
-    "global-shortcut:default"
+    "global-shortcut:default",
+    "stronghold:default",
+    "autostart:default",
+    "store:default"
   ]
 }

@@ -7,7 +7,10 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"path/filepath"
+	"sort"
 	"strconv"
+	"strings"
 	"sync"
 )
 
@@ -32,7 +35,7 @@ func New() *Server {
 		config: Config{
 			ServerPath: `E:\LlamaCpp\llama.cpp\build\bin\Release\llama-server.exe`,
 			ModelPath:  `E:\LlamaCpp\models\qwen2.5-coder-7b-instruct-q4_k_m.gguf`,
-			Port:       8081,
+			Port:       1100,
 			Context:    4096,
 			GPULayers:  33,
 			Threads:    4,
@@ -118,6 +121,59 @@ func (s *Server) IsRunning() bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.running
+}
+
+func isLlamaModelFile(name string) bool {
+	ext := strings.ToLower(filepath.Ext(name))
+	switch ext {
+	case ".gguf", ".bin", ".pt", ".safetensors":
+		return true
+	default:
+		return false
+	}
+}
+
+func (s *Server) AvailableModels() []string {
+	s.mu.Lock()
+	cfg := s.config
+	s.mu.Unlock()
+
+	modelPath := cfg.ModelPath
+	if modelPath == "" {
+		return nil
+	}
+
+	fileInfo, err := os.Stat(modelPath)
+	if err != nil {
+		return nil
+	}
+
+	dir := modelPath
+	if !fileInfo.IsDir() {
+		dir = filepath.Dir(modelPath)
+	}
+
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return nil
+	}
+
+	models := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		name := entry.Name()
+		if isLlamaModelFile(name) {
+			models = append(models, name)
+		}
+	}
+
+	sort.Strings(models)
+	if len(models) == 0 && !fileInfo.IsDir() {
+		models = append(models, filepath.Base(modelPath))
+	}
+	return models
 }
 
 func (s *Server) SaveConfig(path string) error {

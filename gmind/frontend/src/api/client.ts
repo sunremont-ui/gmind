@@ -2,7 +2,7 @@ import type {
   Workbook, Sheet, Topic, Relationship, Position, ErrorResponse,
   CreateWorkbookRequest, CreateSheetRequest, CreateTopicRequest, UpdateTopicRequest,
   MoveTopicRequest, CreateRelationshipRequest, CopyTopicToWorkbookRequest,
-  SwitchAIProviderRequest, AIGenerateRequest,
+  SwitchAIProviderRequest, AIGenerateRequest, AIModelProvider,
   AddCollaboratorRequest, ListCollaboratorsResponse,
 } from '../types/api'
 import { ApiError } from './errors'
@@ -197,11 +197,33 @@ export const api = {
   aiSummarize: (workbookId: string, sheetId: string) =>
     api.aiChat(workbookId, sheetId, 'Summarize this mind map in 3-5 concise bullet points. Focus on the main topics and their relationships.'),
 
+  // Ollama
+  getOllamaStatus: () =>
+    request<{ detected: boolean; models: { name: string; modified_at: string; size: number }[]; base_url: string }>('/ollama/status'),
+
+  // AI Models
+  getAIModels: () =>
+    request<{ providers: AIModelProvider[] }>('/ai/models'),
+
   // AI Provider switching
-  switchAIProvider: (provider: 'openai' | 'local' | 'yandex', endpoint?: string, model?: string, apiKey?: string, folderId?: string) =>
+  switchAIProvider: (provider: 'openai' | 'local' | 'ollama' | 'yandex', endpoint?: string, model?: string, apiKey?: string, folderId?: string) =>
     request<{ status: string; provider: string }>('/ai/provider', {
       method: 'POST',
       body: JSON.stringify({ provider, endpoint, model, api_key: apiKey, folder_id: folderId } satisfies SwitchAIProviderRequest),
+    }),
+
+  // MASys pipelines
+  listMasysPipelines: () =>
+    request<{ pipelines: any[] }>('/masys/pipelines'),
+
+  // Inject AI config (called by Tauri on startup after secrets are loaded)
+  applyConfig: (cfg: {
+    openai_api_key?: string; openai_endpoint?: string; openai_model?: string;
+    yandex_api_key?: string; yandex_folder_id?: string; yandex_model?: string;
+  }) =>
+    request<{ status: string }>('/config', {
+      method: 'POST',
+      body: JSON.stringify(cfg),
     }),
 
   // Import topic tree recursively (from markdown/freemind)

@@ -240,16 +240,16 @@
           await invoke('quick_capture', { text: title });
         } else {
           // Fallback: direct API call when not in Tauri
-          const res = await fetch('http://localhost:8080/api/v1/workbooks');
+          const res = await fetch('http://localhost:1010/api/v1/workbooks');
           const wbs = await safeJson(res) || [];
           const inbox = wbs.find(w => w.title && w.title.includes('Inbox'));
           if (!inbox) throw new Error('Inbox not found');
-          const wbRes = await fetch('http://localhost:8080/api/v1/workbooks/' + inbox.id);
+          const wbRes = await fetch('http://localhost:1010/api/v1/workbooks/' + inbox.id);
           const wb = await safeJson(wbRes);
           if (!wb) throw new Error('Empty workbook response');
           const rootId = wb.sheets?.[0]?.root_topic?.id;
           if (!rootId) throw new Error('No root topic found');
-          const createRes = await fetch('http://localhost:8080/api/v1/workbooks/' + inbox.id + '/topics', {
+          const createRes = await fetch('http://localhost:1010/api/v1/workbooks/' + inbox.id + '/topics', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ title: title, parent_id: rootId }),

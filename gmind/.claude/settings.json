@@ -10,7 +10,13 @@
       "Bash(cd \"/d/Gmind/gmind/frontend/src/components\" && grep -rn --include=\"*.tsx\" \"'white'\\\\|#e2e8f0\\\\|#f1f5f9\\\\|#1e293b\\\\|#334155\\\\|#475569\\\\|#fafafa\\\\|#f8fafc\\\\|background: 'white'\" . 2>/dev/null | grep -v \".test.tsx\")",
       "Read(//d/d/Gmind/gmind/frontend/src/**)",
       "Bash(Get-ChildItem -Path \"d:\\\\Gmind\\\\gmind\" -Directory)",
-      "Bash(Select-Object Name)"
+      "Bash(Select-Object Name)",
+      "Bash(npm test *)",
+      "Bash(go build *)",
+      "Bash(Set-Location \"d:\\\\Gmind\\\\gmind\\\\backend\")",
+      "Bash(go test *)",
+      "Bash(npx vitest *)",
+      "Bash(go vet *)"
     ]
   }
 }

@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -24,17 +25,19 @@ type TaskLogMessage struct {
 
 // taskLogBroker manages SSE connections for a single task.
 type taskLogBroker struct {
-	mu       sync.RWMutex
-	clients  map[chan TaskLogMessage]struct{}
-	messages []TaskLogMessage
-	capacity int
+	mu        sync.RWMutex
+	clients   map[chan TaskLogMessage]struct{}
+	messages  []TaskLogMessage
+	capacity  int
+	createdAt time.Time
 }
 
 func newTaskLogBroker(capacity int) *taskLogBroker {
 	return &taskLogBroker{
-		clients:  make(map[chan TaskLogMessage]struct{}),
-		messages: make([]TaskLogMessage, 0, capacity),
-		capacity: capacity,
+		clients:   make(map[chan TaskLogMessage]struct{}),
+		messages:  make([]TaskLogMessage, 0, capacity),
+		capacity:  capacity,
+		createdAt: time.Now(),
 	}
 }
 
@@ -73,9 +76,38 @@ func (b *taskLogBroker) publish(msg TaskLogMessage) {
 }
 
 var (
-	brokerMu    sync.RWMutex
-	taskBrokers = make(map[string]*taskLogBroker)
+	brokerMu       sync.RWMutex
+	taskBrokers    = make(map[string]*taskLogBroker)
+	brokerCleanup  sync.Once
 )
+
+// startBrokerCleanup runs a background goroutine that evicts brokers with no
+// connected clients after a TTL. Called lazily on first broker creation.
+func startBrokerCleanup(ctx context.Context) {
+	const ttl = 30 * time.Minute
+	ticker := time.NewTicker(5 * time.Minute)
+	go func() {
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				now := time.Now()
+				brokerMu.Lock()
+				for id, b := range taskBrokers {
+					b.mu.RLock()
+					idle := len(b.clients) == 0 && now.Sub(b.createdAt) > ttl
+					b.mu.RUnlock()
+					if idle {
+						delete(taskBrokers, id)
+					}
+				}
+				brokerMu.Unlock()
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+}
 
 func getOrCreateBroker(taskID string) *taskLogBroker {
 	brokerMu.Lock()
@@ -85,6 +117,8 @@ func getOrCreateBroker(taskID string) *taskLogBroker {
 	}
 	b := newTaskLogBroker(200)
 	taskBrokers[taskID] = b
+	// Start the periodic cleanup goroutine once (context lives for process lifetime).
+	brokerCleanup.Do(func() { startBrokerCleanup(context.Background()) })
 	return b
 }
 
@@ -160,7 +194,10 @@ func (h *AgentHandler) StreamTaskLogs(w http.ResponseWriter, r *http.Request) {
 	msgCh := make(chan TaskLogMessage, 200)
 	broker := getOrCreateBroker(taskID)
 	broker.register(msgCh)
-	defer broker.unregister(msgCh)
+	defer func() {
+		broker.unregister(msgCh)
+		removeBrokerIfEmpty(taskID)
+	}()
 
 	ctx := r.Context()
 
@@ -196,10 +233,10 @@ func (h *AgentHandler) GetTaskLogs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	brokerMu.RLock()
+	b.mu.RLock()
 	msgs := make([]TaskLogMessage, len(b.messages))
 	copy(msgs, b.messages)
-	brokerMu.RUnlock()
+	b.mu.RUnlock()
 
 	writeJSON(w, http.StatusOK, msgs)
 }

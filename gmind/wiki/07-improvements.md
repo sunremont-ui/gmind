@@ -80,6 +80,40 @@
 - [x] **Удаление дублирующейся панели** — всё перенесено в тулбар
 - [x] **Responsive sidebar** — toggle collapsible (≡/←), анимация ширины 260↔48px
 - [x] **Scrollable panels** — AIPanel/AgentPanel/PropertiesPanel скроллятся при переполнении
+- [x] **Comments on Nodes** — 💬 иконка на каждой ноде, модальный CommentsPanel
+- [x] **Agent Task Submission** — ⚡ кнопка "Submit Task →" на карточке агента
+- [x] **Agent Streaming Indicator** — зелёная строка Working/Thinking/Using tool в AgentCard
+- [x] **Agent Chaining Visualization** — ⛓️ иконка + развёрнутая цепочка в TaskList
+
+### Модульная архитектура
+- [x] **Module System** — core.Module interface, Registry, EventBus, lifecycle с графом зависимостей
+- [x] **Agent System (MVP)** — CRUD агентов, 7 ролей, REST API, AgentPanel, per-agent model/provider
+- [x] **Wiki Module** — файловое .md хранилище, CRUD, полнотекстовый поиск, тесты
+- [x] **MCP Server** — JSON-RPC 2.0, методы initialize/tools/list/tools/call, wiki tools
+- [x] **API Typing** — авто-генерация TypeScript типов из Go structs (`gen-ts-types`)
+- [x] **Unified Error Handling** — `internalError()` helper, логирование 500 ошибок
+- [x] **Code Splitting** — динамический `import()` для export функций, lazy панели
+
+### Tauri Desktop
+- [x] **Tauri v2 sidecar** — Go бэкенд как внешний бинарник, spawn/kill в lib.rs
+- [x] **System Tray** — иконка в трее, меню (Show/Hide / Quick Capture / Quit), minimize to tray
+- [x] **Tray right-click fix** — правый клик показывает контекстное меню нативно; левый клик = toggle show/hide
+- [x] **Stronghold** — зашифрованное OS keychain хранилище (Argon2 + AES-256-GCM), команды store/get/remove
+- [x] **Global Shortcut** — Ctrl+Shift+Space открывает Quick Capture; Ctrl+Shift+G — toggle главного окна
+- [x] **Quick Capture Tauri command** — `quick_capture(text)` создаёт топик в Inbox через REST
+- [x] **build-sidecar.bat** — сборка Go бинарника в src-tauri/binaries/
+- [x] **Makefile targets** — tauri-dev, tauri-build, tauri-sidecar
+
+### Agent Ecosystem ✅
+- [x] **Agent Zustand store** — `store/agent.ts` с agentLogs и WS подпиской
+- [x] **Per-agent model/provider** — выбор модели и провайдера при создании
+- [x] **Per-agent SystemPrompt** — `AgentInfo.SystemPrompt`; переопределяет role prompt в ReAct loop; редактируется inline на AgentCard (⚙ кнопка)
+- [x] **Inline quick-prompt** — textarea прямо на AgentCard; Enter отправляет задачу без модала
+- [x] **Advanced Task Dialog** — полный TaskSubmitDialog с action selector, NL prompt, JSON params, chain
+- [x] **Agent streaming** — `agent:task_log` WebSocket события → live индикатор (Working/Thinking/Using tool)
+- [x] **Agent chaining** — 003_agent_chaining.up.sql, persistent chain поля, ⛓️ UI
+- [x] **Agent Schedule** — планировщик периодических задач (cron, REST API, Scheduler worker)
+- [x] **Stop button** — `POST /api/v1/agents/{id}/stop`, кнопка ■ на working агенте
 
 ### V3.2 — Редактор
 - [x] **Rich text в нодах** — форматирование (bold, italic, list) внутри foreignObject
@@ -147,6 +181,119 @@
 - [x] **App.tsx missing imports** — исправлены (`gradients`, `setInitializing`)
 - [x] **Нижняя панель** — удалена дублирующаяся панель
 
+---
+
+## V3.8 — Agent UI Enhancement (roadmap)
+
+> Аудит AgentPanel выявил 5 ключевых векторов улучшений. Roadmap: 5 фаз, 14 шагов.
+
+### Фаза 1 — Agent Creation (P0)
+
+| Шаг | Файлы | Описание |
+|-----|-------|----------|
+| 1.1 Two-level model selector | `AgentPanel.tsx` (AgentCreateDialog) | `providerSelect` → filtered `modelSelect` + toggle `<input>` для ручного model ID |
+| 1.2 Agent Name field | `AgentPanel.tsx`, `types/agent.ts`, `backend/agent/module.go` | Опциональное `name`; `AgentInfo.Name`; хранится в registry |
+| 1.3 Custom provider | `AgentCreateDialog`, `api/ai_handlers.go`, `worker.go` | Вариант "Custom endpoint" → Base URL + API Key; per-agent endpoint в worker |
+
+### Фаза 2 — AgentCard inline controls (P0)
+
+| Шаг | Файлы | Описание |
+|-----|-------|----------|
+| 2.1 Stop button | `AgentPanel.tsx`, `api/agent.ts`, `store/agent.ts`, `api/module.go` | Кнопка "■ Stop" при working; `POST /api/v1/agents/{id}/stop` |
+| 2.2 Manual model input | `AgentPanel.tsx` (AgentCard) | Кнопка "✎" переключает `<select>` ↔ `<input>` для model ID |
+| 2.3 Name + last task snippet | `AgentPanel.tsx`, `types/agent.ts` | Имя в заголовке; статус последней задачи под Submit |
+
+### Фаза 3 — TaskSubmitDialog context-aware (P1)
+
+| Шаг | Файлы | Описание |
+|-----|-------|----------|
+| 3.1 Role-filtered actions | `TaskSubmitDialog.tsx`, `types/agent.ts` | `ROLE_ACTIONS` map; только релевантные actions видны сразу |
+| 3.2 Natural language prompt | `TaskSubmitDialog.tsx` | Режим Simple / Advanced; Simple = textarea → `{query: text}` |
+| 3.3 Params schema hint | `TaskSubmitDialog.tsx` | `ACTION_SCHEMAS` map; пример под textarea + "Use example" |
+
+### Фаза 4 — Provider controls (P2)
+
+| Шаг | Файлы | Описание |
+|-----|-------|----------|
+| 4.1 Explicit provider select | `AgentPanel.tsx` (AgentCard) | Два раздельных select: provider + model |
+| 4.2 Per-agent Stronghold key | `api/secrets.ts`, `AgentCard` | Custom key → Stronghold `agent-{id}-key` |
+
+### Фаза 5 — Bulk & UX (P3)
+
+| Шаг | Описание |
+|-----|----------|
+| 5.1 Duplicate agent | Кнопка "⧉" → `createAgent` с теми же role/provider/model |
+| 5.2 Stop All | Кнопка в хедере + `POST /api/v1/agents/stop-all` |
+| 5.3 Drag-to-reorder | Порядок агентов persist в localStorage |
+| 5.4 Agent templates | Save/load конфига агента в localStorage |
+
+### Приоритеты
+
+| Фаза.Шаг | Приоритет | Сложность | Ценность | Статус |
+|----------|-----------|-----------|----------|--------|
+| 1.1, 2.1, 2.2 | P0 | Низкая | Очень высокая | ✅ DONE |
+| 3.1, 3.2, 1.2, 2.3 | P1 | Низкая–Средняя | Высокая | ✅ DONE |
+| 3.3, 4.1, 4.2 | P2 | Средняя | Средняя | 🔲 TODO |
+| 5.1–5.4 | P3 | Низкая–Средняя | Низкая | 🔲 TODO |
+
+**Следующий спринт:** Фазы 4–5 (explicit provider select + bulk ops).
+
+---
+
+## V4.1 — Agent Persistence (2026-05-17) ✅
+
+Агенты теперь хранятся в SQLite. При рестарте сервера — не теряются. Workers авто-стартуют.
+
+| Изменение | Файл |
+|-----------|------|
+| Миграция `007_agents.up.sql` | `backend/migrations/` |
+| `AgentStore`: Insert/Get/List/Update/Delete | `backend/internal/store/agents.go` |
+| `PersistAgent`, `RemoveAgent`, `SyncAgent` | `backend/internal/agent/module.go` |
+| `InitAgentStore` + worker auto-start on boot | `backend/internal/agent/module.go` |
+| `CreateAgent`→`PersistAgent`, `DeleteAgent`→`RemoveAgent` | `backend/internal/api/module.go` |
+| `App.tsx` — убран `submitTask __startup__` no-op | `frontend/src/App.tsx` |
+
+---
+
+## V4.2 — RAG Search (2026-05-17) ✅
+
+Семантический поиск по топикам mindmap через embeddings.
+
+| Изменение | Файл |
+|-----------|------|
+| Миграция `008_embeddings.up.sql` | `backend/migrations/` |
+| `EmbeddingStore`: Upsert/Search (cosine similarity) | `backend/internal/store/embeddings.go` |
+| `semantic_search` tool для агентов | `backend/internal/agent/tools.go`, `search.go` |
+| `GET /api/v1/search?q=...&type=semantic` | `backend/internal/api/router.go` |
+
+---
+
+## V4.3 — Multi-Agent Orchestration (следующий)
+
+- `parallel_delegate(tasks: [{agent_id, action, params}])` tool — fan-out, ждёт все
+- Роль `supervisor` с доступом к `delegate_subtask` + `parallel_delegate` + `list_agents`
+- `Task.ParallelGroupID` — группировка fan-out задач
+- Frontend: grouped card для parallel tasks в TaskList
+
+### V3.8 — Prompt UX (2026-05-15) ✅
+
+| Изменение | Файлы |
+|-----------|-------|
+| `AgentInfo.SystemPrompt` — per-agent prompt, переопределяет role в ReAct loop | `backend/agent/module.go`, `react.go` |
+| API accept `system_prompt` в create/patch | `backend/api/module.go` |
+| `AgentCard` inline quick-prompt textarea (Enter to send) | `AgentPanel.tsx` |
+| `AgentCard` ⚙ system prompt editor (inline, Save/Reset) | `AgentPanel.tsx` |
+| `AgentCreateDialog` collapsible system prompt section | `AgentPanel.tsx` |
+| Frontend types/api/store обновлены | `types/agent.ts`, `api/agent.ts`, `store/agent.ts` |
+
+### Desktop Tray (2026-05-15) ✅
+
+| Изменение | Деталь |
+|-----------|--------|
+| Tray right-click fix | `on_tray_icon_event` фильтрует `MouseButton::Left`; правый клик → нативное `.menu()` |
+| Tray left-click = toggle | show если скрыто, hide если видно |
+| Tray menu order | Show/Hide → Quick Capture → separator → ✕ Quit |
+
 ### Исправленные баги
 
 1. **Layout: дети не двигались за родителем** → `shiftSubtree()` — `frontend/src/renderer/layout.ts`
@@ -169,15 +316,15 @@
 ### V3.7 — Agent Ecosystem (P2)
 - [x] **Agent Zustand store** — `store/agent.ts`
 - [x] **Per-agent model/provider** — выбор модели и провайдера
-- [ ] **Agent task submission UI** — кнопка "Submit Task" на AgentCard
-- [ ] **Agent streaming** — WebSocket стриминг мыслей/действий агента (`agent:thought`)
-- [ ] **Agent chaining** — передача результата одного агента другому
-- [ ] **Per-agent model presets** — выпадающий список моделей
+- [x] **Agent task submission UI** — кнопка "Submit Task" на AgentCard
+- [x] **Agent streaming** — WebSocket стриминг мыслей/действий агента (`agent:task_log`)
+- [x] **Agent chaining** — передача результата одного агента другому (persistent + TaskList ⛓️)
+- [x] **Per-agent model presets** — динамический список моделей через `GET /api/v1/ai/models`; grouped `<select>` в AgentCreateDialog + AgentCard
 - [ ] **Agent schedule** — отложенные/периодические задачи (cron)
 
 ### V3.8 — Социальные фичи (P2)
-- [ ] **OT/CRDT** — операционные трансформации для совместной работы без конфликтов
-- [ ] **Comments** — комментирование конкретных нод, треды
+- [x] **OT/CRDT** — операционные трансформации для совместной работы без конфликтов
+- [x] **Comments** — комментирование конкретных нод, треды (💬 иконка + CommentsPanel)
 - [ ] **History timeline** — временная шкала изменений документа
 - [ ] **Shareable links** — публичные ссылки на workbook с read-only доступом
 
@@ -194,11 +341,61 @@
 - [ ] **Virtual scrolling** — виртуализация для списков
 - [ ] **Lazy topic loading** — lazy loading глубоких поддеревьев
 
-### V4.1 — Нативное приложение (P3)
-- [ ] **Tauri desktop** — нативное приложение с Tauri v2
-- [ ] **Mobile PWA** — адаптация интерфейса для мобильных устройств
+### V4.1 — Production Windows Release (P1 — следующий спринт)
 
-### V4.2 — Продвинутый AI (P2)
+**Цель:** рабочий `.msi` инсталлятор для Windows.
+
+#### Фаза 1.1 — Fix Data Paths (КРИТИЧНО)
+Go backend использует `./gmind.db`, `./wiki/` — ломается в packaged `.exe`.
+- [ ] `backend/cmd/server/main.go` — читать `GMIND_DATA_DIR` из env, fallback `os.UserConfigDir()/Gmind`
+- [ ] `backend/internal/store/db.go` — путь к SQLite из конфига
+- [ ] `backend/internal/wiki/store.go` — wiki path из конфига
+- [ ] `frontend/src-tauri/src/lib.rs` — `cmd.env("GMIND_DATA_DIR", app.path().app_data_dir()?)`
+
+#### Фаза 1.2 — Fix Sidecar Binary Name
+- [ ] `Makefile` / `build-sidecar.bat` — выход `gmind-server-x86_64-pc-windows-msvc.exe`
+
+#### Фаза 1.3 — Stronghold → API Keys
+Stronghold реализован, но не подключён к UI — ключи в localStorage.
+- [ ] `AIServerPanel.tsx` — `invoke('store_secret', {key, value})` вместо localStorage
+- [ ] `lib.rs` — при старте: get_secret → POST /api/v1/config на backend
+- [ ] `backend/api/router.go` — добавить `POST /api/v1/config`
+
+#### Фаза 1.4 — Backend Robustness
+- [ ] `GET /health` endpoint → `{status, version, db_ok}`
+- [ ] Graceful shutdown — signal.Notify(SIGTERM) → close DB, stop workers
+- [ ] Tauri: poll /health после spawn, показать окно когда backend ready
+- [ ] Port fallback: 8080 занят → 8081+
+
+#### Фаза 1.5 — Installer
+- [ ] `tauri.conf.json` — bundle.targets: `["nsis"]`, productName, identifier, shortcuts
+
+---
+
+### V4.2 — MASys Integration (P1)
+
+MASys (`E:\MASys`) — visual pipeline платформа с 70+ модулями. `gmind-mindmap` v2.0.0 уже есть в MASys. Нужно замкнуть двустороннюю интеграцию.
+
+#### Фаза 2 — Gmind → MASys (новый tool)
+- [ ] `backend/internal/agent/tools.go` — tool `run_masys_pipeline(pipeline_id, inputs_json)`
+- [ ] `backend/internal/agent/executor.go` — POST /trpc/runs.start + poll runs.get
+- [ ] `frontend/src/components/AgentPanel/AgentPanel.tsx` — секция MASys Pipelines
+
+#### Фаза 3 — MASys → Gmind (gmind-mindmap v2 расширение)
+- [ ] Верифицировать 11 операций `gmind-mindmap` против текущего API
+- [ ] Добавить операцию `submit-agent-task` в gmind-mindmap
+- [ ] Создать эталонный пайплайн: agent-loop + gmind-mindmap как tool
+
+Подробно: [13-masys-integration.md](13-masys-integration.md) · [skills/masys-integration.md](../skills/masys-integration.md)
+
+---
+
+### V4.3 — Нативное приложение (P3)
+- [x] **Tauri desktop (Windows)** — sidecar, tray, Stronghold, shortcuts — ВСЁ РЕАЛИЗОВАНО
+- [ ] **Auto-updater** — tauri-plugin-updater + GitHub Releases
+- [ ] **Mobile PWA** — адаптация интерфейса для мобильных (после V5.0)
+
+### V4.4 — Продвинутый AI (P2)
 - [ ] **AI Agent авто-действия** — агенты сами предлагают/выполняют действия
-- [ ] **Local model inference** — полностью локальный режим без внешних API
-- [ ] **RAG over mindmaps** — AI получает контекст из всех пользовательских карт
+- [ ] **RAG over mindmaps** — sqlite-vec embeddings, семантический поиск по топикам
+- [ ] **MASys agent-loop** — визуальный редактор ReAct агентов в MASys с gmind-mindmap как tool

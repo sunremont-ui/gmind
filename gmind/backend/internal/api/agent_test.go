@@ -10,7 +10,7 @@ import (
 func TestListAgentsEmptyWhenNoModule(t *testing.T) {
 	router, _ := newTestRouter(t)
 	w := httptest.NewRecorder()
-	router.ServeHTTP(w, requestJSON(t, "GET", "/api/v1/agents/agents", nil))
+	router.ServeHTTP(w, requestJSON(t, "GET", "/api/v1/agents", nil))
 	if w.Code != http.StatusOK {
 		t.Errorf("status = %d, want %d", w.Code, http.StatusOK)
 	}

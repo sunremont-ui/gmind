@@ -1,4 +1,4 @@
-import type { AgentInfo, AgentCreateRequest, AgentTask, ModuleInfo, TaskSubmitRequest } from '../types/agent'
+import type { AgentInfo, AgentCreateRequest, AgentTask, ModuleInfo, TaskSubmitRequest, Comment, CreateCommentRequest } from '../types/agent'
 import { ApiError } from './errors'
 
 const API_BASE = '/api/v1'
@@ -30,22 +30,29 @@ export const agentApi = {
     }),
 
 deleteAgent: (id: string) =>
-     agentFetch<void>(`/agents/${id}`, { method: 'DELETE' }),
+    agentFetch<void>(`/agents/${id}`, { method: 'DELETE' }),
 
-   updateAgent: (id: string, provider?: string, model?: string) =>
+  stopAgent: (id: string) =>
+    agentFetch<void>(`/agents/${id}/stop`, { method: 'POST' }),
+
+   updateAgent: (id: string, provider?: string, model?: string, systemPrompt?: string) =>
      agentFetch<AgentInfo>(`/agents/${id}`, {
        method: 'PATCH',
        headers: { 'Content-Type': 'application/json' },
-       body: JSON.stringify({ provider, model }),
+       body: JSON.stringify({
+         ...(provider !== undefined ? { provider } : {}),
+         ...(model !== undefined ? { model } : {}),
+         ...(systemPrompt !== undefined ? { system_prompt: systemPrompt } : {}),
+       }),
      }),
 
    listTasks: (agentID?: string) => {
     const params = agentID ? `?agent_id=${agentID}` : ''
-    return agentFetch<AgentTask[]>(`/tasks${params}`)
+    return agentFetch<AgentTask[]>(`/agents/tasks${params}`)
   },
 
   getTask: (id: string) =>
-    agentFetch<AgentTask>(`/tasks/${id}`),
+    agentFetch<AgentTask>(`/agents/tasks/${id}`),
 
   submitTask: (agentID: string, req: TaskSubmitRequest, idempotencyKey?: string) => {
     const headers: Record<string, string> = { 'Content-Type': 'application/json' }
@@ -60,8 +67,21 @@ deleteAgent: (id: string) =>
   },
 
   approveTask: (taskID: string) =>
-    agentFetch<void>(`/tasks/${taskID}/approve`, { method: 'POST' }),
+    agentFetch<void>(`/agents/tasks/${taskID}/approve`, { method: 'POST' }),
 
-  rejectTask: (taskID: string) =>
-    agentFetch<void>(`/tasks/${taskID}/reject`, { method: 'POST' }),
+rejectTask: (taskID: string) =>
+     agentFetch<void>(`/agents/tasks/${taskID}/reject`, { method: 'POST' }),
+
+  listComments: (topicID: string) =>
+    agentFetch<Comment[]>(`/agents/topics/${topicID}/comments`),
+
+  createComment: (topicID: string, content: string) =>
+    agentFetch<Comment>(`/agents/topics/${topicID}/comments`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ topic_id: topicID, content }),
+    }),
+
+  deleteComment: (id: string) =>
+    agentFetch<void>(`/agents/comments/${id}`, { method: 'DELETE' }),
 }

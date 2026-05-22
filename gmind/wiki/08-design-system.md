@@ -277,17 +277,73 @@ export function MyFeature({ workbookId, onClose }: MyFeatureProps) {
 
 ---
 
+## Иконки — LumenIcon
+
+Проект использует **кастомную библиотеку `LumenIcon`** (`frontend/src/components/UI/LumenIcon.tsx`) вместо lucide-react.
+
+```typescript
+import { LumenPlus, LumenSearch, LumenZap, LumenUsers, LumenTrash2, lumenIcons } from '../UI/LumenIcon'
+
+// Прямое использование
+<LumenSearch size={16} strokeWidth={1.8} color={colors.textTertiary} />
+
+// Через реестр (для динамических иконок)
+import { createElement } from 'react'
+const Icon = lumenIcons['Sparkles']  // lookup по имени
+createElement(Icon, { size: 15, strokeWidth: 1.8 })
+```
+
+**Доступные иконки:** Plus, X, Search, ChevronRight, ChevronDown, ChevronLeft, FileText, StickyNote, Palette, MoveHorizontal, Download, Upload, Users, Bot, Sparkles, ImageIcon, MousePointer, Trash2, Map, Inbox, Zap, Play, Square, Star, Heart, Flag, Lightbulb, Target, Crown, Brain, Rocket, Code, Bookmark, Clock, CheckCircle, Cloud, Sun, Globe, Lock, Key, Music, Camera, Image, User, Home, Flame, Command, Edit2, Undo, Redo.
+
+**Размеры по контексту:**
+- 14px — dense (sidebar, badges)
+- 16px — body (content, tooltips)
+- 20px — toolbar default
+- 24px — prominent actions
+
+**strokeWidth:** всегда 1.5–2.0px. Никогда fill у stroke-иконок.
+
+---
+
+## CSS Custom Properties
+
+С версии Phase 2 дизайн-система также предоставляет CSS custom properties через `frontend/src/styles/lumen.css`:
+
+```css
+/* Подключено глобально через main.tsx → import './styles/lumen.css' */
+/* body получает class="lds-body" в index.html */
+
+var(--color-bg)           /* фон приложения */
+var(--color-primary)      /* Lumen Indigo */
+var(--gradient-aurora)    /* aurora-градиент */
+var(--shadow-md)          /* тень уровня md */
+var(--font-sans)          /* Inter */
+```
+
+CSS variables дублируют TypeScript-токены — используй их в CSS-файлах, а `tokens.ts` в inline styles.
+
+**Dark mode:** переключается `[data-theme="dark"]` на `<html>` или `<body>`.
+
+**Neumorphic shadows** (дополнительный набор для специальных компонентов):
+```typescript
+shadows.neuSm        // 3px raised — мягкий объём
+shadows.neuLg        // 10px raised — выраженный
+shadows.neuInsetSm   // recessed — поля ввода, активные элементы
+```
+
+---
+
 ## Правила дизайна
 
 1. **Только токены** — не хардкоди цвета, размеры или тени. Только `colors.*`, `spacing.*`, `radii.*`, `shadows.*`
 2. **Градиенты сдержанно** — только на крупных hero-элементах, не на кнопках меньше 32px
-3. **Иконки** — Lucide React, stroke 1.5px, `currentColor`, размер 16/20/24px по контексту
+3. **Иконки** — `LumenIcon`, strokeWidth 1.5–2px, `color={colors.textTertiary}` / `currentColor`, размер по контексту
 4. **Двухслойные тени** — только `shadows.*`, не создавай кастомные
 5. **Focus ring** — `boxShadow: colors.focusInset` (primary glow), не outline
 6. **Анимации** — только `transitions.*`, без bounce
 7. **Шрифт** — `fonts.ui` везде, `fonts.mono` для чисел/кода/таймстемпов
 8. **Sentence case** — кнопки и заголовки в нижнем регистре: `Сохранить`, не `СОХРАНИТЬ`
-9. **Inline styles** — весь стиль через `style={}`, без CSS-файлов и классов
+9. **Inline styles** — весь стиль через `style={}`, без CSS-файлов и классов в компонентах
 
 ---
 
@@ -295,7 +351,7 @@ export function MyFeature({ workbookId, onClose }: MyFeatureProps) {
 
 ```
 lumen/
-├── colors_and_type.css      # CSS-переменные всех токенов (light + dark)
+├── colors_and_type.css      # CSS-переменные всех токенов (light + dark) — источник истины
 ├── README.md                # Voice/tone, правила, иконография
 ├── SKILL.md                 # Манифест скилла для Claude
 ├── assets/
@@ -305,9 +361,12 @@ lumen/
 └── ui_kits/lumen-app/       # Референсный дашборд (JSX компоненты)
 
 frontend/src/
-├── styles/tokens.ts         # TypeScript-токены (основной файл)
+├── styles/
+│   ├── tokens.ts            # TypeScript-токены (inline styles)
+│   └── lumen.css            # CSS custom properties (глобально импортирован)
 ├── components/UI/
 │   ├── Box.tsx              # Примитивы: Stack, Text, Button, Input, ...
-│   └── Forms.tsx            # Формы: Select, Slider, ColorPicker, ...
+│   ├── Forms.tsx            # Формы: Select, Slider, ColorPicker, ...
+│   └── LumenIcon.tsx        # Кастомная иконная библиотека (35+ иконок)
 └── types/theme.ts           # Темы mindmap (10 тем, Lumen — дефолт)
 ```

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useAgentStore } from '../../store/agent'
 import type { AgentTask } from '../../types/agent'
 import { TaskLogPanel } from './TaskLogPanel'
+import { CommentsPanel } from '../Comments/CommentsPanel'
 import { colors, fonts, fontSizes, fontWeights, spacing, radii, shadows, transitions } from '../../styles/tokens'
 
 const STATUS_COLORS: Record<string, string> = {
@@ -34,6 +35,7 @@ export function TaskList({ workbookId }: Props) {
   const [expanded, setExpanded] = useState<string | null>(null)
   const [acting, setActing] = useState<string | null>(null)
   const [logTaskId, setLogTaskId] = useState<string | null>(null)
+  const [commentsTaskId, setCommentsTaskId] = useState<string | null>(null)
 
   useEffect(() => {
     fetchTasks()
@@ -58,6 +60,7 @@ export function TaskList({ workbookId }: Props) {
   }
 
   const agentMap = new Map(agents.map(a => [a.id, a]))
+  const taskMap = new Map(tasks.map(t => [t.id, t]))
 
   return (
     <div style={{
@@ -117,6 +120,12 @@ export function TaskList({ workbookId }: Props) {
                       {agent?.role ?? task.agent_id} &middot; {STATUS_LABELS[task.status] || task.status}
                     </div>
                   </div>
+                  {(task.chain_to_agent_id || task.chain_from_task_id) && (
+                    <span title={task.chain_from_task_id ? 'Chained from another task' : 'Chains to another agent'}
+                      style={{ fontSize: fontSizes.caption, color: colors.purple, flexShrink: 0 }}>
+                      ⛓️
+                    </span>
+                  )}
                   {task.status === 'pending_approval' && (
                     <div style={{ display: 'flex', gap: spacing.xs, flexShrink: 0 }} onClick={e => e.stopPropagation()}>
                       <ActionBtn color={colors.green} disabled={acting === task.id} onClick={() => handleApprove(task.id)}>✓</ActionBtn>
@@ -129,26 +138,46 @@ export function TaskList({ workbookId }: Props) {
                   {task.status === 'failed' && (
                     <span style={{ fontSize: fontSizes.caption, color: colors.red, flexShrink: 0 }}>Error</span>
                   )}
-                  {(task.status === 'running' || task.status === 'done' || task.status === 'failed') && (
-                    <button
-                      onClick={e => { e.stopPropagation(); handleViewLogs(task.id) }}
-                      title="View live logs"
-                      style={{
-                        padding: `${spacing.xxs}px ${spacing.sm}px`,
-                        background: 'none',
-                        border: 'none',
-                        cursor: 'pointer',
-                        color: colors.textQuaternary,
-                        fontSize: fontSizes.body,
-                        fontFamily: fonts.ui,
-                        transition: `color ${transitions.fast}`,
-                      }}
-                      onMouseEnter={e => e.currentTarget.style.color = colors.accent}
-                      onMouseLeave={e => e.currentTarget.style.color = colors.textQuaternary}
-                    >
-                      📋
-                    </button>
-                  )}
+{(task.status === 'running' || task.status === 'done' || task.status === 'failed') && (
+                     <button
+                       onClick={e => { e.stopPropagation(); handleViewLogs(task.id) }}
+                       title="View live logs"
+                       style={{
+                         padding: `${spacing.xxs}px ${spacing.sm}px`,
+                         background: 'none',
+                         border: 'none',
+                         cursor: 'pointer',
+                         color: colors.textQuaternary,
+                         fontSize: fontSizes.body,
+                         fontFamily: fonts.ui,
+                         transition: `color ${transitions.fast}`,
+                       }}
+                       onMouseEnter={e => e.currentTarget.style.color = colors.accent}
+                       onMouseLeave={e => e.currentTarget.style.color = colors.textQuaternary}
+                     >
+                       📋
+                     </button>
+                   )}
+                   {(task.status === 'done' || task.status === 'failed') && (
+                     <button
+                       onClick={e => { e.stopPropagation(); setCommentsTaskId(task.id) }}
+                       title="Comments"
+                       style={{
+                         padding: `${spacing.xxs}px ${spacing.sm}px`,
+                         background: 'none',
+                         border: 'none',
+                         cursor: 'pointer',
+                         color: colors.textQuaternary,
+                         fontSize: fontSizes.body,
+                         fontFamily: fonts.ui,
+                         transition: `color ${transitions.fast}`,
+                       }}
+                       onMouseEnter={e => e.currentTarget.style.color = colors.accent}
+                       onMouseLeave={e => e.currentTarget.style.color = colors.textQuaternary}
+                     >
+                       💬
+                     </button>
+                   )}
                 </div>
                 {expanded === task.id && (
                   <div style={{
@@ -172,6 +201,26 @@ export function TaskList({ workbookId }: Props) {
                     )}
                     <div><strong>Created:</strong> {new Date(task.created_at).toLocaleString()}</div>
                     <div><strong>Updated:</strong> {new Date(task.updated_at).toLocaleString()}</div>
+                    {task.chain_from_task_id && (() => {
+                      const src = taskMap.get(task.chain_from_task_id!)
+                      const srcAgent = src ? agentMap.get(src.agent_id) : null
+                      return (
+                        <div style={{ color: colors.purple }}>
+                          <strong>⬅ Chained from:</strong>{' '}
+                          {srcAgent?.role || src?.agent_id || task.chain_from_task_id}
+                          {src ? ` (${src.action})` : ''}
+                        </div>
+                      )
+                    })()}
+                    {task.chain_to_agent_id && (() => {
+                      const dstAgent = agentMap.get(task.chain_to_agent_id!)
+                      return (
+                        <div style={{ color: colors.purple }}>
+                          <strong>⛓ Chains to:</strong>{' '}
+                          {dstAgent?.role || task.chain_to_agent_id}
+                        </div>
+                      )
+                    })()}
                     {task.status === 'pending_approval' && (
                       <div style={{ display: 'flex', gap: spacing.md, marginTop: spacing.md }}>
                         <button onClick={() => handleApprove(task.id)} disabled={acting === task.id} style={{
@@ -203,14 +252,26 @@ export function TaskList({ workbookId }: Props) {
         </div>
       )}
 
-      {/* Live Logs Modal */}
-      {logTaskId && (
-        <TaskLogPanel
-          taskId={logTaskId}
-          onClose={() => setLogTaskId(null)}
-        />
-      )}
-    </div>
+{/* Live Logs Modal */}
+       {logTaskId && (
+         <TaskLogPanel
+           taskId={logTaskId}
+           onClose={() => setLogTaskId(null)}
+         />
+       )}
+
+       {/* Comments Modal */}
+       {commentsTaskId && (
+         <CommentsPanel
+           topicId={commentsTaskId}
+           topicTitle={(() => {
+             const t = tasks.find(t => t.id === commentsTaskId)
+             return t ? `${t.action} (${t.agent_id})` : ''
+           })()}
+           onClose={() => setCommentsTaskId(null)}
+         />
+       )}
+     </div>
   )
 }
 

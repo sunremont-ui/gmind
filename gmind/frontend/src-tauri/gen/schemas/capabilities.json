@@ -1,1 +1,1 @@
-{"default":{"identifier":"default","description":"Capability for the main window","local":true,"windows":["main","capture"],"permissions":["core:default","shell:allow-open","dialog:default","global-shortcut:default"]}}
+{"default":{"identifier":"default","description":"Capability for the main window","local":true,"windows":["main","capture"],"permissions":["core:default","core:webview:allow-set-webview-focus","shell:allow-open","shell:allow-execute","shell:allow-spawn","dialog:default","global-shortcut:default","stronghold:default","autostart:default","store:default"]}}

@@ -3,13 +3,16 @@
   "productName": "Gmind",
   "version": "1.0.0",
   "identifier": "com.gmind.app",
-  "build": {
-    "frontendDist": "../dist",
-    "devUrl": "http://localhost:5173",
-    "beforeDevCommand": "npm run dev",
-    "beforeBuildCommand": "npm run build"
-  },
-  "app": {
+   "build": {
+     "frontendDist": "../dist",
+     "devUrl": "http://localhost:1011",
+     "beforeDevCommand": "npm run dev",
+     "beforeBuildCommand": "npm run build"
+   },
+   "app": {
+      "security": {
+        "csp": "default-src 'self'; connect-src 'self' ws://localhost:* http://localhost:* https://api.github.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: asset: http://localhost:1010; font-src 'self' data:; script-src 'self'"
+      },
     "windows": [
       {
         "title": "Gmind",
@@ -17,7 +20,8 @@
         "width": 1200,
         "height": 800,
         "minWidth": 800,
-        "minHeight": 600
+        "minHeight": 600,
+        "visible": false
       },
       {
         "title": "Quick Capture",
@@ -34,13 +38,20 @@
   },
   "bundle": {
     "active": true,
-    "targets": "all",
+    "targets": ["nsis"],
+    "externalBin": ["binaries/gmind-server"],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
       "icons/128x128@2x.png",
       "icons/icon.icns",
       "icons/icon.ico"
-    ]
-  }
+    ],
+    "windows": {
+      "nsis": {
+        "installMode": "currentUser"
+      }
+    }
+  },
+  "plugins": {}
 }

@@ -26,6 +26,7 @@ interface TopicNodeProps {
   onEditSave: (id: string, title: string, richText?: string) => void
   onEditCancel: () => void
   onNotesClick?: (id: string, notes: string) => void
+  onCommentsClick?: (id: string) => void
   onFoldToggle?: (id: string) => void
   onExpandToggle?: (id: string, expanded: boolean) => void
 }
@@ -88,6 +89,7 @@ export const TopicNode = memo(function TopicNode({
   onEditSave,
   onEditCancel,
   onNotesClick,
+  onCommentsClick,
   onFoldToggle,
   onExpandToggle,
 }: TopicNodeProps) {
@@ -130,13 +132,13 @@ export const TopicNode = memo(function TopicNode({
 
   const userBorderColor = topic.border_color
   const fillColor = (() => {
-    if (isDragOver) return baseStyle.selectedFill ?? colors.accentLight
-    if (isSelected) return baseStyle.selectedFill ?? colors.fill
-    const style = topic.node_style || 'solid'
+    if (isDragOver) return baseStyle.selectedGradient || baseStyle.selectedFill || colors.accentLight
+    if (isSelected) return baseStyle.selectedGradient || baseStyle.selectedFill || colors.fill
+    const style = topic.node_style || 'gradient'
     if (style === 'glass') return colors.white + '8c'
     if (style === 'outline') return 'transparent'
-    if (style === 'gradient') return baseStyle.gradient || baseStyle.fill
-    return baseStyle.fill
+    if (style === 'solid') return baseStyle.fill
+    return baseStyle.gradient || baseStyle.fill
   })()
 
   const strokeColor = userBorderColor || (isDragOver
@@ -427,19 +429,42 @@ export const TopicNode = memo(function TopicNode({
         </g>
       )}
 
+      {/* Comments indicator — shows only when topic has comments, positioned left of node */}
+      {(topic.comment_count ?? 0) > 0 && !isEditing && (
+        <g
+          transform={`translate(${-NOTE_ICON_SIZE - 6}, ${customHeight / 2 - NOTE_ICON_SIZE / 2})`}
+          style={{ cursor: 'pointer' }}
+          onClick={(e) => {
+            e.stopPropagation()
+            onCommentsClick?.(topic.id)
+          }}
+        >
+          <rect x={-2} y={-2} width={NOTE_ICON_SIZE + 4} height={NOTE_ICON_SIZE + 4} rx={5}
+            fill={colors.accent} opacity={0.15} />
+          <rect x={-2} y={-2} width={NOTE_ICON_SIZE + 4} height={NOTE_ICON_SIZE + 4} rx={5}
+            fill="none" stroke={colors.accent} strokeWidth={0.8} opacity={0.5} />
+          <foreignObject width={NOTE_ICON_SIZE} height={NOTE_ICON_SIZE}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%', fontSize: 9 }}>{topic.comment_icon || '💬'}</div>
+          </foreignObject>
+        </g>
+      )}
+
       {/* Note indicator */}
       {hasNotes && !isEditing && (
         <g
-          transform={`translate(${customWidth - NOTE_ICON_SIZE - 4}, ${4})`}
+          transform={`translate(${customWidth - NOTE_ICON_SIZE * 2 - 8}, ${4})`}
           style={{ cursor: 'pointer' }}
           onClick={(e) => {
             e.stopPropagation()
             onNotesClick?.(topic.id, topic.notes || '')
           }}
         >
-          <rect x={-2} y={-2} width={NOTE_ICON_SIZE + 4} height={NOTE_ICON_SIZE + 4} rx={4} fill={colors.bgTertiary} opacity={0.85} />
+          <rect x={-2} y={-2} width={NOTE_ICON_SIZE + 4} height={NOTE_ICON_SIZE + 4} rx={5}
+            fill={colors.accent} opacity={0.15} />
+          <rect x={-2} y={-2} width={NOTE_ICON_SIZE + 4} height={NOTE_ICON_SIZE + 4} rx={5}
+            fill="none" stroke={colors.accent} strokeWidth={0.8} opacity={0.5} />
           <foreignObject width={NOTE_ICON_SIZE} height={NOTE_ICON_SIZE}>
-            <LumenFileText size={NOTE_ICON_SIZE} color={customFontColor} />
+            <LumenFileText size={NOTE_ICON_SIZE} color={colors.accent} />
           </foreignObject>
         </g>
       )}
@@ -454,9 +479,12 @@ export const TopicNode = memo(function TopicNode({
             window.open(topic.hyperlink, '_blank', 'noopener,noreferrer')
           }}
         >
-          <rect x={-2} y={-2} width={NOTE_ICON_SIZE + 4} height={NOTE_ICON_SIZE + 4} rx={4} fill={colors.bgTertiary} opacity={0.85} />
+          <rect x={-2} y={-2} width={NOTE_ICON_SIZE + 4} height={NOTE_ICON_SIZE + 4} rx={5}
+            fill={colors.purple} opacity={0.15} />
+          <rect x={-2} y={-2} width={NOTE_ICON_SIZE + 4} height={NOTE_ICON_SIZE + 4} rx={5}
+            fill="none" stroke={colors.purple} strokeWidth={0.8} opacity={0.5} />
           <foreignObject width={NOTE_ICON_SIZE} height={NOTE_ICON_SIZE}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%', fontSize: 10 }}>🔗</div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%', fontSize: 9 }}>🔗</div>
           </foreignObject>
           <title>{topic.hyperlink}</title>
         </g>
@@ -464,9 +492,10 @@ export const TopicNode = memo(function TopicNode({
 
       {/* Child count badge — clickable for fold/unfold */}
       {hasChildren && showCount && !isEditing && (
-        <g transform={`translate(${customWidth}, ${customHeight / 2})`} style={{ cursor: 'pointer' }} onClick={(e) => { e.stopPropagation(); onFoldToggle?.(topic.id) }}>
-          <circle cx={0} cy={0} r={7} fill={colors.white} stroke={strokeColor} strokeWidth={1.5} opacity={0.9} />
-          <text x={0} y={3} textAnchor="middle" fontSize={8} fontWeight={800} fill={strokeColor} style={{ userSelect: 'none', pointerEvents: 'none' }}>
+        <g transform={`translate(${customWidth + 1}, ${customHeight / 2})`} style={{ cursor: 'pointer' }} onClick={(e) => { e.stopPropagation(); onFoldToggle?.(topic.id) }}>
+          <circle cx={0} cy={0} r={8} fill={colors.accent} opacity={0.92} />
+          <circle cx={0} cy={0} r={8} fill="none" stroke={colors.white} strokeWidth={1} opacity={0.4} />
+          <text x={0} y={3} textAnchor="middle" fontSize={8} fontWeight={700} fill={colors.textInverse} style={{ userSelect: 'none', pointerEvents: 'none' }}>
             {childCount}
           </text>
         </g>
@@ -516,4 +545,5 @@ export const TopicNode = memo(function TopicNode({
     && prev.shiftY === next.shiftY
     && prev.onFoldToggle === next.onFoldToggle
     && prev.onExpandToggle === next.onExpandToggle
+    && prev.onCommentsClick === next.onCommentsClick
 })

@@ -36,6 +36,20 @@ lint:
 test:
 	cd backend && go test ./... -v
 
+# Tauri desktop (requires sidecar binary first)
+tauri-sidecar:
+	powershell -ExecutionPolicy Bypass -File scripts/build-sidecar.bat
+
+tauri-dev: tauri-sidecar
+	cd frontend && cargo tauri dev
+
+tauri-build: tauri-sidecar
+	cd frontend && cargo tauri build
+
+# Release: build sidecar + tauri .msi
+release: tauri-sidecar
+	cd frontend && cargo tauri build --target x86_64-pc-windows-msvc
+
 # Generate TypeScript types from Go model types
 gen-types:
 	cd backend && go run tools/gen-ts-types/main.go

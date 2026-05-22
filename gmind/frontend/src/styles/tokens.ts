@@ -251,7 +251,7 @@ export const anim = {
 // ─── Sizes (layout) ──────────────────────────────────
 export const sizes = {
   sidebar: 260,
-  sidebarCollapsed: 48,
+  sidebarCollapsed: 0,
   propertiesPanel: 280,
   aiPanel: 320,
   toolPanel: 36,

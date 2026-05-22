@@ -6,7 +6,7 @@ Write-Host "══════════════════════�
 Write-Host ""
 
 # Start backend
-Write-Host "[Backend] Starting on http://localhost:8080 ..." -ForegroundColor Green
+Write-Host "[Backend] Starting on http://localhost:1010 ..." -ForegroundColor Green
 $backJob = Start-Process -PassThru -NoNewWindow -FilePath "go" -ArgumentList "run", "./cmd/server" -WorkingDirectory "$root\backend"
 
 # Start frontend
@@ -15,7 +15,7 @@ $frontProcess = Start-Process -PassThru -NoNewWindow -FilePath "npm" -ArgumentLi
 
 Write-Host ""
 Write-Host "═════════════════════════════════════════════════" -ForegroundColor Cyan
-Write-Host "  Backend:  http://localhost:8080" -ForegroundColor Cyan
+Write-Host "  Backend:  http://localhost:1010" -ForegroundColor Cyan
 Write-Host "  Frontend: http://localhost:5173" -ForegroundColor Cyan
 Write-Host "═════════════════════════════════════════════════" -ForegroundColor Cyan
 Write-Host ""

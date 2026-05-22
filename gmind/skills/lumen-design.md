@@ -11,9 +11,30 @@
 import { colors, fonts, fontSizes, fontWeights, spacing, radii, shadows, transitions, gradients } from '../../styles/tokens'
 import { Stack, Text, Button, Card } from '../UI/Box'
 import { Select, Field, Slider } from '../UI/Forms'
+import { LumenSearch, LumenPlus, LumenZap, lumenIcons } from '../UI/LumenIcon'
 ```
 
 Всё. Никаких CSS-файлов, никаких Tailwind-классов — только inline `style={}` с токенами.
+CSS custom properties (`lumen.css`) доступны глобально через `var(--color-primary)` в CSS-контексте.
+
+---
+
+## Иконки — LumenIcon (заменяет lucide-react)
+
+```typescript
+import { LumenSearch, LumenZap, LumenUsers, LumenTrash2, lumenIcons } from '../UI/LumenIcon'
+import { createElement } from 'react'
+
+// Прямое использование
+<LumenSearch size={16} strokeWidth={1.8} color={colors.textTertiary} />
+
+// Динамически по имени из реестра
+const Icon = lumenIcons['Sparkles']
+createElement(Icon, { size: 15, strokeWidth: 1.8 })
+```
+
+Доступные имена (для `lumenIcons[name]`):
+`Plus` `X` `Search` `ChevronRight` `ChevronDown` `ChevronLeft` `FileText` `StickyNote` `Palette` `MoveHorizontal` `Download` `Upload` `Users` `Bot` `Sparkles` `ImageIcon` `MousePointer` `Trash2` `Map` `Inbox` `Zap` `Play` `Square` `Star` `Heart` `Flag` `Lightbulb` `Target` `Crown` `Brain` `Rocket` `Code` `Bookmark` `Clock` `CheckCircle` `Cloud` `Sun` `Globe` `Lock` `Key` `Music` `Camera` `Image` `User` `Home` `Flame` `Command` `Edit2` `Undo` `Redo`
 
 ---
 

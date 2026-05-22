@@ -6,6 +6,8 @@ import (
 	"time"
 
 	"github.com/gmind/backend/internal/core"
+	"github.com/gmind/backend/internal/model"
+	"github.com/gmind/backend/internal/rag"
 	"github.com/gmind/backend/internal/store"
 	"github.com/gmind/backend/internal/wiki"
 	openai "github.com/sashabaranov/go-openai"
@@ -35,14 +37,16 @@ func NewWorkerPool(
 	wikiStore *wiki.Store,
 	manager *Manager,
 ) *WorkerPool {
+	exec := NewToolExecutor(s, eventBus, logger, wikiStore)
+	exec.SetManager(manager)
 	return &WorkerPool{
-		workers:   make(map[string]context.CancelFunc),
-		queue:     taskQueue,
-		manager:   manager,
-		executor:  NewToolExecutor(s, eventBus, logger, wikiStore),
-		prompts:   prompts,
-		logger:    logger,
-		eventBus:  eventBus,
+		workers:  make(map[string]context.CancelFunc),
+		queue:    taskQueue,
+		manager:  manager,
+		executor: exec,
+		prompts:  prompts,
+		logger:   logger,
+		eventBus: eventBus,
 	}
 }
 
@@ -65,6 +69,16 @@ func (wp *WorkerPool) SetYandexEndpoint(apiKey, folderID, modelName string) {
 	defer wp.mu.Unlock()
 	wp.provider = NewYandexGPTProvider(apiKey, folderID, modelName)
 	wp.model = modelName
+}
+
+// SetMaSysBaseURL propagates the MASys base URL into the tool executor.
+func (wp *WorkerPool) SetMaSysBaseURL(url string) {
+	wp.executor.SetMaSysBaseURL(url)
+}
+
+// SetRAG wires a RAG service into the tool executor for semantic_search support.
+func (wp *WorkerPool) SetRAG(svc *rag.Service) {
+	wp.executor.SetRAG(svc)
 }
 
 // StartWorker starts a background goroutine for an agent.
@@ -103,6 +117,45 @@ func (wp *WorkerPool) StopAll() {
 		delete(wp.workers, id)
 	}
 	wp.logger.Info("all workers stopped")
+}
+
+// SubmitScheduled dispatches a scheduled task directly to a worker without going through the queue.
+func (wp *WorkerPool) SubmitScheduled(t *model.ScheduledTask) {
+	wp.mu.RLock()
+	provider := wp.provider
+	modelName := wp.model
+	manager := wp.manager
+	wp.mu.RUnlock()
+
+	if provider == nil {
+		wp.logger.Warn("cannot dispatch scheduled task: AI endpoint not configured", "task_id", t.ID)
+		return
+	}
+
+	// Convert ScheduledTask into a Task for the executor
+	task := &Task{
+		ID:         t.ID,
+		AgentID:    t.AgentID,
+		Action:     "scheduled_task",
+		Params:     map[string]any{"input": t.TaskInput},
+		WorkbookID: "",
+	}
+
+	ag := manager.registry.Get(t.AgentID)
+	if ag == nil {
+		wp.logger.Warn("agent not found for scheduled task", "task_id", t.ID, "agent_id", t.AgentID)
+		return
+	}
+
+	// Start worker if not already running
+	wp.StartWorker(ag)
+
+	// Use per-agent model override when set
+	if ag.Model != "" {
+		modelName = ag.Model
+	}
+
+	go RunTask(context.Background(), provider, modelName, ag, wp.executor, wp.prompts, wp.queue, wp.eventBus, wp.logger, manager, task.ID)
 }
 
 // WorkerCount returns the number of active workers.
@@ -149,6 +202,11 @@ func (wp *WorkerPool) tryProcessTask(ctx context.Context, agentInfo *AgentInfo) 
 	if provider == nil {
 		wp.queue.Fail(task.ID, &errNoAI{})
 		return true
+	}
+
+	// Use per-agent model override when set
+	if agentInfo.Model != "" {
+		model = agentInfo.Model
 	}
 
 	go RunTask(ctx, provider, model, agentInfo, wp.executor, wp.prompts, wp.queue, wp.eventBus, wp.logger, manager, task.ID)

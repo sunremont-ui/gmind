@@ -140,15 +140,16 @@ export function StylePanel({ workbookId, onClose }: StylePanelProps) {
   if (!selectedTopicId || !topic) {
     return (
       <div style={{
-        background: colors.bgSecondary,
+        background: colors.bgTertiary,
         border: 'none',
         borderRadius: radii.xl,
         boxShadow: shadows.neuLg,
         width: 260,
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
         color: colors.textTertiary, fontSize: fontSizes.body, padding: spacing.xxl, textAlign: 'center',
-        fontFamily: fonts.ui,
+        fontFamily: fonts.ui, gap: spacing.md,
       }}>
+        <div style={{ fontSize: 28, opacity: 0.4 }}>✦</div>
         Select a topic to style
       </div>
     )
@@ -163,25 +164,38 @@ export function StylePanel({ workbookId, onClose }: StylePanelProps) {
 
   return (
     <div style={{
-      background: colors.bgSecondary,
+      background: colors.bgTertiary,
       border: 'none',
       borderRadius: radii.xl,
       boxShadow: shadows.neuLg,
       width: 260,
+      height: '100%',
       display: 'flex', flexDirection: 'column', overflow: 'hidden',
       fontSize: fontSizes.body, fontFamily: fonts.ui,
     }}>
       <div style={{
-        padding: `${spacing.lg}px ${spacing.xl}px`,
+        padding: `${spacing.md}px ${spacing.xl}px`,
         borderBottom: `1px solid ${colors.separator}`,
         display: 'flex', justifyContent: 'space-between', alignItems: 'center',
         flexShrink: 0,
+        background: colors.bgTertiary,
       }}>
         <Text size={fontSizes.subhead} weight={fontWeights.semibold}>Style</Text>
-        <Button variant="ghost" size="sm" icon onClick={onClose}>✕</Button>
+        <button
+          onClick={onClose}
+          style={{
+            width: 26, height: 26, borderRadius: '50%',
+            background: colors.bgTertiary, border: 'none', cursor: 'pointer',
+            color: colors.textQuaternary, fontSize: fontSizes.body,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            boxShadow: shadows.neuSm,
+          }}
+          onMouseEnter={e => { e.currentTarget.style.color = colors.text; e.currentTarget.style.boxShadow = shadows.neuInsetSm }}
+          onMouseLeave={e => { e.currentTarget.style.color = colors.textQuaternary; e.currentTarget.style.boxShadow = shadows.neuSm }}
+        >✕</button>
       </div>
 
-      <div style={{ padding: spacing.lg, display: 'flex', flexDirection: 'column', gap: spacing.xxs, overflow: 'auto', flex: 1 }}>
+      <div style={{ padding: spacing.lg, display: 'flex', flexDirection: 'column', gap: spacing.xxs, overflow: 'auto', flex: 1, minHeight: 0 }}>
 
         {/* Typography */}
         <SectionHeader title="Typography" />
@@ -394,15 +408,17 @@ function SectionHeader({ title }: { title: string }) {
 const selStyle: React.CSSProperties = {
   width: '100%', padding: `${spacing.sm + 1}px ${spacing.lg}px`,
   fontSize: fontSizes.body, fontFamily: fonts.ui,
-  border: `1px solid ${colors.separatorThick}`, borderRadius: radii.sm,
-  outline: 'none', background: colors.bgSecondary, color: colors.text,
+  border: 'none', borderRadius: radii.sm,
+  outline: 'none', background: colors.bgTertiary, color: colors.text,
   boxSizing: 'border-box',
+  boxShadow: shadows.neuInsetSm,
 }
 
 const numStyle: React.CSSProperties = {
   width: '100%', padding: `${spacing.sm + 1}px ${spacing.md}px`,
   fontSize: fontSizes.body, fontFamily: fonts.ui,
-  border: `1px solid ${colors.separatorThick}`, borderRadius: radii.sm,
-  outline: 'none', background: colors.bgSecondary, color: colors.text,
+  border: 'none', borderRadius: radii.sm,
+  outline: 'none', background: colors.bgTertiary, color: colors.text,
   boxSizing: 'border-box',
+  boxShadow: shadows.neuInsetSm,
 }

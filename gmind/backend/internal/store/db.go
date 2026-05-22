@@ -19,6 +19,11 @@ func New(dbPath string) (*Store, error) {
 	if err != nil {
 		return nil, fmt.Errorf("open db: %w", err)
 	}
+	// In-memory SQLite is per-connection; pin to one connection so all
+	// queries share the same database and see tables created by migrations.
+	if dbPath == ":memory:" {
+		db.SetMaxOpenConns(1)
+	}
 
 	store := &Store{db: db}
 	if err := store.migrate(); err != nil {
@@ -108,6 +113,11 @@ func (s *Store) UpdateWorkbook(wb *model.Workbook) error {
 func (s *Store) DeleteWorkbook(id string) error {
 	_, err := s.db.Exec(`DELETE FROM workbooks WHERE id = ?`, id)
 	return err
+}
+
+// CommentStore
+func (s *Store) CommentStore() *CommentStore {
+	return NewCommentStore(s.db)
 }
 
 // Collaborators

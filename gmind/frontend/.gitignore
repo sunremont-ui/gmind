@@ -3,3 +3,6 @@ dist/
 .env
 *.local
 src-tauri/target/
+
+# Tauri sidecar binary
+src-tauri/binaries/*

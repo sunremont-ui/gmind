@@ -13,12 +13,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "gmind/wiki/06-ai-integration.md",
+                "file": "gmind/wiki/12-improvement-vectors.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "06-ai-integration"
+              "title": "12-improvement-vectors"
             }
           }
         ]
@@ -185,27 +185,32 @@
   },
   "active": "13a5e6e9ba174ba4",
   "lastOpenFiles": [
-    "gmind/frontend/src/components/TaskList/TaskLogPanel.tsx",
-    "gmind/frontend/src/components/AgentPanel/TaskLogPanel.tsx",
-    "gmind/backend/internal/api/sse.go",
-    "gmind/frontend/src/components/AgentPanel/TaskSubmitDialog.tsx",
+    "gmind/frontend/src-tauri/target/debug/incremental/build_script_build-2h94akhlyul22/s-hii5tyqr7c-05rwsig-5rfeal2gubksh1ycbkagrz437/query-cache.bin",
+    "gmind/frontend/src-tauri/target/debug/incremental/build_script_build-2h94akhlyul22/s-hii5tyqr7c-05rwsig-5rfeal2gubksh1ycbkagrz437/work-products.bin",
+    "gmind/frontend/src-tauri/target/debug/incremental/build_script_build-2h94akhlyul22/s-hii5tyqr7c-05rwsig-5rfeal2gubksh1ycbkagrz437/e5gc6fru14xwcibpq5ovsfa90.o",
+    "gmind/frontend/src-tauri/target/debug/incremental/build_script_build-2h94akhlyul22/s-hii5tyqr7c-05rwsig-5rfeal2gubksh1ycbkagrz437/dep-graph.bin",
+    "gmind/frontend/src-tauri/target/debug/incremental/build_script_build-2h94akhlyul22/s-hii5tyqr7c-05rwsig-5rfeal2gubksh1ycbkagrz437/bnqvijseliwdh6taci5xm63w0.o",
+    "gmind/frontend/src-tauri/target/debug/incremental/build_script_build-2h94akhlyul22/s-hii5tyqr7c-05rwsig-5rfeal2gubksh1ycbkagrz437/9w488eke2ka4f7unvv7b0k3zp.o",
+    "gmind/frontend/src-tauri/target/debug/incremental/build_script_build-2h94akhlyul22/s-hii5tyqr7c-05rwsig-5rfeal2gubksh1ycbkagrz437/9bousbps9e4pr8xnnxqx3dxcm.o",
+    "gmind/frontend/src-tauri/target/debug/incremental/build_script_build-2h94akhlyul22/s-hii5tyqr7c-05rwsig-5rfeal2gubksh1ycbkagrz437/1zg4z79pxwh7j9zwcaf5pqaql.o",
+    "gmind/frontend/src-tauri/target/debug/incremental/build_script_build-2h94akhlyul22/s-hii5tyqr7c-05rwsig-5rfeal2gubksh1ycbkagrz437",
+    "gmind/frontend/src/api/updater.ts",
+    "gmind/frontend/src/api/secrets.ts",
+    "gmind/frontend/node_modules/@tauri-apps/api/README.md",
+    "gmind/frontend/node_modules/@tauri-apps/api/CHANGELOG.md",
+    "gmind/wiki/11-responsive-layout.md",
+    "gmind/wiki/12-improvement-vectors.md",
+    "gmind/wiki/index.md",
+    "gmind/AGENTS.md",
+    "gmind/COMPONENTS.md",
+    "gmind/wiki/06-ai-integration.md",
     "gmind/wiki/05-layout-engine.md",
     "gmind/wiki/04-xmind-format.md",
     "gmind/wiki/03-websocket.md",
     "gmind/wiki/02-api-reference.md",
     "gmind/wiki/01-architecture.md",
-    "gmind/AGENTS.md",
-    "gmind/wiki/index.md",
     "gmind/skills/ui-system.md",
-    "gmind/frontend/src/components/UI/Forms.tsx",
-    "gmind/frontend/src/components/StylePanel/StylePanel.tsx",
-    "gmind/frontend/src/components/StylePanel",
-    "gmind/frontend/dist/workbox-e4022e15.js",
-    "gmind/frontend/dist/sw.js",
-    "gmind/frontend/dist/assets/index.es-BHVY9sic.js",
-    "gmind/frontend/dist/assets/CommandPalette-C_WzGS51.js",
     "gmind/wiki/07-improvements.md",
-    "gmind/wiki/06-ai-integration.md",
     "gmind/frontend/node_modules/locate-path/readme.md",
     "gmind/frontend/node_modules/esrecurse/README.md",
     "gmind/frontend/node_modules/esquery/README.md",
@@ -215,11 +220,6 @@
     "gmind/frontend/node_modules/espree/README.md",
     "gmind/frontend/node_modules/zod-validation-error/README.v3.md",
     "gmind/frontend/node_modules/zod-validation-error/README.md",
-    "gmind/frontend/node_modules/@eslint-community/eslint-utils/README.md",
-    "gmind/frontend/node_modules/@humanwhocodes/module-importer/README.md",
-    "gmind/frontend/node_modules/@eslint-community/regexpp/README.md",
-    "gmind/frontend/node_modules/@eslint/object-schema/README.md",
-    "gmind/frontend/node_modules/flatted/golang/README.md",
-    "gmind/frontend/node_modules/flatted/README.md"
+    "gmind/frontend/node_modules/@eslint-community/eslint-utils/README.md"
   ]
 }

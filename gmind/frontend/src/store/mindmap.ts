@@ -84,6 +84,12 @@ export const useMindMapStore = create<MindMapState>((set, get) => ({
     const { workbook } = get()
     if (!workbook) return
 
+    const existsInTree = (t: Topic): boolean => {
+      if (t.id === topic.id) return true
+      return (t.children ?? []).some(existsInTree)
+    }
+    if (workbook.sheets.some(s => existsInTree(s.root_topic))) return
+
     const updated = { ...workbook }
 
     const addRecursive = (t: Topic): Topic => {

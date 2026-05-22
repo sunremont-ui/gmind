@@ -47,6 +47,9 @@ func ReActLoop(
 
 	sp := prompts.SystemPrompt()
 	rp := prompts.RolePrompt(agentInfo.Role)
+	if agentInfo.SystemPrompt != "" {
+		rp = agentInfo.SystemPrompt
+	}
 
 	messages := []LLMMessage{
 		{Role: "system", Content: sp},
@@ -60,7 +63,7 @@ func ReActLoop(
 		Content: fmt.Sprintf("Task: %s\n\nContext: %s", task.Action, string(taskJSON)),
 	})
 
-	callbacks := executor.getCallbacks()
+	callbacks := executor.getCallbacks(task)
 
 	for i := 0; i < maxCalls; i++ {
 		resp, err := provider.ChatCompletion(ctx, LLMCompletionRequest{
@@ -286,6 +289,7 @@ func RunTask(
 
 	if err != nil {
 		taskQueue.Fail(taskID, err)
+		agentInfo.Status = StatusIdle
 		eventBus.Publish(core.Event{
 			Type:   "agent:task_failed",
 			Source: "agent",
@@ -302,6 +306,7 @@ func RunTask(
 
 	resultData, _ := json.Marshal(map[string]string{"result": result})
 	taskQueue.Complete(taskID, resultData)
+	agentInfo.Status = StatusIdle
 
 	eventBus.Publish(core.Event{
 		Type:   "agent:task_completed",

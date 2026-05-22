@@ -13,7 +13,16 @@ type LlamaHandler struct {
 }
 
 func NewLlamaHandler(s *llama.Server, cfgPath string) *LlamaHandler {
-	return &LlamaHandler{server: s, cfgPath: cfgPath}
+	h := &LlamaHandler{server: s, cfgPath: cfgPath}
+	// try to load existing config so AvailableModels uses configured path
+	if cfgPath != "" {
+		_ = s.LoadConfig(cfgPath)
+	}
+	return h
+}
+
+func (h *LlamaHandler) Models() []string {
+	return h.server.AvailableModels()
 }
 
 func (h *LlamaHandler) Status(w http.ResponseWriter, r *http.Request) {

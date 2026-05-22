@@ -3,8 +3,15 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log"
+	"net"
 	"net/http"
+	"os"
+	"os/signal"
+	"sync/atomic"
+	"syscall"
+	"time"
 
 	"github.com/gmind/backend/internal/agent"
 	"github.com/gmind/backend/internal/ai"
@@ -12,13 +19,52 @@ import (
 	"github.com/gmind/backend/internal/config"
 	"github.com/gmind/backend/internal/core"
 	"github.com/gmind/backend/internal/model"
+	"github.com/gmind/backend/internal/rag"
 	"github.com/gmind/backend/internal/store"
 	"github.com/gmind/backend/internal/wiki"
 	"github.com/gmind/backend/internal/ws"
 )
 
+// routerHolder wraps http.Handler for atomic storage.
+type routerHolder struct{ h http.Handler }
+
 func main() {
 	cfg := config.Load()
+
+	// Always bind to the configured port (default 1010).
+	// Stale instances are killed by the Tauri sidecar launcher before startup.
+	port := cfg.Port
+	addr := ":" + port
+	log.Printf("Gmind server starting on %s", addr)
+
+	// atomicRouter is nil until the full router is ready; early requests get 503.
+	var atomicRouter atomic.Value
+
+	earlyHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if v := atomicRouter.Load(); v != nil {
+			v.(routerHolder).h.ServeHTTP(w, r)
+			return
+		}
+		w.WriteHeader(http.StatusServiceUnavailable)
+	})
+
+	srv := &http.Server{
+		Addr:    addr,
+		Handler: earlyHandler,
+	}
+
+	// Start listening immediately — frontend can poll /health right away.
+	go func() {
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatalf("server failed: %v", err)
+		}
+	}()
+
+	// Set up shutdown signal early so we don't miss SIGTERM during long init.
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGTERM, syscall.SIGINT)
+
+	// --- Full initialization ---
 
 	db, err := store.New(cfg.DBPath)
 	if err != nil {
@@ -29,7 +75,6 @@ func main() {
 	hub := ws.NewHub(db)
 	go hub.Run()
 
-	// --- Core Module System ---
 	eventBus := core.NewEventBus()
 	logger := core.NewStdLogger()
 	storeAdapter := core.NewStoreAdapter(db)
@@ -42,7 +87,6 @@ func main() {
 	}
 	registry := core.NewRegistry(deps)
 
-	// Register core modules
 	agentModule := agent.NewModule()
 	if err := registry.Register(agentModule); err != nil {
 		log.Fatalf("failed to register agent module: %v", err)
@@ -62,17 +106,36 @@ func main() {
 		log.Fatalf("failed to start modules: %v", err)
 	}
 	defer registry.StopAll(ctx)
-	// -------------------------
 
-	// Wire up agent TaskStore (SQLite persistence) and WorkerPool
 	taskStore := store.NewTaskStore(db.DB())
 	agentModule.InitTaskStore(taskStore)
 
+	agentStore := store.NewAgentStore(db.DB())
+	agentModule.InitAgentStore(agentStore)
+
 	wp := agent.NewWorkerPool(agentModule.TaskQueue, db, agentModule.PromptStore, logger, eventBus, wikiStore, agentModule.Manager())
 	wp.SetAIEndpoint(cfg.AIAPIKey, cfg.AIEndpoint, cfg.AIModel)
+	wp.SetMaSysBaseURL(cfg.MASysBaseURL)
 	agentModule.WorkerPool = wp
 
-	// Relay agent events to all WebSocket clients
+	// Auto-start workers for all agents loaded from SQLite
+	for _, ag := range agentModule.Registry().List() {
+		wp.StartWorker(ag)
+	}
+
+	// RAG: semantic search over mindmap topics
+	embeddingStore := store.NewEmbeddingStore(db.DB())
+	ragSvc := rag.New(cfg.AIAPIKey, cfg.AIEndpoint, embeddingStore)
+	wp.SetRAG(ragSvc)
+	// Index all existing topics in background (silent on missing API key)
+	go ragSvc.IndexAll(context.Background(), db)
+
+	scheduleStore := store.NewScheduledTaskStore(db.DB())
+	agentModule.InitScheduler(scheduleStore, wp)
+	schedulerCtx, schedulerCancel := context.WithCancel(context.Background())
+	go agentModule.Scheduler.Start(schedulerCtx)
+	defer schedulerCancel()
+
 	eventBus.SubscribeGlobally(func(event core.Event) {
 		if len(event.Type) < 6 || event.Type[:6] != "agent:" {
 			return
@@ -83,7 +146,6 @@ func main() {
 		})
 		hub.BroadcastAll(msg)
 
-		// Also forward task log events to SSE brokers
 		if event.Type == "agent:task_log" {
 			pl := event.Payload
 			taskID, _ := pl["task_id"].(string)
@@ -105,7 +167,8 @@ func main() {
 		}
 	})
 
-	handler := api.New(db, hub, cfg.LlamaConfigPath, registry)
+	handler := api.New(db, hub, cfg.LlamaConfigPath, registry, scheduleStore)
+	handler.SetRAG(ragSvc)
 	r := handler.Router(cfg)
 
 	aiClient := ai.New(cfg.AIAPIKey, cfg.AIEndpoint, cfg.AIModel)
@@ -116,12 +179,39 @@ func main() {
 		log.Println("AI service started in dynamic mode — use POST /api/v1/ai/provider to configure")
 	}
 
-	addr := ":" + cfg.Port
-	log.Printf("Gmind server starting on %s", addr)
+	// Activate the full router — health endpoint now returns 200.
+	atomicRouter.Store(routerHolder{h: r})
 	log.Printf("API: http://localhost%s/api/v1", addr)
 	log.Printf("WebSocket: ws://localhost%s/ws", addr)
 
-	if err := http.ListenAndServe(addr, r); err != nil {
-		log.Fatalf("server failed: %v", err)
+	// --- Graceful shutdown ---
+	<-quit
+	log.Println("Shutting down server...")
+
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer shutdownCancel()
+
+	if err := srv.Shutdown(shutdownCtx); err != nil {
+		log.Printf("forced shutdown: %v", err)
 	}
+	log.Println("Server stopped")
+}
+
+func findFreePort(preferred string, fallbacks ...int) string {
+	for _, p := range append([]string{preferred}, intSliceToStrings(fallbacks)...) {
+		ln, err := net.Listen("tcp", ":"+p)
+		if err == nil {
+			_ = ln.Close()
+			return p
+		}
+	}
+	return preferred
+}
+
+func intSliceToStrings(ports []int) []string {
+	s := make([]string, len(ports))
+	for i, p := range ports {
+		s[i] = fmt.Sprintf("%d", p)
+	}
+	return s
 }

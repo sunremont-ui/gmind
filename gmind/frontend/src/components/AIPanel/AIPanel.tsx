@@ -4,7 +4,7 @@ import { useMindMapStore } from '../../store/mindmap'
 import { colors, fonts, fontSizes, fontWeights, spacing, radii, shadows, transitions, sizes } from '../../styles/tokens'
 
 interface AIPanelProps {
-  workbookId: string
+  workbookId: string | null
   onClose: () => void
 }
 
@@ -23,8 +23,8 @@ export function AIPanel({ workbookId, onClose }: AIPanelProps) {
     if (!prompt.trim() || !activeSheetId) return
     setLoading(true)
     try {
-      await api.aiGenerate(workbookId, prompt, activeSheetId, selectedTopicId ?? undefined)
-      const wb = await api.getWorkbook(workbookId)
+      await api.aiGenerate(workbookId ?? '', prompt, activeSheetId, selectedTopicId ?? undefined)
+      const wb = await api.getWorkbook(workbookId ?? '')
       setWorkbook(wb)
       setPrompt('')
     } catch (err) {
@@ -38,7 +38,7 @@ export function AIPanel({ workbookId, onClose }: AIPanelProps) {
     setChatHistory(prev => [...prev, { role: 'user', content: message }])
     setLoading(true)
     try {
-      const result = await api.aiChat(workbookId, activeSheetId, message)
+      const result = await api.aiChat(workbookId ?? '', activeSheetId, message)
       setChatHistory(prev => [...prev, { role: 'assistant', content: result.reply }])
       setMessage('')
     } catch (err) {
@@ -57,7 +57,7 @@ export function AIPanel({ workbookId, onClose }: AIPanelProps) {
       display: 'flex',
       flexDirection: 'column',
       fontFamily: fonts.ui,
-      overflowY: 'auto',
+      overflow: 'hidden',
     }}>
       {/* Tabs — Lumen segmented */}
       <div style={{
@@ -87,7 +87,7 @@ export function AIPanel({ workbookId, onClose }: AIPanelProps) {
       )}
 
       {/* Body */}
-      <div style={{ flex: 1, overflow: 'auto', padding: spacing.xl }}>
+      <div style={{ flex: 1, minHeight: 0, overflow: 'auto', padding: spacing.xl }}>
         {mode === 'generate' ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.md }}>
             <p style={{ fontSize: fontSizes.body, color: colors.textSecondary, margin: 0, lineHeight: 1.6 }}>

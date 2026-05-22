@@ -78,6 +78,13 @@ func (h *Handler) CreateTopic(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if h.webhooks != nil {
+		h.webhooks.Notify("topic.created", map[string]any{
+			"workbook_id": workbookID,
+			"topic":       topic,
+		})
+	}
+
 	writeJSON(w, http.StatusCreated, topic)
 }
 
@@ -201,6 +208,9 @@ func (h *Handler) UpdateTopic(w http.ResponseWriter, r *http.Request) {
 			if req.Icon != "" {
 				topic.Icon = req.Icon
 			}
+			if req.CommentIcon != "" {
+				topic.CommentIcon = req.CommentIcon
+			}
 			found = true
 			break
 		}
@@ -214,6 +224,13 @@ func (h *Handler) UpdateTopic(w http.ResponseWriter, r *http.Request) {
 	if err := h.store.UpdateWorkbook(wb); err != nil {
 		internalError(w, err)
 		return
+	}
+
+	if h.webhooks != nil {
+		h.webhooks.Notify("topic.updated", map[string]any{
+			"workbook_id": workbookID,
+			"topic_id":    topicID,
+		})
 	}
 
 	writeJSON(w, http.StatusOK, map[string]string{"status": "updated"})
@@ -253,6 +270,13 @@ func (h *Handler) DeleteTopic(w http.ResponseWriter, r *http.Request) {
 	if err := h.store.UpdateWorkbook(wb); err != nil {
 		internalError(w, err)
 		return
+	}
+
+	if h.webhooks != nil {
+		h.webhooks.Notify("topic.deleted", map[string]any{
+			"workbook_id": workbookID,
+			"topic_id":    topicID,
+		})
 	}
 
 	w.WriteHeader(http.StatusNoContent)

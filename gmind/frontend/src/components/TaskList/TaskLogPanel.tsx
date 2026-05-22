@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import type { TaskLogMessage } from '../../types'
-import { colors, fonts, fontSizes, fontWeights, spacing, radii, shadows } from '../../styles/tokens'
+import { colors, fonts, fontSizes, fontWeights, spacing, radii, shadows, transitions, z } from '../../styles/tokens'
 
 interface TaskLogPanelProps {
   taskId: string
@@ -30,12 +30,12 @@ export function TaskLogPanel({ taskId, onClose }: TaskLogPanelProps) {
   const endRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    fetch(`/api/v1/tasks/${taskId}/logs`)
+    fetch(`/api/v1/agents/tasks/${taskId}/logs`)
       .then(res => res.json())
       .then(data => setLogs(data || []))
       .catch(() => {})
 
-    const es = new EventSource(`/api/v1/tasks/${taskId}/stream`)
+    const es = new EventSource(`/api/v1/agents/tasks/${taskId}/stream`)
     eventSourceRef.current = es
 
     es.addEventListener('log', (event) => {
@@ -70,23 +70,28 @@ export function TaskLogPanel({ taskId, onClose }: TaskLogPanelProps) {
     <div style={{
       position: 'fixed', inset: 0,
       background: colors.scrim,
+      backdropFilter: 'blur(8px)',
+      WebkitBackdropFilter: 'blur(8px)',
       display: 'flex', alignItems: 'center', justifyContent: 'center',
-      zIndex: 1000,
+      zIndex: z.modal,
       fontFamily: fonts.ui,
     }}>
       <div style={{
-        background: colors.bgSecondary,
-        borderRadius: 16,
+        background: colors.bgTertiary,
+        borderRadius: radii.xl,
         padding: spacing.xxxl,
-        width: 560, maxHeight: '80vh',
+        width: 580, maxHeight: '80vh',
         boxShadow: shadows.neuLg,
         border: 'none',
         display: 'flex',
         flexDirection: 'column',
       }}>
+        {/* Header */}
         <div style={{
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          marginBottom: spacing.lg,
+          marginBottom: spacing.md,
+          paddingBottom: spacing.md,
+          borderBottom: `1px solid ${colors.separator}`,
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: spacing.md }}>
             <h2 style={{
@@ -96,43 +101,49 @@ export function TaskLogPanel({ taskId, onClose }: TaskLogPanelProps) {
               Task Logs
             </h2>
             <span style={{
-              fontSize: fontSizes.caption, color: colors.textQuaternary,
-              background: connected ? colors.greenLight : colors.redLight,
+              fontSize: fontSizes.caption,
+              color: connected ? colors.green : colors.textQuaternary,
+              background: connected ? colors.greenLight : colors.bgTertiary,
+              boxShadow: shadows.neuInsetSm,
               padding: `${spacing.xxs}px ${spacing.sm}px`,
-              borderRadius: radii.sm, fontWeight: fontWeights.medium,
+              borderRadius: radii.sm,
+              fontWeight: fontWeights.semibold,
+              display: 'flex', alignItems: 'center', gap: spacing.xxs,
             }}>
-              {connected ? '● Live' : '○ Disconnected'}
+              <span style={{ fontSize: 8, lineHeight: 1 }}>{connected ? '●' : '○'}</span>
+              {connected ? 'Live' : 'Disconnected'}
+            </span>
+            <span style={{
+              fontSize: fontSizes.caption, color: colors.textQuaternary,
+              fontFamily: fonts.mono,
+            }}>
+              {logs.length} {logs.length === 1 ? 'entry' : 'entries'}
             </span>
           </div>
           <button
             onClick={onClose}
             style={{
-              padding: `${spacing.xxs}px ${spacing.md}px`,
-              background: 'none', border: 'none', cursor: 'pointer',
+              width: 28, height: 28, borderRadius: '50%',
+              background: colors.bgTertiary, border: 'none', cursor: 'pointer',
               color: colors.textQuaternary,
-              fontSize: fontSizes.bodyLarge,
-              transition: `color ${'120ms'}`,
+              fontSize: fontSizes.body,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              boxShadow: shadows.neuSm,
+              transition: `box-shadow ${transitions.fast}, color ${transitions.fast}`,
             }}
-            onMouseEnter={e => e.currentTarget.style.color = colors.text}
-            onMouseLeave={e => e.currentTarget.style.color = colors.textQuaternary}
+            onMouseEnter={e => { e.currentTarget.style.color = colors.text; e.currentTarget.style.boxShadow = shadows.neuInsetSm }}
+            onMouseLeave={e => { e.currentTarget.style.color = colors.textQuaternary; e.currentTarget.style.boxShadow = shadows.neuSm }}
           >
             ✕
           </button>
         </div>
 
         <div style={{
-          fontSize: fontSizes.caption, color: colors.textQuaternary,
-          marginBottom: spacing.md,
-        }}>
-          {logs.length} log entry{logs.length !== 1 ? 'ies' : ''}
-        </div>
-
-        <div style={{
           flex: 1, overflow: 'auto',
-          background: colors.bg,
+          background: colors.bgTertiary,
           borderRadius: radii.md,
           padding: spacing.md,
-          boxShadow: shadows.neuInsetSm,
+          boxShadow: shadows.neuInset,
         }}>
           {logs.length === 0 ? (
             <div style={{

@@ -20,7 +20,7 @@ func newTestHandler(t *testing.T) (*Handler, *store.Store) {
 	}
 	t.Cleanup(func() { s.Close() })
 
-	h := New(s, nil, "", nil)
+	h := New(s, nil, "", nil, nil)
 	return h, s
 }
 
@@ -253,7 +253,7 @@ func TestEmptyList(t *testing.T) {
 }
 
 func TestRouterWithNilDeps(t *testing.T) {
-	h := New(nil, nil, "", nil)
+	h := New(nil, nil, "", nil, nil)
 	cfg := &config.Config{AllowedOrigins: []string{"*"}}
 	router := h.Router(cfg)
 

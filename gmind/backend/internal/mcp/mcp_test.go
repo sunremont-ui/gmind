@@ -21,7 +21,7 @@ func newTestServer(t *testing.T) *Server {
 	}
 	ws.Write("hello", "# Hello Page\n\nThis is the hello page.")
 	ws.Write("features", "# Features\n\nList of features.")
-	return NewServer(ws)
+	return NewServer(ws, nil)
 }
 
 func newRequest(t *testing.T, method string, params any) json.RawMessage {
@@ -83,8 +83,8 @@ func TestToolsList(t *testing.T) {
 
 	result := resp.Result.(map[string]any)
 	tools := result["tools"].([]any)
-	if len(tools) != 3 {
-		t.Fatalf("expected 3 tools, got %d", len(tools))
+	if len(tools) != 9 {
+		t.Fatalf("expected 9 tools, got %d", len(tools))
 	}
 }
 

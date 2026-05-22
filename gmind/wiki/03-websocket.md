@@ -1,6 +1,6 @@
 # WebSocket Protocol
 
-**Endpoint:** `ws://localhost:8080/ws` (через Vite proxy: `ws://localhost:5173/ws`)
+**Endpoint:** `ws://localhost:1010/ws` (через Vite proxy: `ws://localhost:1011/ws`)
 
 WebSocket используется для real-time коллаборации: уведомления об изменениях, курсоры.
 

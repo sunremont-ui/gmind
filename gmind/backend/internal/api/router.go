@@ -6,12 +6,15 @@ import (
 	"net/http"
 
 	"github.com/gmind/backend/internal/agent"
+	"github.com/gmind/backend/internal/ai"
 	"github.com/gmind/backend/internal/config"
 	"github.com/gmind/backend/internal/core"
 	"github.com/gmind/backend/internal/llama"
 	"github.com/gmind/backend/internal/mcp"
 	"github.com/gmind/backend/internal/model"
+	"github.com/gmind/backend/internal/rag"
 	"github.com/gmind/backend/internal/store"
+	"github.com/gmind/backend/internal/webhook"
 	"github.com/gmind/backend/internal/wiki"
 	"github.com/gmind/backend/internal/ws"
 	"github.com/go-chi/chi/v5"
@@ -20,26 +23,44 @@ import (
 )
 
 type Handler struct {
-	store          *store.Store
-	hub            *ws.Hub
-	llamaHandler   *LlamaHandler
-	registry       *core.Registry
-	agentModule    *agent.Module
-	openAIEndpoint string
-	openAIModel    string
-	openAIAPIKey   string
-	yandexAPIKey   string
-	yandexFolderID string
-	yandexModel    string
-	mcpHandler     http.HandlerFunc
+	store           *store.Store
+	scheduleStore   *store.ScheduledTaskStore
+	hub             *ws.Hub
+	llamaHandler    *LlamaHandler
+	ollamaHandler   *OllamaHandler
+	registry        *core.Registry
+	agentModule     *agent.Module
+	ragService      *rag.Service
+	openAIEndpoint  string
+	openAIModel     string
+	openAIAPIKey    string
+	yandexAPIKey    string
+	yandexFolderID  string
+	yandexModel     string
+	mcpHandler      http.HandlerFunc
+	maSysBaseURL    string
+	webhooks        *webhook.Store
 }
 
-func New(s *store.Store, hub *ws.Hub, cfgPath string, registry *core.Registry) *Handler {
+// SetRAG wires a RAG service for semantic search endpoints and agent tools.
+func (h *Handler) SetRAG(svc *rag.Service) {
+	h.ragService = svc
+}
+
+func New(s *store.Store, hub *ws.Hub, cfgPath string, registry *core.Registry, scheduleStore *store.ScheduledTaskStore) *Handler {
+	ollamaDetector := ai.NewOllamaDetector("http://localhost:11434")
+	ollamaDetector.Start(0)
+
 	h := &Handler{
-		store:        s,
-		hub:          hub,
-		llamaHandler: NewLlamaHandler(llama.New(), cfgPath),
-		registry:     registry,
+		store:         s,
+		scheduleStore: scheduleStore,
+		hub:           hub,
+		llamaHandler:  NewLlamaHandler(llama.New(), cfgPath),
+		ollamaHandler: NewOllamaHandler(ollamaDetector),
+		registry:      registry,
+	}
+	if s != nil {
+		h.webhooks = webhook.NewStore(s.DB())
 	}
 	// Extract agent module ref for worker pool updates
 	if registry != nil {
@@ -66,6 +87,7 @@ func (h *Handler) Router(cfg *config.Config) http.Handler {
 	h.yandexAPIKey = cfg.YandexAPIKey
 	h.yandexFolderID = cfg.YandexFolderID
 	h.yandexModel = cfg.YandexModel
+	h.maSysBaseURL = cfg.MASysBaseURL
 
 	r := chi.NewRouter()
 
@@ -105,9 +127,11 @@ func (h *Handler) Router(cfg *config.Config) http.Handler {
 				r.Post("/relationships", h.CreateRelationship)
 				r.Delete("/relationships/{relID}", h.DeleteRelationship)
 				r.Get("/export", h.ExportXMind)
+				r.Get("/export/markdown", h.ExportMarkdown)
 				r.Post("/import-json", h.ImportJSONData)
 				r.Delete("/import-json", h.ClearImportedData)
 				r.Post("/ai/generate", h.AIGenerate)
+				r.Get("/ai/generate/stream", h.AIGenerateStream)
 				r.Post("/ai/expand", h.AIExpandTopic)
 				r.Post("/ai/image", h.AIImageGenerate)
 				r.Post("/ai/chat", h.AIChat)
@@ -118,7 +142,7 @@ func (h *Handler) Router(cfg *config.Config) http.Handler {
 		})
 	})
 
-	// Module routes
+// Module routes
 	r.Route("/api/v1/agents", func(r chi.Router) {
 		agentHandler := NewAgentHandler(h.store, nil, h.registry)
 		// Try to get agent module from registry
@@ -130,10 +154,37 @@ func (h *Handler) Router(cfg *config.Config) http.Handler {
 			}
 		}
 		agentHandler.RegisterRoutes(r)
+
+		// Schedule sub-router: /api/v1/agents/{agentID}/schedule
+		scheduleHandler := NewScheduleHandler(h.scheduleStore, h.agentModule)
+		r.Route("/{agentID}/schedule", func(r chi.Router) {
+			scheduleHandler.RegisterRoutes(r)
+		})
 	})
 
+	r.Get("/api/v1/ai/models", h.ListModels)
 	r.Post("/api/v1/ai/provider", h.SwitchAIProvider)
 	r.Post("/api/v1/ai/image", h.AIImageGenerate)
+	r.Post("/api/v1/config", h.ApplyConfig)
+	r.Get("/api/v1/masys/pipelines", h.ListMaSysPipelines)
+
+	// Semantic search
+	searchHandler := NewSearchHandler(h.ragService)
+	r.Get("/api/v1/search", searchHandler.Search)
+
+	r.Route("/api/v1/notes", func(r chi.Router) {
+		r.Get("/", h.ListNotes)
+		r.Post("/", h.CreateNote)
+		r.Put("/{noteID}", h.UpdateNote)
+		r.Delete("/{noteID}", h.DeleteNote)
+	})
+
+	r.Route("/api/v1/webhooks", func(r chi.Router) {
+		r.Post("/", h.CreateWebhook)
+		r.Get("/", h.ListWebhooks)
+		r.Delete("/{webhookID}", h.DeleteWebhook)
+	})
+
 
 	// MCP endpoint (if wiki module is available)
 	if h.mcpHandler != nil {
@@ -148,10 +199,28 @@ func (h *Handler) Router(cfg *config.Config) http.Handler {
 		r.Post("/config/save", h.llamaHandler.SaveConfig)
 	})
 
+	r.Get("/api/v1/ollama/status", h.ollamaHandler.Status)
+
+	msHandler := NewModelServersHandler(cfg.ModelServersConfigPath)
+	r.Get("/api/v1/model-servers", msHandler.List)
+	r.Put("/api/v1/model-servers", msHandler.Save)
+
 	r.Get("/ws", h.HandleWebSocket)
 
 	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
-		json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+		dbOK := false
+		if h.store != nil {
+			dbOK = h.store.DB().PingContext(r.Context()) == nil
+		}
+		agentsCount := 0
+		if h.agentModule != nil {
+			agentsCount = len(h.agentModule.Registry().List())
+		}
+		json.NewEncoder(w).Encode(map[string]any{
+			"status":       "ok",
+			"db_ok":        dbOK,
+			"agents_count": agentsCount,
+		})
 	})
 
 	return r

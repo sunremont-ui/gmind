@@ -30,9 +30,9 @@ export YANDEX_MODEL="yandexgpt-latest"  # или "yandexgpt-lite", "yandexgpt-pl
 Переключает на OpenAI (использует env-конфиг).
 
 ```json
-{ "provider": "local", "endpoint": "http://localhost:8081/v1" }
+{ "provider": "local", "endpoint": "http://localhost:1100/v1" }
 ```
-Переключает на локальный llama-server.
+Переключает на локальный llama-server (или любой OpenAI-совместимый сервер).
 
 ```json
 { "provider": "yandex" }
@@ -68,7 +68,7 @@ export YANDEX_MODEL="yandexgpt-latest"  # или "yandexgpt-lite", "yandexgpt-pl
 
 - **Server Path** — путь к `llama-server.exe`
 - **Model Path** — путь к GGUF-модели
-- **Port** — порт (по умолч. 8081)
+- **Port** — порт (по умолч. 1100, диапазон Gmind 1010–1200)
 - **Context Size** — контекст в токенах
 - **GPU Layers** — сколько слоёв на GPU (-ngl)
 - **Threads** — количество потоков

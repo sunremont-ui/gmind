@@ -128,12 +128,52 @@ type ToolResult struct {
 ```
 1. ✅ Module System (ядро)
 2. ✅ Agent Registry + CRUD
-3. ⬜ Tool Definitions (JSON Schema)
-4. ⬜ Worker Pool (горутины + LLM)
-5. ⬜ Task Queue (SQLite-based)
-6. ⬜ ReAct Loop (tool_use cycle)
-7. ⬜ Role Prompts (Researcher, Expander, etc.)
-8. ⬜ Activity Log
+3. ✅ Tool Definitions (JSON Schema) — tools.go
+4. ✅ Worker Pool (горутины + LLM) — worker.go
+5. ✅ Task Queue (SQLite-based) — store/agent_task.go
+6. ✅ ReAct Loop (tool_use cycle) — react.go
+7. ✅ Role Prompts (Researcher, Expander, etc.) — prompts.json
+8. ✅ Activity Log — agent:task_log WebSocket events
 9. ⬜ Human-in-the-Loop gates
 10. ⬜ Observability (метрики, trace)
+11. ⬜ Parallel fan-out (delegate to multiple agents)
+12. ⬜ MASys delegation tool (run_masys_pipeline)
 ```
+
+---
+
+## MASys — Внешний Multi-Agent Orchestrator
+
+**MASys** (`E:\MASys`) — визуальная pipeline платформа, естественный оркестратор для Gmind-агентов.
+
+### Как MASys реализует паттерны
+
+| Паттерн | Реализация в MASys |
+|---------|-------------------|
+| **Sequential pipeline** | Линейный граф: A → B → C |
+| **Parallel fan-out** | Один исток → несколько узлов (DAG с параллельными ветвями) |
+| **Conditional routing** | `if-condition` / `switch-case` модули |
+| **ReAct loop** | `agent-loop` модуль — встроенный ReAct с toolsJson |
+| **Sub-pipeline call** | `pipeline-call` модуль — вложенные пайплайны |
+| **Human-in-the-loop** | `human-review` модуль — пауза и ожидание подтверждения |
+| **Durable execution** | Prisma RunEvent — каждый шаг персистится в SQLite |
+| **Observability** | WebSocket live feed, LiveFeed панель, метрики per-node |
+
+### Интеграция Gmind ↔ MASys
+
+```
+Gmind агент                    MASys
+──────────────────────────     ─────────────────────────────
+ToolExecutor                   DAG Executor
+  └── run_masys_pipeline ─────→ POST /trpc/runs.start
+        ↑                           ↓ WebSocket events
+  TaskStore (result)  ←───── runs.get (completed)
+```
+
+Gmind использует MASys для задач, которые требуют:
+- Сложной многошаговой логики (ветвления, циклы)
+- Визуального редактирования workflow
+- Множества специализированных инструментов (PDF, browser, STT, vision)
+- Наблюдаемости на уровне шагов пайплайна
+
+Подробно: [skills/masys-integration.md](masys-integration.md)

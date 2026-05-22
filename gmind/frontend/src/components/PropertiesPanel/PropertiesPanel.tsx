@@ -11,7 +11,10 @@ import type { IconProps } from '../UI/LumenIcon'
 interface PropertiesPanelProps {
   workbookId: string
   onClose: () => void
+  onCommentsClick?: (topicId: string) => void
 }
+
+const COMMENT_ICONS = ['💬', '💡', '⚠️', '❓', '✅', '🔥', '📌', '❌']
 
 const MARKER_OPTIONS = ['⭐', '🚩', '🔥', '✅', '❗', '🔵', '🟢', '🟡', '🔴', '💡', '📌', '🎯']
 
@@ -84,7 +87,7 @@ const NODE_ICONS: { value: string; icon: React.ComponentType<IconProps>; label: 
   { value: 'Flame', icon: LumenFlame, label: 'Flame' },
 ]
 
-export function PropertiesPanel({ workbookId, onClose }: PropertiesPanelProps) {
+export function PropertiesPanel({ workbookId, onClose, onCommentsClick }: PropertiesPanelProps) {
   const selectedTopicId = useMindMapStore(s => s.selectedTopicId)
   const selectedTopicIds = useMindMapStore(s => s.selectedTopicIds)
   const workbook = useMindMapStore(s => s.workbook)
@@ -126,7 +129,8 @@ export function PropertiesPanel({ workbookId, onClose }: PropertiesPanelProps) {
   const [nodeIcon, setNodeIcon] = useState('')
   const [levelGap, setLevelGap] = useState<number | undefined>(undefined)
   const [siblingGap, setSiblingGap] = useState<number | undefined>(undefined)
-  const [sections, setSections] = useState({ basic: true, notes: false, markers: false, advanced: false, style: false });
+  const [commentIcon, setCommentIcon] = useState('💬')
+  const [sections, setSections] = useState({ basic: true, notes: false, markers: false, advanced: false, style: false, comment: false });
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
@@ -166,6 +170,7 @@ export function PropertiesPanel({ workbookId, onClose }: PropertiesPanelProps) {
       setNodeIcon(t.icon || '')
       setLevelGap(t.level_gap)
       setSiblingGap(t.sibling_gap)
+      setCommentIcon(t.comment_icon || '💬')
       setIsFloating(!!useMindMapStore.getState().getActiveSheet()?.floating_topics?.some(ft => ft.id === selectedTopicId))
     }
   }, [selectedTopicId, workbook])
@@ -222,6 +227,7 @@ export function PropertiesPanel({ workbookId, onClose }: PropertiesPanelProps) {
     else if (field === 'icon') setNodeIcon(value as string)
     else if (field === 'level_gap') setLevelGap(value as number)
     else if (field === 'sibling_gap') setSiblingGap(value as number)
+    else if (field === 'comment_icon') setCommentIcon(value as string)
     autoSave({ [field]: value })
   }, [autoSave])
 
@@ -650,6 +656,46 @@ export function PropertiesPanel({ workbookId, onClose }: PropertiesPanelProps) {
                   style={{ ...numStyle }} />
               ))}
             </div>
+          </div>
+        )}
+
+        {/* Comment */}
+        <SectionHeader title="Comment" open={sections.comment} onToggle={() => toggleSection('comment')} />
+        {sections.comment && (
+          <div style={{ padding: `${spacing.md}px ${spacing.xs}px`, display: 'flex', flexDirection: 'column', gap: spacing.md }}>
+            <Text size={fontSizes.caption} color={colors.textSecondary}>Icon on node (shown when comments exist)</Text>
+            <div style={{ display: 'flex', gap: spacing.xs, flexWrap: 'wrap' }}>
+              {COMMENT_ICONS.map(emoji => (
+                <button
+                  key={emoji}
+                  onClick={() => setAndSave('comment_icon', emoji)}
+                  style={{
+                    width: 32, height: 32, fontSize: 16,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    border: commentIcon === emoji ? `2px solid ${colors.accent}` : `1px solid ${colors.separator}`,
+                    borderRadius: radii.sm,
+                    background: commentIcon === emoji ? colors.accentLight : colors.bgTertiary,
+                    cursor: 'pointer',
+                    transition: `all ${transitions.fast}`,
+                  }}
+                >{emoji}</button>
+              ))}
+            </div>
+            <button
+              onClick={() => selectedTopicId && onCommentsClick?.(selectedTopicId)}
+              style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: spacing.sm,
+                padding: `${spacing.sm}px ${spacing.md}px`,
+                background: colors.accent, color: colors.textInverse,
+                border: 'none', borderRadius: radii.sm,
+                fontSize: fontSizes.body, fontFamily: fonts.ui, cursor: 'pointer',
+                transition: `background ${transitions.fast}`,
+              }}
+              onMouseEnter={e => { e.currentTarget.style.background = colors.accentHover }}
+              onMouseLeave={e => { e.currentTarget.style.background = colors.accent }}
+            >
+              💬 Open comments
+            </button>
           </div>
         )}
 

@@ -53,6 +53,17 @@ export interface CreateWorkbookRequest {
   title: string
 }
 
+export interface AIModel {
+  id: string
+  label: string
+}
+
+export interface AIModelProvider {
+  id: string
+  label: string
+  models: AIModel[]
+}
+
 export interface ErrorResponse {
   error: string
   code: ErrorCode
@@ -131,6 +142,8 @@ export interface Topic {
   rich_text?: string
   level_gap?: number
   sibling_gap?: number
+  comment_count?: number
+  comment_icon?: string
 }
 
 export interface UpdateTopicRequest {
@@ -169,6 +182,7 @@ export interface UpdateTopicRequest {
   rich_text?: string
   level_gap?: number
   sibling_gap?: number
+  comment_icon?: string
 }
 
 export interface Workbook {

@@ -9,7 +9,7 @@ FROM alpine:3.19
 RUN apk add --no-cache ca-certificates curl
 WORKDIR /app
 COPY --from=builder /app/server .
-EXPOSE 8080
+EXPOSE 1010
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD curl -f http://localhost:8080/health || exit 1
+  CMD curl -f http://localhost:1010/health || exit 1
 CMD ["./server"]

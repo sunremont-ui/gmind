@@ -9,6 +9,7 @@ import (
 	"github.com/gmind/backend/internal/store"
 )
 
+
 const (
 	ModuleID      = "agent"
 	ModuleName    = "Agent System"
@@ -28,6 +29,9 @@ type Module struct {
 	// SQLite-backed task store (set after Init via InitTaskStore)
 	taskStore *store.TaskStore
 
+	// SQLite-backed agent store (set after Init via InitAgentStore)
+	agentStore *store.AgentStore
+
 	// Prompt store with configurable prompts
 	PromptStore *PromptStore
 
@@ -36,6 +40,9 @@ type Module struct {
 
 	// Worker pool
 	WorkerPool *WorkerPool
+
+	// Scheduler for cron-based task execution
+	Scheduler *Scheduler
 
 	// unsubscribe functions for event subscriptions
 	unsubs []func()
@@ -76,8 +83,78 @@ func (m *Module) Init(ctx context.Context, deps *core.Dependencies) error {
 // InitTaskStore sets the SQLite-backed task store (called from main.go after DB is available).
 func (m *Module) InitTaskStore(ts *store.TaskStore) {
 	m.taskStore = ts
-	// Recreate TaskQueue with persistence
+	// Recreate TaskQueue with persistence and update Manager's reference.
 	m.TaskQueue = NewTaskQueue(ts, m.logger)
+	m.manager.taskQueue = m.TaskQueue
+}
+
+// InitAgentStore loads persisted agents from SQLite into the Registry.
+// Workers are NOT started here — call wp.StartWorker for each Registry().List() entry after WorkerPool is set.
+func (m *Module) InitAgentStore(as *store.AgentStore) {
+	m.agentStore = as
+	records, err := as.List()
+	if err != nil {
+		m.logger.Info("failed to load agents from store", "err", err)
+		return
+	}
+	for _, rec := range records {
+		info := &AgentInfo{
+			ID:           rec.ID,
+			Name:         rec.Name,
+			Role:         rec.Role,
+			Status:       StatusIdle,
+			Provider:     rec.Provider,
+			Model:        rec.Model,
+			SystemPrompt: rec.SystemPrompt,
+		}
+		if err := m.registry.Register(info); err != nil {
+			m.logger.Info("agent already registered, skipping", "id", rec.ID)
+		}
+	}
+	m.logger.Info("agents loaded from store", "count", len(records))
+}
+
+// PersistAgent inserts a newly created agent into the store.
+func (m *Module) PersistAgent(info *AgentInfo) error {
+	if m.agentStore == nil {
+		return nil
+	}
+	return m.agentStore.Insert(&store.AgentRecord{
+		ID:           info.ID,
+		Name:         info.Name,
+		Role:         info.Role,
+		Provider:     info.Provider,
+		Model:        info.Model,
+		SystemPrompt: info.SystemPrompt,
+	})
+}
+
+// RemoveAgent unregisters an agent from the Registry and deletes it from the store.
+func (m *Module) RemoveAgent(id string) {
+	m.registry.Unregister(id)
+	if m.agentStore != nil {
+		_ = m.agentStore.Delete(id)
+	}
+}
+
+// SyncAgent updates a modified agent's fields in the store.
+func (m *Module) SyncAgent(info *AgentInfo) error {
+	if m.agentStore == nil {
+		return nil
+	}
+	return m.agentStore.Update(&store.AgentRecord{
+		ID:           info.ID,
+		Name:         info.Name,
+		Role:         info.Role,
+		Provider:     info.Provider,
+		Model:        info.Model,
+		SystemPrompt: info.SystemPrompt,
+	})
+}
+
+// InitScheduler initializes the cron scheduler with a scheduled task store.
+func (m *Module) InitScheduler(schedStore *store.ScheduledTaskStore, workerPool *WorkerPool) {
+	m.Scheduler = NewScheduler(schedStore, m.TaskQueue, workerPool, m.logger, m.eventBus)
 }
 
 func (m *Module) Start(ctx context.Context) error {
@@ -162,11 +239,13 @@ const (
 )
 
 type AgentInfo struct {
-	ID       string      `json:"id"`
-	Role     string      `json:"role"`
-	Status   AgentStatus `json:"status"`
-	Provider string      `json:"provider"`
-	Model    string      `json:"model"`
+	ID           string      `json:"id"`
+	Name         string      `json:"name,omitempty"`
+	Role         string      `json:"role"`
+	Status       AgentStatus `json:"status"`
+	Provider     string      `json:"provider"`
+	Model        string      `json:"model"`
+	SystemPrompt string      `json:"system_prompt,omitempty"`
 }
 
 type Registry struct {
@@ -285,6 +364,11 @@ func (m *Manager) StartWorker(agentID string, pool *WorkerPool) {
 		return
 	}
 	pool.StartWorker(agent)
+}
+
+// GetTask retrieves a task by ID (used by delegate_to_agent for polling).
+func (m *Manager) GetTask(id string) (*Task, error) {
+	return m.taskQueue.Get(id)
 }
 
 // UpdateModel updates the model and optionally provider for an agent.

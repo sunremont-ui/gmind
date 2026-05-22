@@ -40,11 +40,14 @@ type Task struct {
 	ChainFromTaskID string          `json:"chain_from_task_id,omitempty"`
 }
 
+const maxDone = 500
+
 // TaskQueue is a FIFO queue per agent with SQLite persistence.
 type TaskQueue struct {
 	mu         sync.Mutex
 	tasks      map[string][]*Task // agentID → queue (pending/running)
-	done       map[string]*Task   // completed/failed tasks by ID
+	done       map[string]*Task   // completed/failed tasks by ID (capped at maxDone)
+	doneOrder  []string           // insertion-order IDs for FIFO eviction
 	idempotent map[string]string  // in-memory idempotency key → task ID
 	ts         *store.TaskStore
 	logger     core.Logger
@@ -55,6 +58,7 @@ func NewTaskQueue(ts *store.TaskStore, logger core.Logger) *TaskQueue {
 	q := &TaskQueue{
 		tasks:      make(map[string][]*Task),
 		done:       make(map[string]*Task),
+		doneOrder:  make([]string, 0, maxDone),
 		idempotent: make(map[string]string),
 		ts:         ts,
 		logger:     logger,
@@ -104,19 +108,21 @@ func (q *TaskQueue) recover() {
 		}
 
 		t := &Task{
-			ID:         r.ID,
-			AgentID:    r.AgentID,
-			Action:     r.Action,
-			Params:     params,
-			WorkbookID: r.WorkbookID,
-			SheetID:    r.SheetID,
-			TopicID:    r.TopicID,
-			Status:     recoveredStatus,
-			Result:     r.Result,
-			Error:      r.Error,
-			MaxCalls:   r.MaxCalls,
-			CreatedAt:  created,
-			UpdatedAt:  updated,
+			ID:              r.ID,
+			AgentID:         r.AgentID,
+			Action:          r.Action,
+			Params:          params,
+			WorkbookID:      r.WorkbookID,
+			SheetID:         r.SheetID,
+			TopicID:         r.TopicID,
+			Status:          recoveredStatus,
+			Result:          r.Result,
+			Error:           r.Error,
+			MaxCalls:        r.MaxCalls,
+			CreatedAt:       created,
+			UpdatedAt:       updated,
+			ChainToAgentID:  r.ChainToAgentID,
+			ChainFromTaskID: r.ChainFromTaskID,
 		}
 		q.tasks[t.AgentID] = append(q.tasks[t.AgentID], t)
 		q.logger.Info("recovered task", "id", t.ID, "agent", t.AgentID, "action", t.Action)
@@ -172,18 +178,20 @@ func (q *TaskQueue) Enqueue(t *Task, initialStatus ...TaskStatus) error {
 	if q.ts != nil {
 		paramsJSON, _ := json.Marshal(t.Params)
 		record := &store.AgentTaskRecord{
-			ID:             t.ID,
-			AgentID:        t.AgentID,
-			Action:         t.Action,
-			Params:         paramsJSON,
-			WorkbookID:     t.WorkbookID,
-			SheetID:        t.SheetID,
-			TopicID:        t.TopicID,
-			Status:         string(t.Status),
-			MaxCalls:       t.MaxCalls,
-			CreatedAt:      now.Format(time.RFC3339),
-			UpdatedAt:      now.Format(time.RFC3339),
-			IdempotencyKey: t.IdempotencyKey,
+			ID:              t.ID,
+			AgentID:         t.AgentID,
+			Action:          t.Action,
+			Params:          paramsJSON,
+			WorkbookID:      t.WorkbookID,
+			SheetID:         t.SheetID,
+			TopicID:         t.TopicID,
+			Status:          string(t.Status),
+			MaxCalls:        t.MaxCalls,
+			CreatedAt:       now.Format(time.RFC3339),
+			UpdatedAt:       now.Format(time.RFC3339),
+			IdempotencyKey:  t.IdempotencyKey,
+			ChainToAgentID:  t.ChainToAgentID,
+			ChainFromTaskID: t.ChainFromTaskID,
 		}
 		if err := q.ts.Insert(record); err != nil {
 			return fmt.Errorf("persist task: %w", err)
@@ -204,6 +212,21 @@ func (q *TaskQueue) Enqueue(t *Task, initialStatus ...TaskStatus) error {
 	}
 
 	return nil
+}
+
+// addDone inserts a completed task into the done map, evicting oldest if at cap.
+// Must be called with q.mu held.
+func (q *TaskQueue) addDone(t *Task) {
+	if _, exists := q.done[t.ID]; !exists {
+		if len(q.done) >= maxDone {
+			// Evict the oldest entry from the FIFO order list.
+			oldest := q.doneOrder[0]
+			q.doneOrder = q.doneOrder[1:]
+			delete(q.done, oldest)
+		}
+		q.doneOrder = append(q.doneOrder, t.ID)
+	}
+	q.done[t.ID] = t
 }
 
 // ApproveTask moves a pending_approval task to queued.
@@ -281,7 +304,7 @@ func (q *TaskQueue) Dequeue(agentID string) *Task {
 			}
 
 			// Track in done map so Complete/Fail can find it
-			q.done[task.ID] = task
+			q.addDone(task)
 			return task
 		}
 	}
@@ -311,7 +334,7 @@ func (q *TaskQueue) Complete(id string, result json.RawMessage) {
 				if q.ts != nil {
 					q.ts.UpdateStatus(id, string(t.Status), "", result)
 				}
-				q.done[id] = t
+				q.addDone(t)
 				return
 			}
 		}
@@ -341,7 +364,7 @@ func (q *TaskQueue) Fail(id string, err error) {
 				if q.ts != nil {
 					q.ts.UpdateStatus(id, string(t.Status), t.Error, nil)
 				}
-				q.done[id] = t
+				q.addDone(t)
 				return
 			}
 		}
@@ -353,7 +376,7 @@ func (q *TaskQueue) List(agentID string) []*Task {
 	defer q.mu.Unlock()
 
 	if agentID == "" {
-		var all []*Task
+		all := make([]*Task, 0)
 		for _, queue := range q.tasks {
 			all = append(all, queue...)
 		}

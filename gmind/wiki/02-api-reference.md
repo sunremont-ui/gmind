@@ -165,7 +165,7 @@
   "api_key": "sk-..."
 }
 ```
-Параметры `endpoint`, `model`, `api_key` опциональны. Для `provider: "local"` endpoint по умолчанию `http://localhost:8081/v1`. Для `provider: "yandex"` используется Yandex GPT API.
+Параметры `endpoint`, `model`, `api_key` опциональны. Для `provider: "local"` endpoint по умолчанию `http://localhost:1100/v1`. Для `provider: "yandex"` используется Yandex GPT API.
 
 **Response 200:**
 ```json
@@ -279,7 +279,7 @@
 ```json
 {
   "running": true,
-  "config": { "server_path": "...", "model_path": "...", "port": 8081, ... }
+  "config": { "server_path": "...", "model_path": "...", "port": 1100, ... }
 }
 ```
 
@@ -458,6 +458,47 @@ JSON-RPC 2.0 эндпоинт для интеграции с AI-агентами
 
 ### GET /api/v1/workbooks/{id}/export/pdf
 Экспорт в PDF.
+
+---
+
+## Comments
+
+### GET /agents/topics/{topicID}/comments
+Получить все комментарии для топика.
+
+**Response 200:**
+```json
+[
+  {
+    "id": "cmt-abc123",
+    "topic_id": "topic-uuid",
+    "user_id": "user-abc",
+    "content": "Great idea!",
+    "created_at": "2026-05-09T10:00:00Z",
+    "updated_at": "2026-05-09T10:00:00Z"
+  }
+]
+```
+
+### POST /agents/topics/{topicID}/comments
+Добавить комментарий к топику. Требуется заголовок `X-User-ID`.
+
+**Request:**
+```json
+{
+  "content": "My comment text"
+}
+```
+
+**Response 201:** Comment object
+
+### DELETE /agents/comments/{id}
+Удалить комментарий по ID.
+
+**Response 200:**
+```json
+{ "status": "deleted" }
+```
 
 ---
 

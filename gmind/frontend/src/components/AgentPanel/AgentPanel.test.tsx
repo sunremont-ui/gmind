@@ -42,8 +42,8 @@ describe('AgentPanel', () => {
     render(<AgentPanel workbookId="wb1" onClose={vi.fn()} />)
 
     await waitFor(() => {
-      expect(screen.getByText('Researcher')).toBeInTheDocument()
-      expect(screen.getByText('Critic')).toBeInTheDocument()
+      expect(screen.getByText(/Researcher/)).toBeInTheDocument()
+      expect(screen.getByText(/Critic/)).toBeInTheDocument()
     })
   })
 

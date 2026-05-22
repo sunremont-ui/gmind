@@ -78,7 +78,10 @@ export class WSClient {
       this.reconnectTimer = null
     }
     if (this.ws) {
-      if (this.ws.readyState === WebSocket.OPEN) {
+      // Null out handlers before close so onclose does NOT trigger scheduleReconnect
+      this.ws.onclose = null
+      this.ws.onerror = null
+      if (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING) {
         this.ws.close()
       }
     }

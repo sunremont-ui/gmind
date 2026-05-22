@@ -7,6 +7,7 @@ import { MindMapRenderer } from '../../renderer/renderer'
 import { api } from '../../api/client'
 import { wsClient } from '../../api/ws'
 import type { LayoutNode, CursorPosition, PresenceUser } from '../../types'
+import type { Topic } from '../../types'
 
 import type { StructureClass } from '../../types'
 import { LumenX, LumenChevronRight, LumenChevronLeft, LumenUndo, LumenRedo, LumenSearch, LumenInbox } from '../UI/LumenIcon'
@@ -15,6 +16,7 @@ import { ErrorBoundary } from './ErrorBoundary'
 import { PropertiesPanel } from '../PropertiesPanel/PropertiesPanel'
 import { AIServerPanel } from '../AIServerPanel/AIServerPanel'
 import { PresencePanel } from '../PresencePanel/PresencePanel'
+import { CommentsPanel } from '../Comments/CommentsPanel'
 import { ShareDialog } from '../ShareDialog/ShareDialog'
 import { ToolPanel, type Tool } from '../ToolPanel/ToolPanel'
 import { StylePanel } from '../StylePanel/StylePanel'
@@ -499,6 +501,7 @@ export function MindMap({ workbookId, onXMindImported }: MindMapProps) {
   const [showNotesPopup, setShowNotesPopup] = useState(false)
   const [notesPopupData, setNotesPopupData] = useState<{ topicId: string; text: string } | null>(null)
   const [notesEditText, setNotesEditText] = useState('')
+  const [commentsDialog, setCommentsDialog] = useState<{ topicId: string; title: string } | null>(null)
   const [showExportMenu, setShowExportMenu] = useState(false)
   const [showImportMenu, setShowImportMenu] = useState(false)
 
@@ -744,6 +747,11 @@ export function MindMap({ workbookId, onXMindImported }: MindMapProps) {
     setNotesPopupData({ topicId, text: notes })
     setNotesEditText(notes)
     setShowNotesPopup(true)
+  }, [])
+
+  const handleTopicCommentsClick = useCallback((topicId: string) => {
+    const topic = useMindMapStore.getState().getTopic(topicId)
+    setCommentsDialog({ topicId, title: topic?.title || 'Topic' })
   }, [])
 
   const handleNotesSave = useCallback(async () => {
@@ -1283,9 +1291,39 @@ export function MindMap({ workbookId, onXMindImported }: MindMapProps) {
         return
       }
 
+      if (e.key === 'Enter') {
+        if (tag !== 'INPUT' && tag !== 'TEXTAREA' && !editingTopicId) {
+          e.preventDefault()
+          const selId = useMindMapStore.getState().selectedTopicId
+          const rootId = activeSheet?.root_topic?.id
+          if (!selId || selId === rootId) return
+          const findParent = (t: Topic, id: string): Topic | null => {
+            for (const c of (t.children || [])) {
+              if (c.id === id) return t
+              const found = findParent(c, id)
+              if (found) return found
+            }
+            return null
+          }
+          const root = activeSheet?.root_topic
+          if (!root) return
+          const parent = findParent(root, selId)
+          if (!parent) return
+          pushHistory()
+          api.createTopic(workbookId, parent.id, '').then(topic => {
+            addTopic(parent.id, topic)
+            wsClient.sendOperation('topic_created', { parent_id: parent.id, topic })
+            setSelectedTopic(topic.id)
+            setEditingTopicId(topic.id)
+          }).catch(err => console.error('Failed to add sibling:', err))
+        }
+        return
+      }
+
       if (e.key === 'Delete' || e.key === 'Backspace') {
         const selIds = useMindMapStore.getState().selectedTopicIds
-        if (tag !== 'INPUT' && tag !== 'TEXTAREA' && selIds.length > 0) {
+        const isEditable = (e.target as HTMLElement).isContentEditable
+        if (tag !== 'INPUT' && tag !== 'TEXTAREA' && !isEditable && !editingTopicId && selIds.length > 0) {
           e.preventDefault()
           deleteSelectedTopic()
         }
@@ -1552,19 +1590,23 @@ export function MindMap({ workbookId, onXMindImported }: MindMapProps) {
         onMouseDown={handleMouseDown}
       >
         <defs>
-          <filter id="topic-shadow">
-            <feDropShadow dx="0" dy="2" stdDeviation="4" floodColor={colors.accent} floodOpacity="0.25" />
+          {/* Selected: двойное свечение — accent halo + lift */}
+          <filter id="topic-shadow" x="-20%" y="-20%" width="140%" height="140%">
+            <feDropShadow dx="0" dy="0" stdDeviation="6" floodColor={colors.accent} floodOpacity="0.40" result="glow1" />
+            <feDropShadow dx="0" dy="3" stdDeviation="8" floodColor={colors.accent} floodOpacity="0.20" />
           </filter>
-          <filter id="selected-shadow">
-            <feDropShadow dx="0" dy="2" stdDeviation="4" floodColor={colors.accent} floodOpacity="0.25" />
+          <filter id="selected-shadow" x="-20%" y="-20%" width="140%" height="140%">
+            <feDropShadow dx="0" dy="0" stdDeviation="6" floodColor={colors.accent} floodOpacity="0.40" />
+            <feDropShadow dx="0" dy="3" stdDeviation="8" floodColor={colors.accent} floodOpacity="0.20" />
           </filter>
-          <filter id="shadow-soft">
-            <feDropShadow dx="0" dy="1" stdDeviation="2" floodColor={colors.text} floodOpacity="0.06" />
+          {/* Default: лёгкие тени для глубины */}
+          <filter id="shadow-soft" x="-10%" y="-10%" width="120%" height="120%">
+            <feDropShadow dx="0" dy="1" stdDeviation="3" floodColor={colors.accent} floodOpacity="0.08" />
           </filter>
-          <filter id="shadow-medium">
+          <filter id="shadow-medium" x="-15%" y="-15%" width="130%" height="130%">
             <feDropShadow dx="0" dy="2" stdDeviation="6" floodColor={colors.text} floodOpacity="0.10" />
           </filter>
-          <filter id="shadow-strong">
+          <filter id="shadow-strong" x="-20%" y="-20%" width="140%" height="140%">
             <feDropShadow dx="0" dy="4" stdDeviation="12" floodColor={colors.text} floodOpacity="0.16" />
           </filter>
           <marker id="arrowhead" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
@@ -1600,8 +1642,8 @@ export function MindMap({ workbookId, onXMindImported }: MindMapProps) {
             onTopicEditSave={handleTopicEditSave}
             onTopicEditCancel={handleTopicEditCancel}
             onTopicNotesClick={handleTopicNotesClick}
+            onTopicCommentsClick={handleTopicCommentsClick}
             onTopicFoldToggle={handleTopicFoldToggle}
-            expandedTopicIds={expandedTopicIds}
             onTopicExpandToggle={handleTopicExpandToggle}
             reorderTarget={reorderTarget}
           />
@@ -1639,14 +1681,27 @@ export function MindMap({ workbookId, onXMindImported }: MindMapProps) {
           )}
         </g>
       </svg>
-      </div>
 
-      <AnimatedMount show={showStyle} type="panel-left">
+      {/* StylePanel — абсолютно поверх canvas, слева */}
+      <AnimatedMount
+        show={showStyle}
+        type="panel-left"
+        style={{ position: 'absolute', top: spacing.sm, left: spacing.sm, zIndex: 100, maxHeight: `calc(100% - ${spacing.sm * 2}px)`, display: 'flex' }}
+      >
         <StylePanel workbookId={workbookId} onClose={() => setShowStyle(false)} />
       </AnimatedMount>
-      <AnimatedMount show={showProperties} type="panel-right">
-        <PropertiesPanel workbookId={workbookId} onClose={() => setShowProperties(false)} />
+
+      {/* PropertiesPanel — абсолютно поверх canvas, справа */}
+      <AnimatedMount
+        show={showProperties}
+        type="panel-right"
+        style={{ position: 'absolute', top: spacing.sm, right: spacing.sm, zIndex: 100, maxHeight: `calc(100% - ${spacing.sm * 2}px)`, display: 'flex' }}
+      >
+        <PropertiesPanel workbookId={workbookId} onClose={() => setShowProperties(false)} onCommentsClick={handleTopicCommentsClick} />
       </AnimatedMount>
+
+      </div>
+
       </div>
 
       {contextMenu && (
@@ -1658,6 +1713,7 @@ export function MindMap({ workbookId, onXMindImported }: MindMapProps) {
           fontFamily: fonts.ui,
         }}>
           <MenuItem onClick={addChildTopic}>Add Child Topic</MenuItem>
+          <MenuItem onClick={() => { handleTopicCommentsClick(contextMenu.topicId); setContextMenu(null) }}>💬 Add Comment</MenuItem>
           <MenuItem onClick={() => { setEditingTopicId(contextMenu.topicId); setContextMenu(null) }}>Rename</MenuItem>
           {(() => {
             const t = useMindMapStore.getState().getTopic(contextMenu.topicId)
@@ -1929,6 +1985,16 @@ export function MindMap({ workbookId, onXMindImported }: MindMapProps) {
         </div>
       )}
       </AnimatedMount>
+
+      {/* Comments dialog */}
+      {commentsDialog && (
+        <CommentsPanel
+          topicId={commentsDialog.topicId}
+          topicTitle={commentsDialog.title}
+          workbookId={workbookId}
+          onClose={() => setCommentsDialog(null)}
+        />
+      )}
     </div>
     </ErrorBoundary>
   )

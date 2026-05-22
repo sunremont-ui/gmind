@@ -1,10 +1,11 @@
 import { useState } from 'react'
 import type { TaskSubmitRequest, AgentInfo } from '../../types/agent'
-import { colors, fonts, fontSizes, fontWeights, spacing, radii, shadows, transitions } from '../../styles/tokens'
+import { AGENT_ROLES, ROLE_ACTIONS, ACTION_SCHEMAS } from '../../types/agent'
+import { colors, fonts, fontSizes, fontWeights, spacing, radii, shadows, transitions, z } from '../../styles/tokens'
 
 interface TaskSubmitDialogProps {
   agentId: string
-  agentRole: string
+  roleId: string
   workbookId: string
   agents: AgentInfo[]
   onSubmit: (agentId: string, req: TaskSubmitRequest) => Promise<string | undefined>
@@ -12,39 +13,50 @@ interface TaskSubmitDialogProps {
 }
 
 const TASK_ACTIONS = [
-  { value: 'create_topic', label: 'Create Topic', desc: 'Create a new topic in the mind map' },
+  { value: 'create_topic',           label: 'Create Topic',           desc: 'Create a new topic in the mind map' },
   { value: 'create_multiple_topics', label: 'Create Multiple Topics', desc: 'Add several topics at once' },
-  { value: 'summarize_topics', label: 'Summarize Topics', desc: 'Summarize a branch of topics' },
-  { value: 'update_topic', label: 'Update Topic', desc: 'Update an existing topic title or notes' },
-  { value: 'add_note', label: 'Add Note', desc: 'Add a note to a topic' },
-  { value: 'search_web', label: 'Search Web', desc: 'Search the web for information' },
-  { value: 'wiki_search', label: 'Wiki Search', desc: 'Search the project wiki' },
-  { value: 'get_workbook', label: 'Analyze Workbook', desc: 'Analyze the full workbook structure' },
-  { value: 'custom', label: 'Custom Action', desc: 'Enter a custom action name' },
+  { value: 'summarize_topics',       label: 'Summarize Topics',       desc: 'Summarize a branch of topics' },
+  { value: 'update_topic',           label: 'Update Topic',           desc: 'Update an existing topic title or notes' },
+  { value: 'add_note',               label: 'Add Note',               desc: 'Add a note to a topic' },
+  { value: 'search_web',             label: 'Search Web',             desc: 'Search the web for information' },
+  { value: 'wiki_search',            label: 'Wiki Search',            desc: 'Search the project wiki' },
+  { value: 'get_workbook',           label: 'Analyze Workbook',       desc: 'Analyze the full workbook structure' },
+  { value: 'custom',                 label: 'Custom Action',          desc: 'Enter a custom action name' },
 ]
 
-export function TaskSubmitDialog({ agentId, agentRole, workbookId, agents, onSubmit, onClose }: TaskSubmitDialogProps) {
+export function TaskSubmitDialog({ agentId, roleId, workbookId, agents, onSubmit, onClose }: TaskSubmitDialogProps) {
   const [action, setAction] = useState('')
   const [customAction, setCustomAction] = useState('')
+  const [simpleMode, setSimpleMode] = useState(true)
+  const [naturalPrompt, setNaturalPrompt] = useState('')
   const [params, setParams] = useState('')
   const [chainToAgentId, setChainToAgentId] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  const [showAllActions, setShowAllActions] = useState(false)
 
-  const selectedAction = TASK_ACTIONS.find(a => a.value === action)
+  const role = AGENT_ROLES.find(r => r.id === roleId)
+  const roleLabel = role?.label ?? roleId
+
+  const primaryActionValues = ROLE_ACTIONS[roleId] ?? []
+  const primaryActions = TASK_ACTIONS.filter(a => primaryActionValues.includes(a.value))
+  const secondaryActions = TASK_ACTIONS.filter(a => !primaryActionValues.includes(a.value))
+
+  const visibleActions = showAllActions ? TASK_ACTIONS : primaryActions.length > 0 ? primaryActions : TASK_ACTIONS
+
   const isCustom = action === 'custom'
   const effectiveAction = isCustom ? customAction : action
+  const hint = ACTION_SCHEMAS[action] ?? null
 
   const handleSubmit = async () => {
     if (!effectiveAction.trim()) return
     setSubmitting(true)
     try {
       let parsedParams: Record<string, unknown> | undefined
-      if (params.trim()) {
-        try {
-          parsedParams = JSON.parse(params)
-        } catch {
-          parsedParams = { query: params }
-        }
+      if (simpleMode) {
+        if (naturalPrompt.trim()) parsedParams = { query: naturalPrompt.trim() }
+      } else if (params.trim()) {
+        try { parsedParams = JSON.parse(params) }
+        catch { parsedParams = { query: params } }
       }
       await onSubmit(agentId, {
         action: effectiveAction.trim(),
@@ -60,133 +72,202 @@ export function TaskSubmitDialog({ agentId, agentRole, workbookId, agents, onSub
 
   const otherAgents = agents.filter(a => a.id !== agentId && a.status !== 'working')
 
+  const inputStyle: React.CSSProperties = {
+    width: '100%', padding: `${spacing.sm}px ${spacing.md}px`,
+    border: 'none', borderRadius: radii.sm,
+    background: colors.bgTertiary, color: colors.text, fontSize: fontSizes.label,
+    fontFamily: fonts.mono, outline: 'none',
+    boxShadow: shadows.neuInsetSm, boxSizing: 'border-box',
+  }
+
+  const fieldLabel: React.CSSProperties = {
+    fontSize: fontSizes.caption, color: colors.textSecondary,
+    marginBottom: spacing.xs, fontWeight: fontWeights.medium,
+  }
+
   return (
     <div style={{
       position: 'fixed', inset: 0,
-      background: 'rgba(0,0,0,0.5)',
+      background: colors.scrim,
+      backdropFilter: 'blur(8px)',
+      WebkitBackdropFilter: 'blur(8px)',
       display: 'flex', alignItems: 'center', justifyContent: 'center',
-      zIndex: 1000,
+      zIndex: z.modal,
       fontFamily: fonts.ui,
     }}>
       <div style={{
-        background: colors.bgSecondary,
-        borderRadius: 16,
+        background: colors.bgTertiary,
+        borderRadius: radii.xl,
         padding: spacing.xxxl,
-        width: 480, maxHeight: '85vh', overflow: 'auto',
+        width: 500, maxHeight: '88vh', overflow: 'auto',
         boxShadow: shadows.neuLg,
         border: 'none',
       }}>
         <h2 style={{
           fontSize: fontSizes.title, fontWeight: fontWeights.semibold,
           color: colors.text, margin: `0 0 ${spacing.lg}px`,
+          display: 'flex', alignItems: 'center', gap: spacing.sm,
         }}>
-          Submit Task to {agentRole}
+          <span style={{
+            display: 'inline-block', width: 8, height: 8, borderRadius: '50%',
+            background: role?.color ?? colors.accent,
+            boxShadow: `0 0 0 3px ${(role?.color ?? colors.accent) + '25'}`,
+          }} />
+          Submit Task to {roleLabel}
         </h2>
 
         {/* Action selector */}
         <div style={{ marginBottom: spacing.lg }}>
-          <div style={{
-            fontSize: fontSizes.caption, color: colors.textSecondary,
-            marginBottom: spacing.xs, fontWeight: fontWeights.medium,
-          }}>
-            Action
+          <div style={{ ...fieldLabel, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span>Action</span>
+            {secondaryActions.length > 0 && (
+              <button
+                onClick={() => setShowAllActions(v => !v)}
+                style={{
+                  background: 'none', border: 'none', cursor: 'pointer',
+                  fontSize: fontSizes.caption,
+                  color: showAllActions ? colors.accent : colors.textQuaternary,
+                  fontFamily: fonts.ui, padding: 0,
+                  transition: `color ${transitions.fast}`,
+                }}
+              >
+                {showAllActions ? '↩ Role actions' : '+ Show all'}
+              </button>
+            )}
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.xs }}>
-            {TASK_ACTIONS.map(opt => (
+            {visibleActions.map(opt => (
               <button
                 key={opt.value}
                 onClick={() => setAction(opt.value)}
                 style={{
                   display: 'flex', flexDirection: 'column', alignItems: 'flex-start',
                   gap: spacing.xxs, padding: `${spacing.sm}px ${spacing.lg}px`,
-                  border: `1px solid ${action === opt.value ? colors.accent : colors.separator}`,
-                  borderRadius: radii.md, background: action === opt.value ? colors.accentLight : colors.bg,
+                  border: 'none', borderRadius: radii.md,
+                  background: action === opt.value ? colors.accentLight : colors.bgTertiary,
+                  boxShadow: action === opt.value
+                    ? `${shadows.neuInsetSm}, 0 0 0 2px ${colors.accent}`
+                    : shadows.neuSm,
                   cursor: 'pointer', fontSize: fontSizes.label, textAlign: 'left',
                   fontFamily: fonts.ui, color: colors.text,
-                  transition: `border-color ${transitions.fast}, background ${transitions.fast}`,
+                  transition: `box-shadow ${transitions.fast}, background ${transitions.fast}`,
                 }}
                 onMouseEnter={e => {
-                  if (action !== opt.value) e.currentTarget.style.background = colors.bgTertiary
+                  if (action !== opt.value) {
+                    e.currentTarget.style.background = colors.accentLight
+                    e.currentTarget.style.boxShadow = `${shadows.neuInsetSm}, 0 0 0 1px ${colors.accentLight}`
+                  }
                 }}
                 onMouseLeave={e => {
-                  if (action !== opt.value) e.currentTarget.style.background = colors.bg
+                  if (action !== opt.value) {
+                    e.currentTarget.style.background = colors.bgTertiary
+                    e.currentTarget.style.boxShadow = shadows.neuSm
+                  }
                 }}
               >
                 <span style={{ fontWeight: fontWeights.medium }}>{opt.label}</span>
                 <span style={{ fontSize: fontSizes.caption, color: colors.textSecondary }}>{opt.desc}</span>
               </button>
             ))}
-            {isCustom && (
-              <input
-                value={customAction}
-                onChange={e => setCustomAction(e.target.value)}
-                placeholder="Enter custom action name"
-                style={{
-                  width: '100%', padding: `${spacing.sm}px ${spacing.md}px`,
-                  border: `1px solid ${colors.accent}`, borderRadius: radii.sm,
-                  background: colors.bg, color: colors.text, fontSize: fontSizes.label,
-                  fontFamily: fonts.mono, outline: 'none', marginTop: spacing.xs,
-                }}
-                autoFocus
-              />
-            )}
           </div>
+
+          {isCustom && (
+            <input
+              value={customAction}
+              onChange={e => setCustomAction(e.target.value)}
+              placeholder="Enter custom action name"
+              style={{ ...inputStyle, marginTop: spacing.sm }}
+              autoFocus
+            />
+          )}
+        </div>
+
+        {/* Params: Simple / Advanced toggle */}
+        <div style={{ marginBottom: spacing.lg }}>
+          <div style={{ ...fieldLabel, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span>Parameters</span>
+            <div style={{ display: 'flex', gap: spacing.xs }}>
+              {(['simple', 'advanced'] as const).map(mode => (
+                <button
+                  key={mode}
+                  onClick={() => setSimpleMode(mode === 'simple')}
+                  style={{
+                    padding: `${spacing.xxs}px ${spacing.sm}px`,
+                    border: 'none', borderRadius: radii.sm,
+                    background: (simpleMode ? mode === 'simple' : mode === 'advanced') ? colors.accent : 'transparent',
+                    color: (simpleMode ? mode === 'simple' : mode === 'advanced') ? colors.textInverse : colors.textSecondary,
+                    fontSize: fontSizes.caption, fontFamily: fonts.ui, cursor: 'pointer',
+                    transition: `all ${transitions.fast}`,
+                  }}
+                >
+                  {mode === 'simple' ? 'Simple' : 'JSON'}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {simpleMode ? (
+            <textarea
+              value={naturalPrompt}
+              onChange={e => setNaturalPrompt(e.target.value)}
+              placeholder="Describe what the agent should do…"
+              rows={3}
+              style={{ ...inputStyle, resize: 'vertical' }}
+            />
+          ) : (
+            <>
+              <textarea
+                value={params}
+                onChange={e => setParams(e.target.value)}
+                placeholder='{"topic_id": "abc", "title": "New topic"}'
+                rows={3}
+                style={{ ...inputStyle, resize: 'vertical' }}
+              />
+              {hint && (
+                <div style={{
+                  marginTop: spacing.xs,
+                  display: 'flex', alignItems: 'flex-start', gap: spacing.sm,
+                }}>
+                  <span style={{ fontSize: fontSizes.caption, color: colors.textQuaternary, fontFamily: fonts.mono, flex: 1, wordBreak: 'break-all' }}>
+                    e.g. {hint}
+                  </span>
+                  <button
+                    onClick={() => setParams(hint)}
+                    style={{
+                      flexShrink: 0, background: 'none', border: 'none', cursor: 'pointer',
+                      fontSize: fontSizes.caption, color: colors.accent, fontFamily: fonts.ui,
+                      padding: 0, transition: `opacity ${transitions.fast}`,
+                    }}
+                  >
+                    Use example
+                  </button>
+                </div>
+              )}
+            </>
+          )}
         </div>
 
         {/* Chain selector */}
         {otherAgents.length > 0 && (
           <div style={{ marginBottom: spacing.lg }}>
-            <div style={{
-              fontSize: fontSizes.caption, color: colors.textSecondary,
-              marginBottom: spacing.xs, fontWeight: fontWeights.medium,
-            }}>
-              Chain to agent (optional)
-            </div>
+            <div style={fieldLabel}>Chain to agent (optional)</div>
             <select
               value={chainToAgentId}
               onChange={e => setChainToAgentId(e.target.value)}
-              style={{
-                width: '100%', padding: `${spacing.sm}px ${spacing.md}px`,
-                border: `1px solid ${colors.separator}`, borderRadius: radii.sm,
-                background: colors.bg, color: colors.text,
-                fontSize: fontSizes.label, fontFamily: fonts.ui,
-                outline: 'none', cursor: 'pointer',
-              }}
+              style={{ ...inputStyle, fontFamily: fonts.ui, cursor: 'pointer' }}
             >
               <option value="">— No chain —</option>
               {otherAgents.map(a => {
-                const role = AGENT_ROLES.find(r => r.id === a.role)
+                const r = AGENT_ROLES.find(r => r.id === a.role)
                 return (
                   <option key={a.id} value={a.id}>
-                    {role?.label || a.role} ({a.model})
+                    {a.name || r?.label || a.role} ({a.model || 'default'})
                   </option>
                 )
               })}
             </select>
           </div>
         )}
-
-        {/* Parameters */}
-        <div style={{ marginBottom: spacing.lg }}>
-          <div style={{
-            fontSize: fontSizes.caption, color: colors.textSecondary,
-            marginBottom: spacing.xs, fontWeight: fontWeights.medium,
-          }}>
-            Parameters (JSON, optional)
-          </div>
-          <textarea
-            value={params}
-            onChange={e => setParams(e.target.value)}
-            placeholder='{"topic_id": "abc", "title": "New topic"}'
-            rows={3}
-            style={{
-              width: '100%', padding: `${spacing.sm}px ${spacing.md}px`,
-              border: `1px solid ${colors.separator}`, borderRadius: radii.sm,
-              background: colors.bg, color: colors.text, fontSize: fontSizes.label,
-              fontFamily: fonts.mono, outline: 'none', resize: 'vertical',
-            }}
-          />
-        </div>
 
         {/* Buttons */}
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: spacing.sm }}>
@@ -195,14 +276,14 @@ export function TaskSubmitDialog({ agentId, agentRole, workbookId, agents, onSub
             disabled={submitting}
             style={{
               padding: `${spacing.md}px ${spacing.xl}px`,
-              border: `1px solid ${colors.separatorThick}`,
-              borderRadius: radii.md, background: colors.bgSecondary,
+              border: 'none', borderRadius: radii.md,
+              background: colors.bgTertiary, boxShadow: shadows.neuSm,
               cursor: 'pointer', fontSize: fontSizes.body,
               color: colors.textSecondary, fontFamily: fonts.ui,
-              transition: `background ${transitions.fast}`,
+              transition: `box-shadow ${transitions.fast}`,
             }}
-            onMouseEnter={e => e.currentTarget.style.background = colors.bgTertiary}
-            onMouseLeave={e => e.currentTarget.style.background = colors.bgSecondary}
+            onMouseEnter={e => e.currentTarget.style.boxShadow = shadows.neuInsetSm}
+            onMouseLeave={e => e.currentTarget.style.boxShadow = shadows.neuSm}
           >
             Cancel
           </button>
@@ -211,8 +292,7 @@ export function TaskSubmitDialog({ agentId, agentRole, workbookId, agents, onSub
             disabled={submitting || !effectiveAction.trim()}
             style={{
               padding: `${spacing.md}px ${spacing.xl}px`,
-              border: 'none',
-              borderRadius: radii.md,
+              border: 'none', borderRadius: radii.md,
               background: submitting ? colors.textQuaternary : colors.accent,
               cursor: submitting ? 'default' : 'pointer',
               fontSize: fontSizes.body, fontWeight: fontWeights.semibold,
@@ -223,20 +303,10 @@ export function TaskSubmitDialog({ agentId, agentRole, workbookId, agents, onSub
             onMouseEnter={e => { if (!submitting) e.currentTarget.style.background = colors.accentHover }}
             onMouseLeave={e => { if (!submitting) e.currentTarget.style.background = colors.accent }}
           >
-            {submitting ? 'Submitting...' : 'Submit Task'}
+            {submitting ? 'Submitting…' : 'Submit Task →'}
           </button>
         </div>
       </div>
     </div>
   )
 }
-
-const AGENT_ROLES = [
-  { id: 'researcher', label: 'Researcher', color: '#3b82f6' },
-  { id: 'organizer', label: 'Organizer', color: '#22c55e' },
-  { id: 'critic', label: 'Critic', color: '#ef4444' },
-  { id: 'expander', label: 'Expander', color: '#a855f7' },
-  { id: 'summarizer', label: 'Summarizer', color: '#f59e0b' },
-  { id: 'editor', label: 'Editor', color: '#06b6d4' },
-  { id: 'analyst', label: 'Analyst', color: '#ec4899' },
-]

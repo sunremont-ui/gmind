@@ -3,8 +3,10 @@ package api
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
+	"strings"
 
 	"github.com/gmind/backend/internal/model"
 	"github.com/go-chi/chi/v5"
@@ -55,7 +57,52 @@ func (h *Handler) GetWorkbook(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "workbook not found")
 		return
 	}
+
+	// Enrich topics with comment counts.
+	var topicIDs []string
+	for _, sheet := range wb.Sheets {
+		if sheet.RootTopic != nil {
+			collectTopicIDs(sheet.RootTopic, &topicIDs)
+		}
+		for _, ft := range sheet.FloatingTopics {
+			collectTopicIDs(ft, &topicIDs)
+		}
+	}
+	if len(topicIDs) > 0 {
+		counts, err := h.store.CommentStore().CountsByTopics(topicIDs)
+		if err == nil && len(counts) > 0 {
+			for _, sheet := range wb.Sheets {
+				if sheet.RootTopic != nil {
+					applyCommentCounts(sheet.RootTopic, counts)
+				}
+				for _, ft := range sheet.FloatingTopics {
+					applyCommentCounts(ft, counts)
+				}
+			}
+		}
+	}
+
 	writeJSON(w, http.StatusOK, wb)
+}
+
+func collectTopicIDs(t *model.Topic, ids *[]string) {
+	if t == nil {
+		return
+	}
+	*ids = append(*ids, t.ID)
+	for _, c := range t.Children {
+		collectTopicIDs(c, ids)
+	}
+}
+
+func applyCommentCounts(t *model.Topic, counts map[string]int) {
+	if t == nil {
+		return
+	}
+	t.CommentCount = counts[t.ID]
+	for _, c := range t.Children {
+		applyCommentCounts(c, counts)
+	}
 }
 
 func (h *Handler) UpdateWorkbook(w http.ResponseWriter, r *http.Request) {
@@ -269,4 +316,66 @@ func (h *Handler) DeleteWorkbook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *Handler) ExportMarkdown(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "workbookID")
+	wb, err := h.store.GetWorkbook(id)
+	if err != nil {
+		internalError(w, err)
+		return
+	}
+	if wb == nil {
+		writeError(w, http.StatusNotFound, "workbook not found")
+		return
+	}
+
+	var sb strings.Builder
+	if len(wb.Sheets) > 0 {
+		topicToMarkdown(&sb, wb.Sheets[0].RootTopic, 0)
+	}
+
+	w.Header().Set("Content-Type", "text/markdown; charset=utf-8")
+	w.Header().Set("Content-Disposition", `attachment; filename="`+sanitizeFilename(wb.Title)+`.md"`)
+	w.WriteHeader(http.StatusOK)
+	fmt.Fprint(w, sb.String())
+}
+
+func topicToMarkdown(sb *strings.Builder, t *model.Topic, depth int) {
+	if t == nil {
+		return
+	}
+	switch depth {
+	case 0:
+		fmt.Fprintf(sb, "# %s\n\n", t.Title)
+	case 1:
+		fmt.Fprintf(sb, "## %s\n\n", t.Title)
+	case 2:
+		fmt.Fprintf(sb, "### %s\n\n", t.Title)
+	default:
+		fmt.Fprintf(sb, "%s- %s\n", strings.Repeat("  ", depth-3), t.Title)
+	}
+	if t.Notes != "" {
+		fmt.Fprintf(sb, "> %s\n\n", t.Notes)
+	}
+	for _, child := range t.Children {
+		topicToMarkdown(sb, child, depth+1)
+	}
+}
+
+func sanitizeFilename(name string) string {
+	var out strings.Builder
+	for _, r := range name {
+		switch r {
+		case '"', '/', '\\', ':', '*', '?', '<', '>', '|':
+			out.WriteRune('_')
+		default:
+			out.WriteRune(r)
+		}
+	}
+	s := out.String()
+	if s == "" {
+		return "mindmap"
+	}
+	return s
 }

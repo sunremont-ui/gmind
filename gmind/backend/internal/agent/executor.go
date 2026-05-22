@@ -1,37 +1,74 @@
 package agent
 
 import (
+	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"net/http"
 	"sync"
+	"time"
 
 	"github.com/gmind/backend/internal/core"
 	"github.com/gmind/backend/internal/model"
+	"github.com/gmind/backend/internal/rag"
 	"github.com/gmind/backend/internal/store"
 	"github.com/gmind/backend/internal/wiki"
 )
 
 // ToolExecutor executes tool calls against the store.
 type ToolExecutor struct {
-	store    *store.Store
-	eventBus core.EventBus
-	logger   core.Logger
-	searcher Searcher
-	wiki     *wiki.Store
+	store        *store.Store
+	eventBus     core.EventBus
+	logger       core.Logger
+	searcher     Searcher
+	wiki         *wiki.Store
+	ragService   *rag.Service
+	maSysBaseURL string
+	manager      *Manager
 
 	// workbookLocks prevents concurrent mutations to the same workbook.
 	workbookLocks sync.Map // map[string]*sync.Mutex
+
+	// extraCallbacks allows modules to register additional tool handlers.
+	extraCallbacksMu sync.RWMutex
+	extraCallbacks   map[string]callToolFn
+}
+
+// RegisterCallback registers an additional tool callback. Safe for concurrent use.
+func (e *ToolExecutor) RegisterCallback(name string, fn callToolFn) {
+	e.extraCallbacksMu.Lock()
+	defer e.extraCallbacksMu.Unlock()
+	if e.extraCallbacks == nil {
+		e.extraCallbacks = make(map[string]callToolFn)
+	}
+	e.extraCallbacks[name] = fn
 }
 
 func NewToolExecutor(s *store.Store, eventBus core.EventBus, logger core.Logger, wikiStore *wiki.Store) *ToolExecutor {
 	return &ToolExecutor{
-		store:    s,
-		eventBus: eventBus,
-		logger:   logger,
-		searcher: NewDuckDuckGoSearcher(),
-		wiki:     wikiStore,
+		store:        s,
+		eventBus:     eventBus,
+		logger:       logger,
+		searcher:     NewDuckDuckGoSearcher(),
+		wiki:         wikiStore,
+		maSysBaseURL: "http://localhost:3001",
 	}
+}
+
+func (e *ToolExecutor) SetMaSysBaseURL(url string) {
+	e.maSysBaseURL = url
+}
+
+// SetRAG wires a RAG service for semantic_search tool support.
+func (e *ToolExecutor) SetRAG(svc *rag.Service) {
+	e.ragService = svc
+}
+
+func (e *ToolExecutor) SetManager(m *Manager) {
+	e.manager = m
 }
 
 func (e *ToolExecutor) lockWorkbook(id string) *sync.Mutex {
@@ -41,8 +78,8 @@ func (e *ToolExecutor) lockWorkbook(id string) *sync.Mutex {
 
 type callToolFn func(args json.RawMessage) (any, error)
 
-func (e *ToolExecutor) getCallbacks() map[string]callToolFn {
-	return map[string]callToolFn{
+func (e *ToolExecutor) getCallbacks(task *Task) map[string]callToolFn {
+	base := map[string]callToolFn{
 		"create_topic":           e.createTopic,
 		"update_topic":           e.updateTopic,
 		"create_multiple_topics": e.createMultipleTopics,
@@ -54,7 +91,89 @@ func (e *ToolExecutor) getCallbacks() map[string]callToolFn {
 		"wiki_search":            e.wikiSearch,
 		"wiki_read":              e.wikiRead,
 		"wiki_write":             e.wikiWrite,
+		"run_masys_pipeline":     e.runMaSysPipeline,
+		"delete_topic":           e.deleteTopic,
+		"move_topic":             e.moveTopic,
+		"list_topics":            e.listTopics,
+		"save_note":              e.saveNote,
+		"search_notes":           e.searchNotes,
+		"semantic_search":        e.semanticSearch,
+		"delegate_to_agent": func(raw json.RawMessage) (any, error) {
+			return e.delegateToAgent(raw, task)
+		},
 	}
+	// Merge module-registered callbacks (they can override or extend base tools).
+	e.extraCallbacksMu.RLock()
+	for name, fn := range e.extraCallbacks {
+		base[name] = fn
+	}
+	e.extraCallbacksMu.RUnlock()
+	return base
+}
+
+func (e *ToolExecutor) runMaSysPipeline(raw json.RawMessage) (any, error) {
+	var args struct {
+		PipelineID string         `json:"pipeline_id"`
+		Inputs     map[string]any `json:"inputs,omitempty"`
+	}
+	if err := json.Unmarshal(raw, &args); err != nil {
+		return nil, fmt.Errorf("invalid run_masys_pipeline args: %w", err)
+	}
+	if args.PipelineID == "" {
+		return nil, errors.New("pipeline_id is required")
+	}
+
+	payload, err := json.Marshal(map[string]any{
+		"inputs":    args.Inputs,
+		"timeoutMs": 120000,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("marshal inputs: %w", err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 130*time.Second)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(ctx, "POST",
+		fmt.Sprintf("%s/invoke/%s", e.maSysBaseURL, args.PipelineID),
+		bytes.NewReader(payload))
+	if err != nil {
+		return nil, fmt.Errorf("build request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := (&http.Client{Timeout: 130 * time.Second}).Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("MASys invoke failed: %w", err)
+	}
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(resp.Body)
+
+	if resp.StatusCode >= 400 {
+		return nil, fmt.Errorf("MASys invoke error %d: %s", resp.StatusCode, string(body))
+	}
+
+	var result struct {
+		RunID      string                            `json:"runId"`
+		Success    bool                              `json:"success"`
+		DurationMs int64                             `json:"durationMs"`
+		Outputs    map[string]map[string]interface{} `json:"outputs"`
+		Error      *string                           `json:"error"`
+	}
+	if err := json.Unmarshal(body, &result); err != nil {
+		return nil, fmt.Errorf("MASys invoke parse error: %w", err)
+	}
+
+	out := map[string]any{
+		"run_id":      result.RunID,
+		"success":     result.Success,
+		"duration_ms": result.DurationMs,
+		"outputs":     result.Outputs,
+	}
+	if result.Error != nil {
+		out["error"] = *result.Error
+	}
+	return out, nil
 }
 
 func (e *ToolExecutor) createTopic(raw json.RawMessage) (any, error) {
@@ -419,4 +538,287 @@ func (e *ToolExecutor) publishTopicUpdated(workbookID, topicID, oldTitle, newTit
 			"new_title":   newTitle,
 		},
 	})
+}
+
+func (e *ToolExecutor) deleteTopic(raw json.RawMessage) (any, error) {
+	var args struct {
+		WorkbookID string `json:"workbook_id"`
+		SheetID    string `json:"sheet_id"`
+		TopicID    string `json:"topic_id"`
+	}
+	if err := json.Unmarshal(raw, &args); err != nil {
+		return nil, fmt.Errorf("invalid delete_topic args: %w", err)
+	}
+	if args.TopicID == "" {
+		return nil, errors.New("topic_id is required")
+	}
+
+	e.lockWorkbook(args.WorkbookID).Lock()
+	defer e.lockWorkbook(args.WorkbookID).Unlock()
+
+	wb, err := e.store.GetWorkbook(args.WorkbookID)
+	if err != nil {
+		return nil, err
+	}
+	for _, sheet := range wb.Sheets {
+		if args.SheetID != "" && sheet.ID != args.SheetID {
+			continue
+		}
+		if sheet.RemoveTopic(args.TopicID) {
+			if err := e.store.UpdateWorkbook(wb); err != nil {
+				return nil, err
+			}
+			if e.eventBus != nil {
+				e.eventBus.Publish(core.Event{
+					Type:   "topic:deleted",
+					Source: "agent",
+					Payload: map[string]any{
+						"workbook_id": args.WorkbookID,
+						"topic_id":    args.TopicID,
+					},
+				})
+			}
+			return map[string]string{"status": "deleted", "topic_id": args.TopicID}, nil
+		}
+	}
+	return nil, fmt.Errorf("topic %s not found or is root topic", args.TopicID)
+}
+
+func (e *ToolExecutor) moveTopic(raw json.RawMessage) (any, error) {
+	var args struct {
+		WorkbookID  string `json:"workbook_id"`
+		SheetID     string `json:"sheet_id"`
+		TopicID     string `json:"topic_id"`
+		NewParentID string `json:"new_parent_id"`
+	}
+	if err := json.Unmarshal(raw, &args); err != nil {
+		return nil, fmt.Errorf("invalid move_topic args: %w", err)
+	}
+	if args.TopicID == "" || args.NewParentID == "" {
+		return nil, errors.New("topic_id and new_parent_id are required")
+	}
+	if args.TopicID == args.NewParentID {
+		return nil, errors.New("cannot move topic to itself")
+	}
+
+	e.lockWorkbook(args.WorkbookID).Lock()
+	defer e.lockWorkbook(args.WorkbookID).Unlock()
+
+	wb, err := e.store.GetWorkbook(args.WorkbookID)
+	if err != nil {
+		return nil, err
+	}
+	for _, sheet := range wb.Sheets {
+		if args.SheetID != "" && sheet.ID != args.SheetID {
+			continue
+		}
+		topic := sheet.FindTopic(args.TopicID)
+		if topic == nil {
+			continue
+		}
+		newParent := sheet.FindTopic(args.NewParentID)
+		if newParent == nil {
+			return nil, fmt.Errorf("new parent topic %s not found", args.NewParentID)
+		}
+		if !sheet.RemoveTopic(args.TopicID) {
+			return nil, fmt.Errorf("failed to remove topic %s from current location", args.TopicID)
+		}
+		newParent.AddChild(topic)
+		if err := e.store.UpdateWorkbook(wb); err != nil {
+			return nil, err
+		}
+		if e.eventBus != nil {
+			e.eventBus.Publish(core.Event{
+				Type:   "topic:moved",
+				Source: "agent",
+				Payload: map[string]any{
+					"workbook_id":   args.WorkbookID,
+					"topic_id":      args.TopicID,
+					"new_parent_id": args.NewParentID,
+				},
+			})
+		}
+		return map[string]string{"status": "moved", "topic_id": args.TopicID, "new_parent_id": args.NewParentID}, nil
+	}
+	return nil, fmt.Errorf("topic %s not found", args.TopicID)
+}
+
+type topicFlatItem struct {
+	ID       string `json:"id"`
+	Title    string `json:"title"`
+	ParentID string `json:"parent_id,omitempty"`
+	Depth    int    `json:"depth"`
+	Notes    string `json:"notes,omitempty"`
+}
+
+func (e *ToolExecutor) listTopics(raw json.RawMessage) (any, error) {
+	var args struct {
+		WorkbookID string `json:"workbook_id"`
+		SheetID    string `json:"sheet_id"`
+	}
+	if err := json.Unmarshal(raw, &args); err != nil {
+		return nil, fmt.Errorf("invalid list_topics args: %w", err)
+	}
+
+	wb, err := e.store.GetWorkbook(args.WorkbookID)
+	if err != nil {
+		return nil, err
+	}
+	var items []topicFlatItem
+	for _, sheet := range wb.Sheets {
+		if args.SheetID != "" && sheet.ID != args.SheetID {
+			continue
+		}
+		if sheet.RootTopic != nil {
+			flattenTopicTree(sheet.RootTopic, "", 0, &items)
+		}
+	}
+	return map[string]any{"topics": items, "count": len(items)}, nil
+}
+
+func flattenTopicTree(t *model.Topic, parentID string, depth int, items *[]topicFlatItem) {
+	*items = append(*items, topicFlatItem{
+		ID:       t.ID,
+		Title:    t.Title,
+		ParentID: parentID,
+		Depth:    depth,
+		Notes:    t.Notes,
+	})
+	for _, child := range t.Children {
+		flattenTopicTree(child, t.ID, depth+1, items)
+	}
+}
+
+func (e *ToolExecutor) delegateToAgent(raw json.RawMessage, callerTask *Task) (any, error) {
+	var args struct {
+		AgentID string         `json:"agent_id"`
+		Action  string         `json:"action"`
+		Params  map[string]any `json:"params,omitempty"`
+	}
+	if err := json.Unmarshal(raw, &args); err != nil {
+		return nil, fmt.Errorf("invalid delegate_to_agent args: %w", err)
+	}
+	if args.AgentID == "" || args.Action == "" {
+		return nil, errors.New("agent_id and action are required")
+	}
+	if callerTask != nil && args.AgentID == callerTask.AgentID {
+		return nil, errors.New("cannot delegate to self")
+	}
+	if e.manager == nil {
+		return nil, errors.New("agent manager not available")
+	}
+
+	workbookID, sheetID, topicID := "", "", ""
+	if callerTask != nil {
+		workbookID = callerTask.WorkbookID
+		sheetID = callerTask.SheetID
+		topicID = callerTask.TopicID
+	}
+
+	taskID, err := e.manager.SubmitTask(
+		args.AgentID, args.Action, args.Params,
+		workbookID, sheetID, topicID,
+		"", "", "",
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to delegate task: %w", err)
+	}
+
+	deadline := time.Now().Add(2 * time.Minute)
+	for time.Now().Before(deadline) {
+		t, err := e.manager.GetTask(taskID)
+		if err != nil {
+			return nil, fmt.Errorf("delegated task not found: %w", err)
+		}
+		switch t.Status {
+		case TaskDone:
+			return map[string]any{
+				"task_id": taskID,
+				"result":  string(t.Result),
+				"status":  "done",
+			}, nil
+		case TaskFailed:
+			return nil, fmt.Errorf("delegated task failed: %s", t.Error)
+		}
+		time.Sleep(500 * time.Millisecond)
+	}
+	return nil, fmt.Errorf("delegated task %s timed out after 2 minutes", taskID)
+}
+
+func (e *ToolExecutor) semanticSearch(raw json.RawMessage) (any, error) {
+	if e.ragService == nil {
+		return nil, errors.New("semantic_search: RAG service not available (no OpenAI API key configured)")
+	}
+	var args struct {
+		Query      string `json:"query"`
+		Limit      int    `json:"limit"`
+		WorkbookID string `json:"workbook_id,omitempty"`
+	}
+	if err := json.Unmarshal(raw, &args); err != nil {
+		return nil, fmt.Errorf("invalid semantic_search args: %w", err)
+	}
+	if args.Query == "" {
+		return nil, errors.New("query is required")
+	}
+	if args.Limit <= 0 {
+		args.Limit = 5
+	}
+
+	results, err := e.ragService.Search(context.Background(), args.Query, args.Limit)
+	if err != nil {
+		return nil, fmt.Errorf("semantic_search: %w", err)
+	}
+
+	// Filter by workbook if requested
+	if args.WorkbookID != "" {
+		filtered := results[:0]
+		for _, r := range results {
+			if r.WorkbookID == args.WorkbookID {
+				filtered = append(filtered, r)
+			}
+		}
+		results = filtered
+	}
+
+	return map[string]any{"results": results, "count": len(results)}, nil
+}
+
+func (e *ToolExecutor) saveNote(raw json.RawMessage) (any, error) {
+	var args struct {
+		Content    string   `json:"content"`
+		Tags       []string `json:"tags"`
+		WorkbookID string   `json:"workbook_id"`
+	}
+	if err := json.Unmarshal(raw, &args); err != nil {
+		return nil, fmt.Errorf("invalid save_note args: %w", err)
+	}
+	if args.Content == "" {
+		return nil, fmt.Errorf("content is required")
+	}
+	ns := store.NewNoteStore(e.store.DB())
+	note, err := ns.Create(store.CreateNoteRequest{
+		Content:    args.Content,
+		Tags:       args.Tags,
+		Source:     "agent",
+		WorkbookID: args.WorkbookID,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("save_note: %w", err)
+	}
+	return map[string]any{"id": note.ID, "content": note.Content, "tags": note.Tags}, nil
+}
+
+func (e *ToolExecutor) searchNotes(raw json.RawMessage) (any, error) {
+	var args struct {
+		Query string `json:"query"`
+	}
+	if err := json.Unmarshal(raw, &args); err != nil {
+		return nil, fmt.Errorf("invalid search_notes args: %w", err)
+	}
+	ns := store.NewNoteStore(e.store.DB())
+	notes, err := ns.List(args.Query)
+	if err != nil {
+		return nil, fmt.Errorf("search_notes: %w", err)
+	}
+	return notes, nil
 }

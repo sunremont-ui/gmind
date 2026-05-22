@@ -2,6 +2,20 @@ package model
 
 import "time"
 
+type Comment struct {
+	ID        string    `json:"id"`
+	TopicID   string    `json:"topic_id"`
+	UserID    string    `json:"user_id"`
+	Content   string    `json:"content"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+type CreateCommentRequest struct {
+	TopicID string `json:"topic_id"`
+	Content string `json:"content"`
+}
+
 type Workbook struct {
 	ID         string    `json:"id"`
 	Title      string    `json:"title"`
@@ -72,6 +86,8 @@ type Topic struct {
 	RichText       string    `json:"rich_text,omitempty"`
 	LevelGap       int       `json:"level_gap,omitempty"`
 	SiblingGap     int       `json:"sibling_gap,omitempty"`
+	CommentCount   int       `json:"comment_count,omitempty"`
+	CommentIcon    string    `json:"comment_icon,omitempty"`
 }
 
 type Position struct {
@@ -166,6 +182,7 @@ type UpdateTopicRequest struct {
 	RichText       string    `json:"rich_text,omitempty"`
 	LevelGap       int       `json:"level_gap,omitempty"`
 	SiblingGap     int       `json:"sibling_gap,omitempty"`
+	CommentIcon    string    `json:"comment_icon,omitempty"`
 }
 
 type CreateRelationshipRequest struct {
@@ -206,6 +223,31 @@ type AISuggestion struct {
 	Action  string `json:"action"` // "add_topic", "expand", "restructure"
 	TopicID string `json:"topic_id,omitempty"`
 	Title   string `json:"title,omitempty"`
+}
+
+type ScheduledTask struct {
+	ID             string    `json:"id"`
+	AgentID        string    `json:"agent_id"`
+	TaskInput      string    `json:"task_input"`
+	CronExpression string    `json:"cron_expression"`
+	NextRunAt      time.Time `json:"next_run_at"`
+	LastRunAt      time.Time `json:"last_run_at,omitempty"`
+	Result         string    `json:"result,omitempty"`
+	ErrorText      string    `json:"error_text,omitempty"`
+	IsActive       bool      `json:"is_active"`
+	CreatedAt      time.Time `json:"created_at"`
+	UpdatedAt      time.Time `json:"updated_at"`
+}
+
+type CreateScheduledTaskRequest struct {
+	AgentID        string `json:"agent_id"`
+	TaskInput      string `json:"task_input"`
+	CronExpression string `json:"cron_expression"`
+}
+
+type UpdateScheduledTaskRequest struct {
+	CronExpression string `json:"cron_expression,omitempty"`
+	IsActive       *bool  `json:"is_active,omitempty"`
 }
 
 type WSMessage struct {

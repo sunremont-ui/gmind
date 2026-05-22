@@ -334,3 +334,42 @@ input[type="range"].lumen-slider:active::-moz-range-thumb {
   background: var(--color-bg-elevated);
   box-shadow: 3px 3px 6px rgba(0,0,0,0.55), -3px -3px 6px rgba(255,255,255,0.05);
 }
+
+/* ============================================================
+   Scrollbars — thin Lumen style
+   ============================================================ */
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(91, 108, 255, 0.22);
+  border-radius: 2px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(91, 108, 255, 0.42);
+}
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+[data-theme="dark"] ::-webkit-scrollbar-thumb {
+  background: rgba(119, 130, 255, 0.28);
+}
+[data-theme="dark"] ::-webkit-scrollbar-thumb:hover {
+  background: rgba(119, 130, 255, 0.50);
+}
+
+/* Ensure flex-column children can scroll: prevents content from forcing parent growth */
+.lumen-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+.lumen-scroll-x {
+  flex: 1;
+  min-width: 0;
+  overflow-x: auto;
+}

@@ -72,3 +72,56 @@ func findTopicRecursive(topic *Topic, id string) *Topic {
 	}
 	return nil
 }
+
+// FindTopicParent returns the direct parent of topicID within the sheet's topic tree.
+// Returns nil if topicID is the root topic or not found.
+func (s *Sheet) FindTopicParent(topicID string) *Topic {
+	if s.RootTopic != nil {
+		if found := findTopicParentRecursive(s.RootTopic, topicID); found != nil {
+			return found
+		}
+	}
+	for _, ft := range s.FloatingTopics {
+		if found := findTopicParentRecursive(ft, topicID); found != nil {
+			return found
+		}
+	}
+	return nil
+}
+
+func findTopicParentRecursive(parent *Topic, id string) *Topic {
+	for _, child := range parent.Children {
+		if child.ID == id {
+			return parent
+		}
+		if found := findTopicParentRecursive(child, id); found != nil {
+			return found
+		}
+	}
+	return nil
+}
+
+// RemoveTopic removes topicID and all its descendants from the topic tree.
+// Returns false if topicID is the root topic or not found.
+func (s *Sheet) RemoveTopic(topicID string) bool {
+	if s.RootTopic != nil && s.RootTopic.ID == topicID {
+		return false
+	}
+	if removeTopicFromTree(s.RootTopic, topicID) {
+		return true
+	}
+	return s.RemoveFloatingTopic(topicID)
+}
+
+func removeTopicFromTree(parent *Topic, id string) bool {
+	for i, child := range parent.Children {
+		if child.ID == id {
+			parent.Children = append(parent.Children[:i], parent.Children[i+1:]...)
+			return true
+		}
+		if removeTopicFromTree(child, id) {
+			return true
+		}
+	}
+	return false
+}

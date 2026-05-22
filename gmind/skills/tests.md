@@ -13,16 +13,39 @@ cd backend && go test ./internal/...   # Go тесты
 **Конфиг:** `frontend/vitest.config.ts` — jsdom, globals, setup `test-setup.ts`
 **Setup:** `frontend/src/test-setup.ts` — импортирует `@testing-library/jest-dom`
 
-### Существующие тесты (43 tests, 6 files)
+### Существующие тесты (62 tests, 8 files)
 
 | Файл | Tests | Статус |
 |---|---|---|
 | `layout.test.ts` | 11 | ✅ buildLayout, computeTreeLayout, directions, fishbone, collapse |
+| `store/mindmap.test.ts` | 15 | ✅ addTopic, removeTopic, updateTopicInTree, getTopic |
+| `api/ws.test.ts` | 7 | ✅ connect, disconnect, reconnect, sendOperation |
 | `ToolPanel.test.tsx` | 14 | ✅ (1 фикс: active tool color вместо background) |
 | `AgentPanel.test.tsx` | 5 | ✅ |
 | `TaskList.test.tsx` | 8 | ✅ |
 | `SaveStatusBar.test.tsx` | 3 | ✅ |
 | `OfflineBanner.test.tsx` | 2 | ✅ |
+
+### Важные детали типов в тестах
+
+```typescript
+// Topic: floating_topics — нет, только на Sheet!
+const makeTopic = (id: string, children: Topic[] = []): Topic => ({
+  id, title: id, folded: false, children, labels: [], markers: [],
+})
+
+// Workbook: все поля обязательны
+const makeWorkbook = (): Workbook => ({
+  id: 'wb1', title: 'Test',
+  private: false, owner_id: '', created_at: '', updated_at: '',
+  sheets: [{ id: 's1', title: 'S1', root_topic: makeTopic('root') }],
+})
+
+// children — possibly undefined, используй !
+const children = store.workbook!.sheets[0].root_topic.children!
+```
+
+**tsconfig:** `"target": "ES2022", "lib": ["ES2022", "DOM", "DOM.Iterable"]` — нужно для `Array.prototype.at()`.
 
 ### Что добавить
 
