@@ -1,0 +1,2 @@
+# gmind
+mind maping agents 
