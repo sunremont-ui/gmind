@@ -35,14 +35,14 @@ jobs:
         run: npm ci
 
       - name: Build Go sidecar
-        working-directory: gmind/frontend
+        working-directory: gmind/backend
         shell: pwsh
         run: |
           $env:CGO_ENABLED = '0'
           $env:GOOS = 'windows'
           $env:GOARCH = 'amd64'
-          New-Item -ItemType Directory -Force src-tauri/binaries | Out-Null
-          go build -o src-tauri/binaries/gmind-server-x86_64-pc-windows-msvc.exe ../backend/cmd/server
+          New-Item -ItemType Directory -Force ../frontend/src-tauri/binaries | Out-Null
+          go build -o ../frontend/src-tauri/binaries/gmind-server-x86_64-pc-windows-msvc.exe ./cmd/server
 
       - name: Run backend tests
         working-directory: gmind/backend
