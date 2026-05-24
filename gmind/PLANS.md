@@ -4,6 +4,42 @@
 
 ---
 
+## Сессия: 2026-05-22 — V4.3 Multi-Agent Orchestration
+
+### Контекст
+- V4.2 RAG завершён, production-релиз v1.0.0 в CI (assembly ok)
+- V4.3 — следующий milestone roadmap'а: parallel fan-out + supervisor
+
+### Выполнено
+- [x] Миграция `009_parallel_groups.up.sql/down.sql` — `parallel_group_id` колонка + индекс
+- [x] `Task.ParallelGroupID` + `AgentTaskRecord.ParallelGroupID` + scanTask/Insert обновлены
+- [x] `Manager.SubmitTaskInGroup(...)` — submit с групповым ID, уважает HITAL
+- [x] `parallel_delegate` tool — max 16 задач, 5 мин timeout, self-delegation guard
+- [x] `list_agents` tool — discovery агентов до делегирования
+- [x] Роль `supervisor` в `GetToolsForRole` — categories agent/notes/wiki/search/analysis (без mindmap)
+- [x] Frontend: `AGENT_ROLES` + `ROLE_ACTIONS` + `ACTION_SCHEMAS` + `AgentTask.parallel_group_id`
+- [x] Wiki: 07-improvements.md (V4.3 DONE), index.md (статус, чек-лист)
+- [x] Skills: agent-system.md (V4.3 DONE secn), multi-agent-patterns.md (Hub-and-Spoke pattern)
+- [x] `go build` + `go test ./...` (агент + store + mcp + wiki + ws — все OK)
+- [x] `tsc --noEmit` чистый
+
+### Архитектура parallel_delegate
+
+```
+Supervisor → parallel_delegate({tasks: [...]})
+  → SubmitTaskInGroup × N (общий group_id)
+  → worker pool обрабатывает параллельно
+  → polling 500ms × 600 итераций (5 мин timeout)
+  → return {group_id, results: [{agent_id, task_id, status, result|error}]}
+```
+
+### Осталось (V4.4)
+- [ ] TaskList grouped card по `parallel_group_id` — визуализация fan-out
+- [ ] Progress indicator: "2/3 done · 1 running"
+- [ ] Pipeline DAG визуальный редактор (V5.0)
+
+---
+
 ## Сессия: 2026-05-22 — Production Launch Prep + Skills Update
 
 ### Контекст

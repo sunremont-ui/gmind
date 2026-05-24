@@ -161,6 +161,20 @@ func init() {
 		Idempotent:  false,
 	},
 	{
+		Name:        "parallel_delegate",
+		Description: "Delegates multiple tasks to different agents in parallel (fan-out) and waits for all to complete. Returns array of results in the same order. Use for independent sub-tasks that can run concurrently.",
+		Schema:      json.RawMessage(`{"type":"object","properties":{"tasks":{"type":"array","description":"List of tasks to delegate in parallel","items":{"type":"object","properties":{"agent_id":{"type":"string","description":"ID of the target agent"},"action":{"type":"string","description":"Task instruction"},"params":{"type":"object","description":"Additional parameters"}},"required":["agent_id","action"]}}},"required":["tasks"]}`),
+		Category:    "agent",
+		Idempotent:  false,
+	},
+	{
+		Name:        "list_agents",
+		Description: "Returns the list of available agents with their IDs, names, roles, and current status. Use this before delegate_to_agent or parallel_delegate to discover what agents are available.",
+		Schema:      json.RawMessage(`{"type":"object","properties":{}}`),
+		Category:    "agent",
+		Idempotent:  true,
+	},
+	{
 		Name:        "save_note",
 		Description: "Saves a quick note with optional tags and workbook association. Use this to persist insights, summaries, or observations.",
 		Schema:      json.RawMessage(`{"type":"object","properties":{"content":{"type":"string","description":"Note content"},"tags":{"type":"array","items":{"type":"string"},"description":"Optional tags"},"workbook_id":{"type":"string","description":"Optional workbook to associate with"}},"required":["content"]}`),
@@ -206,6 +220,9 @@ func GetToolsForRole(role string) []ToolDef {
 		return filterTools("mindmap", "analysis", "search", "masys", "agent", "notes")
 	case "writer":
 		return filterTools("mindmap", "wiki", "search", "notes")
+	case "supervisor":
+		// Orchestrator role: delegates to other agents, can fan-out, sees notes/wiki for context
+		return filterTools("agent", "notes", "wiki", "search", "analysis")
 	default:
 		return GetRegistry()
 	}

@@ -38,6 +38,7 @@ type Task struct {
 	IdempotencyKey  string          `json:"idempotency_key,omitempty"`
 	ChainToAgentID  string          `json:"chain_to_agent_id,omitempty"`
 	ChainFromTaskID string          `json:"chain_from_task_id,omitempty"`
+	ParallelGroupID string          `json:"parallel_group_id,omitempty"`
 }
 
 const maxDone = 500
@@ -192,6 +193,7 @@ func (q *TaskQueue) Enqueue(t *Task, initialStatus ...TaskStatus) error {
 			IdempotencyKey:  t.IdempotencyKey,
 			ChainToAgentID:  t.ChainToAgentID,
 			ChainFromTaskID: t.ChainFromTaskID,
+			ParallelGroupID: t.ParallelGroupID,
 		}
 		if err := q.ts.Insert(record); err != nil {
 			return fmt.Errorf("persist task: %w", err)

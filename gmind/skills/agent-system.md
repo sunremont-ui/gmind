@@ -380,20 +380,85 @@ func (s *EmbeddingStore) Search(query []float32, limit int) ([]SearchResult, err
 
 ---
 
-## V4.3 — Multi-Agent Orchestration (следующий)
+## V4.3 — Multi-Agent Orchestration (DONE, 2026-05-22)
+
+Parallel fan-out + supervisor role.
+
+### Новые tools
+
+| Tool | Описание | Категория |
+|------|----------|-----------|
+| `parallel_delegate` | Fan-out до 16 задач, ждёт все, timeout 5 мин | agent |
+| `list_agents` | Discovery агентов: id/name/role/status/provider/model | agent |
+
+### parallel_delegate — поведение
 
 ```go
-// Планируемый tool
-{Name: "parallel_delegate", Parameters: {
-    "tasks": [{"agent_id": "...", "action": "...", "params": {}}]
-}}
-
-// Task struct
-type Task struct {
-    // ...
-    ParallelGroupID string  // группировка fan-out задач
+// executor.go
+func (e *ToolExecutor) parallelDelegate(raw json.RawMessage, callerTask *Task) (any, error) {
+    // 1. Валидация: max 16 задач, self-delegation guard на каждую
+    // 2. Генерация group_id: "pg_YYYYMMDDhhmmss.SSS_N"
+    // 3. SubmitTaskInGroup для каждой → таски запускаются worker pool параллельно
+    // 4. Polling 500ms × 600 (5 мин timeout)
+    // 5. Возврат: {group_id, results: [{agent_id, task_id, status, result|error}]}
 }
-
-// Роль Supervisor
-GetToolsForRole("supervisor") = ["delegate_subtask", "parallel_delegate", "list_agents", ...]
 ```
+
+### SubmitTaskInGroup — новый Manager метод
+
+```go
+func (m *Manager) SubmitTaskInGroup(agentID, action string, params map[string]any,
+    workbookID, sheetID, topicID, groupID string) (string, error) {
+    // Аналог SubmitTask но с ParallelGroupID
+    // Уважает HITAL gate для мутаций
+}
+```
+
+### Task / Store изменения
+
+- `Task.ParallelGroupID string` — новое поле
+- `AgentTaskRecord.ParallelGroupID` + миграция `009_parallel_groups.up.sql`:
+  ```sql
+  ALTER TABLE agent_tasks ADD COLUMN parallel_group_id TEXT DEFAULT '';
+  CREATE INDEX idx_agent_tasks_parallel_group ON agent_tasks(parallel_group_id);
+  ```
+
+### Роль supervisor
+
+```go
+case "supervisor":
+    // Orchestrator: делегирует, fan-out, читает context (notes/wiki)
+    return filterTools("agent", "notes", "wiki", "search", "analysis")
+```
+
+Не имеет прямого доступа к mindmap-tools — только через делегирование.
+
+### Frontend (types/agent.ts)
+
+```ts
+AGENT_ROLES += { id: 'supervisor', label: 'Supervisor', color: '#fbbf24' }
+ROLE_ACTIONS.supervisor = ['list_agents', 'delegate_to_agent', 'parallel_delegate', 'custom']
+AgentTask.parallel_group_id?: string
+```
+
+### Пример сценария
+
+```
+1. User → submit task to Supervisor: "Compare AI trends from 3 sources"
+2. Supervisor → list_agents → выбирает 3 researcher агентов
+3. Supervisor → parallel_delegate({tasks: [
+     {agent_id: r1, action: "research OpenAI trends"},
+     {agent_id: r2, action: "research Anthropic trends"},
+     {agent_id: r3, action: "research Google trends"}
+   ]})
+4. 3 researcher агента работают параллельно (5 мин timeout)
+5. Supervisor → объединяет 3 результата → finishes
+```
+
+---
+
+## V4.4 — Parallel UI visualization (следующий)
+
+- TaskList: grouped card для задач с одним `parallel_group_id`
+- Progress indicator: "2/3 done · 1 running"
+- Pipeline DAG визуализатор (V5.0)

@@ -134,11 +134,58 @@ type ToolResult struct {
 6. ✅ ReAct Loop (tool_use cycle) — react.go
 7. ✅ Role Prompts (Researcher, Expander, etc.) — prompts.json
 8. ✅ Activity Log — agent:task_log WebSocket events
-9. ⬜ Human-in-the-Loop gates
+9. ✅ Human-in-the-Loop gates (HITAL для мутаций)
 10. ⬜ Observability (метрики, trace)
-11. ⬜ Parallel fan-out (delegate to multiple agents)
-12. ⬜ MASys delegation tool (run_masys_pipeline)
+11. ✅ Parallel fan-out (V4.3, 2026-05-22) — parallel_delegate tool, max 16 задач
+12. ✅ MASys delegation tool (run_masys_pipeline)
+13. ✅ Supervisor role (V4.3) — orchestration через list_agents + delegate_to_agent + parallel_delegate
+14. ⬜ Pipeline DAG UI (V5.0)
 ```
+
+---
+
+## V4.3 Pattern: Hub-and-Spoke Supervisor (DONE 2026-05-22)
+
+Реализован классический Foreman pattern на Go-горутинах.
+
+### Архитектура
+
+```
+                  ┌─────────────────────────────┐
+                  │     Supervisor Agent        │
+                  │  (role="supervisor")         │
+                  │                              │
+                  │  Tools: list_agents,         │
+                  │  delegate_to_agent,          │
+                  │  parallel_delegate           │
+                  └──────┬──────┬──────┬─────────┘
+                         │      │      │  (parallel_delegate)
+              ┌──────────▼  ┌───▼───┐ ┌▼──────────┐
+              │ Researcher  │Analyst│ │ Organizer │
+              │   Task 1    │ Task 2│ │  Task 3   │
+              │ (parallel_  │ (same │ │  (same    │
+              │  group_id)  │ group)│ │   group)  │
+              └─────────────┘  ─────┘ └───────────┘
+                         ↓      ↓      ↓
+                  ┌──────────────────────────────┐
+                  │   Aggregated result          │
+                  │ {group_id, results: [...]}   │
+                  └──────────────────────────────┘
+```
+
+### Гарантии
+
+- **Max concurrency:** 16 одновременных задач в одном `parallel_delegate`
+- **Timeout:** 5 минут на всю группу (незавершённые → status `timeout`)
+- **Self-delegation guard:** ни одна задача не может делегироваться обратно supervisor
+- **Group persistence:** `parallel_group_id` сохраняется в SQLite (миграция 009) → возможна посткоммитная аналитика
+- **HITAL:** мутирующие действия (`generate`, `create_topic`, etc.) уважают approval gate, даже из supervisor
+
+### Что НЕ делает (по дизайну)
+
+- Не использует Go channels для signalling — polling 500ms через `Manager.GetTask`
+- Не делает retry падений — supervisor агент решает по результату
+- Не имеет nested parallel groups — supervisor может вложить `parallel_delegate` в `delegate_to_agent`, но это даст ровно один уровень вложенности
 
 ---
 

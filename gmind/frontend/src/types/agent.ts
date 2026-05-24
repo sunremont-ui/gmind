@@ -40,6 +40,7 @@ export interface AgentTask {
   max_calls: number
   chain_to_agent_id?: string
   chain_from_task_id?: string
+  parallel_group_id?: string
 }
 
 export interface Comment {
@@ -84,6 +85,7 @@ export const AGENT_ROLES = [
   { id: 'summarizer', label: 'Summarizer', desc: 'Summarizes branches into bullet points', color: '#f59e0b' },
   { id: 'editor', label: 'Editor', desc: 'Checks spelling, style, readability', color: '#06b6d4' },
   { id: 'analyst', label: 'Analyst', desc: 'Finds connections, suggests cross-links', color: '#ec4899' },
+  { id: 'supervisor', label: 'Supervisor', desc: 'Orchestrates other agents, fan-out parallel tasks', color: '#fbbf24' },
 ]
 
 export const ROLE_ACTIONS: Record<string, string[]> = {
@@ -94,6 +96,7 @@ export const ROLE_ACTIONS: Record<string, string[]> = {
   summarizer: ['summarize_topics', 'add_note', 'get_workbook', 'custom'],
   editor:     ['update_topic', 'add_note', 'search_web', 'custom'],
   analyst:    ['get_workbook', 'search_web', 'wiki_search', 'custom'],
+  supervisor: ['list_agents', 'delegate_to_agent', 'parallel_delegate', 'custom'],
 }
 
 export const ACTION_SCHEMAS: Record<string, string> = {
@@ -105,4 +108,7 @@ export const ACTION_SCHEMAS: Record<string, string> = {
   search_web:             '{"query": "search terms here"}',
   wiki_search:            '{"query": "search terms here"}',
   get_workbook:           '{}',
+  list_agents:            '{}',
+  delegate_to_agent:      '{"agent_id": "agent_xyz", "action": "research topic X", "params": {}}',
+  parallel_delegate:      '{"tasks": [{"agent_id": "a1", "action": "task A"}, {"agent_id": "a2", "action": "task B"}]}',
 }

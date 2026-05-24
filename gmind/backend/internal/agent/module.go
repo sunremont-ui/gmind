@@ -371,6 +371,35 @@ func (m *Manager) GetTask(id string) (*Task, error) {
 	return m.taskQueue.Get(id)
 }
 
+// SubmitTaskInGroup submits a task as part of a parallel group (fan-out).
+// Used by parallel_delegate to coordinate multiple concurrent sub-tasks.
+func (m *Manager) SubmitTaskInGroup(agentID, action string, params map[string]any, workbookID, sheetID, topicID, groupID string) (string, error) {
+	ag := m.registry.Get(agentID)
+	if ag == nil {
+		return "", fmt.Errorf("agent %s not found", agentID)
+	}
+	task := &Task{
+		AgentID:         agentID,
+		Action:          action,
+		Params:          params,
+		WorkbookID:      workbookID,
+		SheetID:         sheetID,
+		TopicID:         topicID,
+		MaxCalls:        10,
+		ParallelGroupID: groupID,
+	}
+	initialStatus := TaskQueued
+	if m.HITALEnabled && isMutatingAction(action) {
+		initialStatus = TaskPendingApproval
+	}
+	if err := m.taskQueue.Enqueue(task, initialStatus); err != nil {
+		return "", err
+	}
+	ag.Status = StatusWorking
+	m.logger.Info("parallel task submitted", "id", task.ID, "agent", agentID, "group", groupID)
+	return task.ID, nil
+}
+
 // UpdateModel updates the model and optionally provider for an agent.
 func (m *Manager) UpdateModel(agentID, provider, model string) error {
 	ag := m.registry.Get(agentID)

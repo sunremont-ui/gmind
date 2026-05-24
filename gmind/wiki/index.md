@@ -8,7 +8,9 @@
 
 **V4.0 Modular Platform — DONE (2026-05-16).** Nav Rail, 5 модулей, Notes Module, Extensible Tools.
 
-**Активный roadmap:** V4.2 (RAG), V4.3 (Multi-Agent) — см. [12-improvement-vectors.md](12-improvement-vectors.md) и `PLANS.md`.
+**V4.3 Multi-Agent Orchestration — DONE (2026-05-22).** `parallel_delegate` + `list_agents` tools, роль `supervisor`, `Task.ParallelGroupID`.
+
+**Активный roadmap:** V4.4 (TaskList visualization), V4.5 (Web Worker layout) — см. [07-improvements.md](07-improvements.md) и `PLANS.md`.
 
 **Что работает:**
 - ✅ REST API (CRUD workbooks/sheets/topics/relationships, floating topics, AI provider, llama-server, import-json, collaborators, MCP)
@@ -71,6 +73,7 @@
 - ✅ Agent chaining (persistent + ⛓️ визуализация)
 - ✅ **V4.1 Agent Persistence** — SQLite-backed AgentStore (migrations/007), workers авто-стартуют при рестарте
 - ✅ **V4.2 RAG Search** — semantic_search tool + GET /api/v1/search (OpenAI text-embedding-3-small, cosine similarity, pure Go)
+- ✅ **V4.3 Multi-Agent Orchestration** — parallel_delegate (до 16 задач), list_agents, роль supervisor, миграция 009_parallel_groups
 - ✅ Comments on nodes (💬 иконка + CommentsPanel)
 - ✅ External Model Servers — JSON-конфиг + GET/PUT /api/v1/model-servers + UI таблица в AIServerPanel
 - ✅ Port range 1010–1200: backend:1010, vite:1011, docker-nginx:1012, llama.cpp:1100

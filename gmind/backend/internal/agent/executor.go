@@ -101,6 +101,10 @@ func (e *ToolExecutor) getCallbacks(task *Task) map[string]callToolFn {
 		"delegate_to_agent": func(raw json.RawMessage) (any, error) {
 			return e.delegateToAgent(raw, task)
 		},
+		"parallel_delegate": func(raw json.RawMessage) (any, error) {
+			return e.parallelDelegate(raw, task)
+		},
+		"list_agents": e.listAgents,
 	}
 	// Merge module-registered callbacks (they can override or extend base tools).
 	e.extraCallbacksMu.RLock()
@@ -743,6 +747,129 @@ func (e *ToolExecutor) delegateToAgent(raw json.RawMessage, callerTask *Task) (a
 		time.Sleep(500 * time.Millisecond)
 	}
 	return nil, fmt.Errorf("delegated task %s timed out after 2 minutes", taskID)
+}
+
+func (e *ToolExecutor) listAgents(raw json.RawMessage) (any, error) {
+	if e.manager == nil {
+		return nil, errors.New("agent manager not available")
+	}
+	agents := e.manager.registry.List()
+	type agentInfo struct {
+		ID       string `json:"id"`
+		Name     string `json:"name,omitempty"`
+		Role     string `json:"role"`
+		Status   string `json:"status"`
+		Provider string `json:"provider,omitempty"`
+		Model    string `json:"model,omitempty"`
+	}
+	result := make([]agentInfo, 0, len(agents))
+	for _, ag := range agents {
+		result = append(result, agentInfo{
+			ID:       ag.ID,
+			Name:     ag.Name,
+			Role:     ag.Role,
+			Status:   string(ag.Status),
+			Provider: ag.Provider,
+			Model:    ag.Model,
+		})
+	}
+	return result, nil
+}
+
+func (e *ToolExecutor) parallelDelegate(raw json.RawMessage, callerTask *Task) (any, error) {
+	var args struct {
+		Tasks []struct {
+			AgentID string         `json:"agent_id"`
+			Action  string         `json:"action"`
+			Params  map[string]any `json:"params,omitempty"`
+		} `json:"tasks"`
+	}
+	if err := json.Unmarshal(raw, &args); err != nil {
+		return nil, fmt.Errorf("invalid parallel_delegate args: %w", err)
+	}
+	if len(args.Tasks) == 0 {
+		return nil, errors.New("tasks array is required and non-empty")
+	}
+	if len(args.Tasks) > 16 {
+		return nil, fmt.Errorf("parallel_delegate supports up to 16 concurrent tasks (got %d)", len(args.Tasks))
+	}
+	if e.manager == nil {
+		return nil, errors.New("agent manager not available")
+	}
+
+	workbookID, sheetID, topicID := "", "", ""
+	if callerTask != nil {
+		workbookID = callerTask.WorkbookID
+		sheetID = callerTask.SheetID
+		topicID = callerTask.TopicID
+	}
+	groupID := "pg_" + time.Now().UTC().Format("20060102150405.000") + "_" + fmt.Sprintf("%d", len(args.Tasks))
+
+	type subResult struct {
+		AgentID string `json:"agent_id"`
+		TaskID  string `json:"task_id"`
+		Status  string `json:"status"`
+		Result  string `json:"result,omitempty"`
+		Error   string `json:"error,omitempty"`
+	}
+	results := make([]subResult, len(args.Tasks))
+	taskIDs := make([]string, len(args.Tasks))
+
+	for i, t := range args.Tasks {
+		if t.AgentID == "" || t.Action == "" {
+			return nil, fmt.Errorf("task[%d]: agent_id and action are required", i)
+		}
+		if callerTask != nil && t.AgentID == callerTask.AgentID {
+			return nil, fmt.Errorf("task[%d]: cannot delegate to self", i)
+		}
+		taskID, err := e.manager.SubmitTaskInGroup(t.AgentID, t.Action, t.Params, workbookID, sheetID, topicID, groupID)
+		if err != nil {
+			return nil, fmt.Errorf("task[%d]: submit failed: %w", i, err)
+		}
+		taskIDs[i] = taskID
+		results[i] = subResult{AgentID: t.AgentID, TaskID: taskID, Status: "queued"}
+	}
+
+	deadline := time.Now().Add(5 * time.Minute)
+	remaining := len(taskIDs)
+	for remaining > 0 && time.Now().Before(deadline) {
+		time.Sleep(500 * time.Millisecond)
+		for i, tid := range taskIDs {
+			if results[i].Status == "done" || results[i].Status == "failed" {
+				continue
+			}
+			t, err := e.manager.GetTask(tid)
+			if err != nil {
+				results[i].Status = "failed"
+				results[i].Error = err.Error()
+				remaining--
+				continue
+			}
+			switch t.Status {
+			case TaskDone:
+				results[i].Status = "done"
+				results[i].Result = string(t.Result)
+				remaining--
+			case TaskFailed:
+				results[i].Status = "failed"
+				results[i].Error = t.Error
+				remaining--
+			}
+		}
+	}
+
+	if remaining > 0 {
+		for i := range results {
+			if results[i].Status != "done" && results[i].Status != "failed" {
+				results[i].Status = "timeout"
+			}
+		}
+	}
+
+	return map[string]any{
+		"group_id": groupID,
+		"results":  results,
+	}, nil
 }
 
 func (e *ToolExecutor) semanticSearch(raw json.RawMessage) (any, error) {

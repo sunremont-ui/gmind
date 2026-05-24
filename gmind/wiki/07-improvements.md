@@ -268,12 +268,33 @@
 
 ---
 
-## V4.3 — Multi-Agent Orchestration (следующий)
+## V4.3 — Multi-Agent Orchestration (2026-05-22) ✅
 
-- `parallel_delegate(tasks: [{agent_id, action, params}])` tool — fan-out, ждёт все
-- Роль `supervisor` с доступом к `delegate_subtask` + `parallel_delegate` + `list_agents`
-- `Task.ParallelGroupID` — группировка fan-out задач
-- Frontend: grouped card для parallel tasks в TaskList
+Parallel fan-out + supervisor роль для координации нескольких агентов.
+
+| Изменение | Файл |
+|-----------|------|
+| Миграция `009_parallel_groups.up.sql` — `parallel_group_id` column + index | `backend/migrations/` |
+| `Task.ParallelGroupID` + `AgentTaskRecord.ParallelGroupID` | `agent/task.go`, `store/agent_task.go` |
+| `parallel_delegate` tool — fan-out до 16 задач, ждёт все, timeout 5 мин | `backend/internal/agent/tools.go`, `executor.go` |
+| `list_agents` tool — discovery агентов до делегирования | `backend/internal/agent/tools.go`, `executor.go` |
+| `Manager.SubmitTaskInGroup(...)` — submit с групповым ID | `backend/internal/agent/module.go` |
+| Роль `supervisor` — categories `agent`, `notes`, `wiki`, `search`, `analysis` | `backend/internal/agent/tools.go` |
+| Frontend `AGENT_ROLES` + `ROLE_ACTIONS` + `ACTION_SCHEMAS` для supervisor | `frontend/src/types/agent.ts` |
+
+**Поведение `parallel_delegate`:**
+- max 16 одновременных задач
+- self-delegation guard (как в `delegate_to_agent`)
+- генерирует `group_id = pg_YYYYMMDDhhmmss.SSS_N`
+- возвращает `{group_id, results: [{agent_id, task_id, status, result|error}]}`
+- timeout 5 мин → status `timeout` для незавершённых
+
+---
+
+## V4.4 — Multi-Agent Orchestration phase 2 (следующий)
+
+- Frontend: grouped card для parallel tasks в TaskList (визуализация по `parallel_group_id`)
+- Pipeline UI — визуальный DAG-редактор
 
 ### V3.8 — Prompt UX (2026-05-15) ✅
 
