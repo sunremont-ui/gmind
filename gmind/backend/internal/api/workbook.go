@@ -363,6 +363,66 @@ func topicToMarkdown(sb *strings.Builder, t *model.Topic, depth int) {
 	}
 }
 
+func (h *Handler) ExportFreeMind(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "workbookID")
+	wb, err := h.store.GetWorkbook(id)
+	if err != nil {
+		internalError(w, err)
+		return
+	}
+	if wb == nil {
+		writeError(w, http.StatusNotFound, "workbook not found")
+		return
+	}
+
+	var sb strings.Builder
+	sb.WriteString(`<?xml version="1.0" encoding="UTF-8"?>` + "\n")
+	sb.WriteString(`<map version="1.0.1">` + "\n")
+	if len(wb.Sheets) > 0 && wb.Sheets[0].RootTopic != nil {
+		topicToFreeMind(&sb, wb.Sheets[0].RootTopic, 1)
+	}
+	sb.WriteString("</map>\n")
+
+	w.Header().Set("Content-Type", "application/x-freemind; charset=utf-8")
+	w.Header().Set("Content-Disposition", `attachment; filename="`+sanitizeFilename(wb.Title)+`.mm"`)
+	w.WriteHeader(http.StatusOK)
+	fmt.Fprint(w, sb.String())
+}
+
+func topicToFreeMind(sb *strings.Builder, t *model.Topic, indent int) {
+	if t == nil {
+		return
+	}
+	pad := strings.Repeat("  ", indent)
+	if len(t.Children) == 0 {
+		fmt.Fprintf(sb, `%s<node TEXT=%q/>`+"\n", pad, escapeXMLAttr(t.Title))
+		return
+	}
+	fmt.Fprintf(sb, `%s<node TEXT=%q>`+"\n", pad, escapeXMLAttr(t.Title))
+	if t.Notes != "" {
+		fmt.Fprintf(sb, `%s  <richcontent TYPE="NOTE"><html><body><p>%s</p></body></html></richcontent>`+"\n", pad, escapeXMLText(t.Notes))
+	}
+	for _, child := range t.Children {
+		topicToFreeMind(sb, child, indent+1)
+	}
+	fmt.Fprintf(sb, "%s</node>\n", pad)
+}
+
+func escapeXMLAttr(s string) string {
+	s = strings.ReplaceAll(s, "&", "&amp;")
+	s = strings.ReplaceAll(s, `"`, "&quot;")
+	s = strings.ReplaceAll(s, "<", "&lt;")
+	s = strings.ReplaceAll(s, ">", "&gt;")
+	return s
+}
+
+func escapeXMLText(s string) string {
+	s = strings.ReplaceAll(s, "&", "&amp;")
+	s = strings.ReplaceAll(s, "<", "&lt;")
+	s = strings.ReplaceAll(s, ">", "&gt;")
+	return s
+}
+
 func sanitizeFilename(name string) string {
 	var out strings.Builder
 	for _, r := range name {

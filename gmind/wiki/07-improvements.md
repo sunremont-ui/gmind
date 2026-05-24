@@ -291,10 +291,28 @@ Parallel fan-out + supervisor роль для координации неско�
 
 ---
 
-## V4.4 — Multi-Agent Orchestration phase 2 (следующий)
+## V4.4 — Parallel UI + Export endpoints (2026-05-22) ✅
 
-- Frontend: grouped card для parallel tasks в TaskList (визуализация по `parallel_group_id`)
-- Pipeline UI — визуальный DAG-редактор
+| Изменение | Файл |
+|-----------|------|
+| TaskList grouped card по `parallel_group_id` (агрегированный counter) | `frontend/src/components/TaskList/TaskList.tsx` |
+| Backend `GET /api/v1/workbooks/{id}/export/freemind` | `backend/internal/api/workbook.go`, `router.go` |
+| Backend `GET /api/v1/workbooks/{id}/export/markdown` (уже было) | `backend/internal/api/workbook.go` |
+| README.md в корне репо | `/README.md` |
+
+**TaskList row types:**
+```ts
+type Row = { kind: 'single'; task } | { kind: 'group'; groupId; tasks: [...] }
+```
+Группы — выше (boxShadow.neuMd), single — стандарт (neuSm). Expandable раскрывает list под собой.
+
+---
+
+## V4.5 — Performance (следующий)
+
+- Web Worker для buildLayout + computeTreeLayout (1000+ нод)
+- Виртуальный скроллинг
+- Pipeline DAG визуальный редактор (V5.0)
 
 ### V3.8 — Prompt UX (2026-05-15) ✅
 

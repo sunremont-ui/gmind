@@ -128,6 +128,7 @@ func (h *Handler) Router(cfg *config.Config) http.Handler {
 				r.Delete("/relationships/{relID}", h.DeleteRelationship)
 				r.Get("/export", h.ExportXMind)
 				r.Get("/export/markdown", h.ExportMarkdown)
+				r.Get("/export/freemind", h.ExportFreeMind)
 				r.Post("/import-json", h.ImportJSONData)
 				r.Delete("/import-json", h.ClearImportedData)
 				r.Post("/ai/generate", h.AIGenerate)

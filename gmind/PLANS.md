@@ -4,6 +4,37 @@
 
 ---
 
+## Сессия: 2026-05-22 — V4.4 Parallel UI + Export endpoints + README
+
+### Контекст
+- V4.3 backend закрыт (parallel_delegate, list_agents, supervisor role)
+- V4.4: визуализация parallel-задач + backend endpoint для FreeMind export
+- Создан root README.md (на github.com sunremont-ui/gmind)
+
+### Выполнено
+- [x] **README.md** (root) — стек, установка, dev-режимы, структура, команды, roadmap, использование
+- [x] **TaskList grouped UI** — группировка по `parallel_group_id`, агрегированный counter "X/N done · M running"
+- [x] **Backend `/export/freemind`** — XML с `<node TEXT=".."/>` + `<richcontent>` для notes; XML escape helpers
+- [x] Express Markdown (`/export/markdown`) — уже был реализован, проверено
+- [x] `go build` + `go test` + `tsc --noEmit` — все чистые
+
+### Архитектура grouped row
+
+```ts
+type Row = { kind: 'single'; task: AgentTask } | { kind: 'group'; groupId: string; tasks: AgentTask[] }
+
+// Pre-process: tasks → singles + groups (by parallel_group_id)
+// Render: sorted by created_at, max 20
+// Group card: counter (done/failed/running/queued), expandable list
+```
+
+### Осталось (V4.5)
+- [ ] Web Worker layout для 1000+ нод
+- [ ] Виртуальный скроллинг минимапы
+- [ ] Drag-and-drop файлов на холст (.md/.mm/.xmind)
+
+---
+
 ## Сессия: 2026-05-22 — V4.3 Multi-Agent Orchestration
 
 ### Контекст

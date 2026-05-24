@@ -62,6 +62,29 @@ export function TaskList({ workbookId }: Props) {
   const agentMap = new Map(agents.map(a => [a.id, a]))
   const taskMap = new Map(tasks.map(t => [t.id, t]))
 
+  // Group tasks by parallel_group_id (V4.4)
+  type Row = { kind: 'single'; task: AgentTask } | { kind: 'group'; groupId: string; tasks: AgentTask[] }
+  const groups = new Map<string, AgentTask[]>()
+  const singles: AgentTask[] = []
+  for (const t of tasks) {
+    if (t.parallel_group_id) {
+      const list = groups.get(t.parallel_group_id) ?? []
+      list.push(t)
+      groups.set(t.parallel_group_id, list)
+    } else {
+      singles.push(t)
+    }
+  }
+  const rows: Row[] = [
+    ...singles.map(t => ({ kind: 'single' as const, task: t })),
+    ...Array.from(groups.entries()).map(([groupId, ts]) => ({ kind: 'group' as const, groupId, tasks: ts })),
+  ]
+  rows.sort((a, b) => {
+    const ta = a.kind === 'single' ? a.task.created_at : a.tasks[0].created_at
+    const tb = b.kind === 'single' ? b.task.created_at : b.tasks[0].created_at
+    return tb.localeCompare(ta)
+  })
+
   return (
     <div style={{
       padding: `${spacing.lg}px ${spacing.xl}px`,
@@ -85,7 +108,99 @@ export function TaskList({ workbookId }: Props) {
         </p>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.sm }}>
-          {tasks.slice(0, 20).map(task => {
+          {rows.slice(0, 20).map(row => {
+            if (row.kind === 'group') {
+              const counts = { done: 0, failed: 0, running: 0, queued: 0, pending: 0 }
+              for (const t of row.tasks) {
+                if (t.status === 'done') counts.done++
+                else if (t.status === 'failed') counts.failed++
+                else if (t.status === 'running') counts.running++
+                else if (t.status === 'pending_approval') counts.pending++
+                else counts.queued++
+              }
+              const groupKey = `group:${row.groupId}`
+              const isExpanded = expanded === groupKey
+              const allDone = counts.done + counts.failed === row.tasks.length
+              const statusColor = allDone
+                ? (counts.failed > 0 ? colors.orange : colors.green)
+                : colors.purple
+              return (
+                <div key={groupKey}>
+                  <div
+                    onClick={() => setExpanded(isExpanded ? null : groupKey)}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: spacing.md,
+                      padding: `${spacing.md}px ${spacing.lg}px`,
+                      background: colors.bgTertiary,
+                      borderRadius: radii.md,
+                      cursor: 'pointer',
+                      border: 'none',
+                      boxShadow: shadows.neuMd,
+                      fontSize: fontSizes.label,
+                      transition: `box-shadow ${transitions.fast}`,
+                    }}
+                    onMouseEnter={e => { e.currentTarget.style.boxShadow = shadows.neuLg }}
+                    onMouseLeave={e => { e.currentTarget.style.boxShadow = shadows.neuMd }}
+                  >
+                    <span style={{
+                      width: 8, height: 8, borderRadius: '50%',
+                      background: statusColor, flexShrink: 0,
+                      boxShadow: `0 0 0 2px ${statusColor}30`,
+                    }} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontWeight: fontWeights.medium, color: colors.text }}>
+                        ⚡ Parallel group · {row.tasks.length} tasks
+                      </div>
+                      <div style={{ color: colors.textSecondary, fontSize: fontSizes.caption }}>
+                        {counts.done}/{row.tasks.length} done
+                        {counts.failed > 0 ? ` · ${counts.failed} failed` : ''}
+                        {counts.running > 0 ? ` · ${counts.running} running` : ''}
+                        {counts.queued > 0 ? ` · ${counts.queued} queued` : ''}
+                      </div>
+                    </div>
+                    <span style={{ fontSize: fontSizes.caption, color: colors.textQuaternary, flexShrink: 0 }}>
+                      {row.groupId.slice(0, 18)}...
+                    </span>
+                  </div>
+                  {isExpanded && (
+                    <div style={{
+                      display: 'flex', flexDirection: 'column', gap: spacing.xs,
+                      padding: `${spacing.sm}px ${spacing.md}px`,
+                      marginTop: spacing.xs,
+                      background: colors.bgTertiary,
+                      borderRadius: radii.md,
+                      boxShadow: shadows.neuInsetSm,
+                    }}>
+                      {row.tasks.map(t => {
+                        const ag = agentMap.get(t.agent_id)
+                        const sc = STATUS_COLORS[t.status] || colors.textQuaternary
+                        return (
+                          <div key={t.id} style={{
+                            display: 'flex', alignItems: 'center', gap: spacing.sm,
+                            padding: `${spacing.xs}px ${spacing.sm}px`,
+                            fontSize: fontSizes.caption,
+                          }}>
+                            <span style={{ width: 6, height: 6, borderRadius: '50%', background: sc }} />
+                            <span style={{ color: colors.text, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {ag?.role ?? t.agent_id}: {t.action}
+                            </span>
+                            <span style={{ color: colors.textSecondary }}>{STATUS_LABELS[t.status]}</span>
+                            {(t.status === 'running' || t.status === 'done' || t.status === 'failed') && (
+                              <button
+                                onClick={e => { e.stopPropagation(); handleViewLogs(t.id) }}
+                                title="View logs"
+                                style={{ background: 'none', border: 'none', cursor: 'pointer', color: colors.textQuaternary, fontSize: fontSizes.caption }}
+                              >📋</button>
+                            )}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+              )
+            }
+            const task = row.task
             const agent = agentMap.get(task.agent_id)
             const statusColor = STATUS_COLORS[task.status] || colors.textQuaternary
             return (
