@@ -311,10 +311,49 @@ Down-миграция: переносит данные обратно в `sheet.
 
 ## Roadmap статус
 
-- **Phase 1** (Backend Foundation) — следующий
-- **Phase 2** (API) — после Phase 1
-- **Phase 3** (Agent Tools) — после Phase 2
-- **Phase 4** (Frontend UI) — после Phase 3
-- **Phase 5** (Visual Polish) — последний
+- **Phase 1** (Backend Foundation) ✅ DONE 2026-05-22
+- **Phase 2** (API) ✅ DONE 2026-05-22
+- **Phase 3** (Agent Tools) ✅ DONE 2026-05-22
+- **Phase 4** (Frontend UI) ✅ DONE 2026-06-01
+- **Phase 5** (Visual Polish) ✅ DONE 2026-06-01 (partial: filter + highlight; cycle warning indicator — V5.1)
 
-После всех 5 фаз — фундамент для V5.1 GraphRAG.
+## Frontend implementation (Phase 4-5)
+
+Реализовано через **decorator pattern** — TopicNode не правится, всё наслоено сверху.
+
+### Файлы
+
+| Файл | Назначение |
+|------|-----------|
+| `frontend/src/types/api.ts` | RelationshipType / Direction / Style unions; extended Relationship + CreateRelationshipRequest + UpdateRelationshipRequest |
+| `frontend/src/api/relationships.ts` | REST client + visual mappings (colors/labels/styles per type) |
+| `frontend/src/store/relationships.ts` | Zustand: relationships array, drag state, filters (visibleTypes), pending popover, highlight subgraph |
+| `frontend/src/components/MindMap/EdgeAnchorsLayer.tsx` | 4 SVG-кружков по сторонам selected node — кликабельные, стартуют drag |
+| `frontend/src/components/MindMap/FantomLine.tsx` | Bezier from anchor to cursor; зелёная при snap к target |
+| `frontend/src/components/MindMap/ConnectionPopover.tsx` | После drop — type/direction/title input → POST |
+| `frontend/src/components/MindMap/RelationshipLine.tsx` | Rewrite: arrows (forward/bidirectional/undirected), type colors/styles, multi-edge parallel offset (8px fan), self-loop dome arc, hit-area для click, selected state, hover dimming |
+| `frontend/src/components/MindMap/RelationshipFilter.tsx` | Floating widget toggle по типу + count |
+| `frontend/src/components/RelationshipPanel/RelationshipPanel.tsx` | Sidebar editor (type/direction/title/weight slider/style/notes/delete) |
+| `frontend/src/components/MindMap/useGraphDragTracking.ts` | Global pointermove/pointerup hook + Escape cancel + drop target resolve через `elementFromPoint` → `closest('[data-topic-id]')` |
+| `frontend/src/components/MindMap/MindMap.tsx` | fetch при workbookId change + highlight через setHighlight(selectedTopicId) + overlays внутри/снаружи SVG |
+| `frontend/src/renderer/renderer.tsx` | multi-edge bundle group per (from,to) + read from store (single source of truth) |
+
+### UX
+
+1. Выбрать топик → 4 anchors появляются по сторонам
+2. Drag с anchor → fantom-линия следует за курсором; зелёная если над valid target
+3. Drop на target → popover (type/direction/title) → Save → POST → линия рисуется
+4. Esc → cancel drag
+5. Multi-edge: разные типы между одной парой → параллельные линии (8px offset, fan-out)
+6. Self-loop: A→A → SVG arc справа от ноды
+7. Click на ребро → RelationshipPanel sidebar для редактирования
+8. Selected node → subgraph highlight (другие связи dimming 18%)
+9. Filter widget справа внизу — toggle visibility по type
+
+### Не реализовано (V5.1)
+
+- Cycle warning indicator на нодах (требует периодический detect_cycles + node decoration)
+- PropertiesPanel "Relations" tab (список incoming/outgoing для топика)
+- Cross-sheet badge (когда target в другом sheet)
+
+После V5.0 — фундамент для V5.1 GraphRAG и **V6.0 Memory Workbench** (KG Canvas использует V5.0 graph).

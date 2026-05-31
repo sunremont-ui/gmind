@@ -20,6 +20,14 @@ import { CommentsPanel } from '../Comments/CommentsPanel'
 import { ShareDialog } from '../ShareDialog/ShareDialog'
 import { ToolPanel, type Tool } from '../ToolPanel/ToolPanel'
 import { StylePanel } from '../StylePanel/StylePanel'
+import { RelationshipPanel } from '../RelationshipPanel/RelationshipPanel'
+import { EdgeAnchorsLayer } from './EdgeAnchorsLayer'
+import { FantomLine } from './FantomLine'
+import { ConnectionPopover } from './ConnectionPopover'
+import { RelationshipMarkers } from './RelationshipLine'
+import { RelationshipFilter } from './RelationshipFilter'
+import { useGraphDragTracking } from './useGraphDragTracking'
+import { useRelationshipsStore } from '../../store/relationships'
 
 import { colors, fonts, fontSizes, fontWeights, spacing, radii, shadows, transitions, z } from '../../styles/tokens'
 
@@ -80,6 +88,10 @@ export function MindMap({ workbookId, onXMindImported }: MindMapProps) {
   const [dragLine, setDragLine] = useState<{ x1: number; y1: number; x2: number; y2: number } | null>(null)
   const [connectLine, setConnectLine] = useState<{ x1: number; y1: number; x2: number; y2: number } | null>(null)
   const svgRef = useRef<SVGSVGElement>(null)
+
+  // V5.0 relationships
+  const fetchRelationships = useRelationshipsStore(s => s.fetch)
+  const setHighlight = useRelationshipsStore(s => s.setHighlight)
 
   // Zoom & pan
   const [zoom, setZoom] = useState(1)
@@ -345,6 +357,32 @@ export function MindMap({ workbookId, onXMindImported }: MindMapProps) {
       y: (clientY - rect.top - pan.y) / zoom,
     }
   }, [zoom, pan])
+
+  // V5.0: fetch relationships when workbook changes
+  useEffect(() => {
+    if (workbookId) {
+      fetchRelationships(workbookId).catch(err => console.error('fetch relationships:', err))
+    }
+  }, [workbookId, fetchRelationships])
+
+  // V5.0: highlight subgraph around selected topic
+  useEffect(() => {
+    setHighlight(selectedTopicId)
+  }, [selectedTopicId, setHighlight])
+
+  // V5.0: track relationship drag globally
+  useGraphDragTracking({ svgRef, clientToWorld: toSvgPoint })
+
+  // V5.0: helper to find LayoutNode by topic id (for EdgeAnchorsLayer)
+  const findLayoutNode = useCallback((root: LayoutNode | null, id: string | null): LayoutNode | null => {
+    if (!root || !id) return null
+    if (root.topic.id === id) return root
+    for (const c of root.children) {
+      const found = findLayoutNode(c, id)
+      if (found) return found
+    }
+    return null
+  }, [])
 
   // ---- Pointer event handlers for drag & drop ----
   const handlePointerMove = useCallback((e: PointerEvent) => {
@@ -1647,7 +1685,16 @@ export function MindMap({ workbookId, onXMindImported }: MindMapProps) {
             onTopicExpandToggle={handleTopicExpandToggle}
             reorderTarget={reorderTarget}
           />
- 
+
+          {/* V5.0: edge anchors on selected node */}
+          <EdgeAnchorsLayer node={findLayoutNode(layoutResult, selectedTopicId)} />
+
+          {/* V5.0: phantom line during relationship drag */}
+          <FantomLine />
+
+          {/* V5.0: arrow markers for relationship lines */}
+          <RelationshipMarkers />
+
           {/* Connection line: source → target (green, shown when hovering target) */}
           {connectLine && (
             <line
@@ -1681,6 +1728,11 @@ export function MindMap({ workbookId, onXMindImported }: MindMapProps) {
           )}
         </g>
       </svg>
+
+      {/* V5.0: relationship-related overlays */}
+      <ConnectionPopover workbookId={workbookId} />
+      <RelationshipPanel />
+      <RelationshipFilter />
 
       {/* StylePanel — абсолютно поверх canvas, слева */}
       <AnimatedMount

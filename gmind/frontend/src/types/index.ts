@@ -3,7 +3,9 @@ export type {
   Workbook, Sheet, Topic, Position, Relationship,
   ErrorCode, ErrorResponse, TaskLogMessage,
   CreateWorkbookRequest, CreateSheetRequest, CreateTopicRequest, UpdateTopicRequest,
-  MoveTopicRequest, CreateRelationshipRequest, CopyTopicToWorkbookRequest,
+  MoveTopicRequest, CreateRelationshipRequest, UpdateRelationshipRequest,
+  RelationshipType, RelationshipDirection, RelationshipStyle,
+  CopyTopicToWorkbookRequest,
   SwitchAIProviderRequest, AIGenerateRequest, AIChatRequest, AIChatResponse, AISuggestion,
   AddCollaboratorRequest, AddCollaboratorResponse, ListCollaboratorsResponse,
 } from './api'

@@ -4,6 +4,148 @@
 
 ---
 
+## Сессия: 2026-06-01 — V5.0 Phase 4-5 (Frontend graph UI)
+
+### Контекст
+- Backend V5.0 (Phase 1-3) уже готов (миграция 010, RelationshipStore, 6 agent tools)
+- Phase 4-5 — frontend UI: drag-from-edge, popover, sidebar, filter, hover highlight
+- Это prerequisite для V6.0 KG Canvas
+
+### Выполнено
+
+**Types & API (frontend):**
+- [x] `types/api.ts` — расширил Relationship/CreateRelationshipRequest + новый UpdateRelationshipRequest + 3 union types (Type/Direction/Style)
+- [x] `types/index.ts` — re-export всех новых типов
+- [x] `api/relationships.ts` — REST клиент (list/create/update/remove/related/cycles) + visual mappings (RELATIONSHIP_TYPE_COLORS/LABELS/STYLES)
+
+**State:**
+- [x] `store/relationships.ts` — Zustand: data + drag state + filters + popover + 9 actions
+
+**Components (decorator pattern — без правки TopicNode):**
+- [x] `EdgeAnchorsLayer.tsx` — 4 SVG-кружка на сторонах selected node, стартуют drag
+- [x] `FantomLine.tsx` — Bezier-линия от anchor до cursor; зелёная при snap
+- [x] `ConnectionPopover.tsx` — type select + direction toggle + title input после drop
+- [x] `RelationshipLine.tsx` (rewrite) — direction arrows (forward/bidirectional/undirected), type colors/styles, multi-edge parallel offset, self-loop SVG arc, hit-area для click, selection state, hover dimming
+- [x] `RelationshipMarkers` — SVG `<marker>` для всех типов (с reversed для bidirectional)
+- [x] `RelationshipPanel/RelationshipPanel.tsx` — sidebar editor (type/direction/title/weight slider/style/notes/delete)
+- [x] `RelationshipFilter.tsx` — floating toggle widget по типу с count
+
+**Integration:**
+- [x] `useGraphDragTracking.ts` — global pointermove/pointerup tracker + Escape cancel
+- [x] `MindMap.tsx` — fetch при смене workbookId, подключение всех overlays (внутри SVG anchors+fantom+markers; снаружи popover+panel+filter), highlight через setHighlight(selectedTopicId)
+- [x] `renderer.tsx` — multi-edge bundle group + prefer store relationships, передача offsetIndex/offsetCount
+
+### Тесты
+- `tsc --noEmit` чистый
+- Vitest: 62/62 passed (8 файлов)
+
+### Архитектура (decorator overlay)
+
+```
+SVG (existing TopicNode untouched)
+├── <MindMapRenderer> ← reads from store + bundle multi-edges
+├── <EdgeAnchorsLayer node={selected} /> ← 4 anchors
+├── <FantomLine /> ← drag follow cursor
+└── <RelationshipMarkers /> ← arrows defs
+
+Outside SVG (overlays):
+├── <ConnectionPopover /> ← после drop
+├── <RelationshipPanel /> ← edit selected
+└── <RelationshipFilter /> ← visibility per type
+```
+
+### UX
+
+- Выбрать топик → видны 4 anchors на нём
+- Drag с любого anchor → fantom-линия за курсором
+- Drop на target ноду → popover с type/direction/title
+- Esc → cancel drag
+- Multi-edge: разные типы между одной парой → параллельные линии (8px offset, fan-out)
+- Self-loop: A→A → дуга справа от ноды
+- Click на ребро → RelationshipPanel sidebar для редактирования
+- Select топик → выделение subgraph (другие связи dimming до 18%)
+- Filter widget справа внизу — toggle по типу
+
+### Осталось (опциональное)
+
+- [ ] Cycle warning indicator на нодах в цикле (требует периодический detect_cycles call)
+- [ ] PropertiesPanel "Relations" tab — список incoming/outgoing для топика
+- [ ] Cross-sheet badge (когда target в другом sheet)
+
+---
+
+## Сессия: 2026-06-01 — V6.0 Memory & Pipeline Workbench (research + architecture)
+
+### Контекст
+- Пользователь работает над D:\karp (исследование памяти агентов) и E:\MASys (агентная платформа)
+- Требование: Gmind становится visual workbench для памяти + пайплайнов MASys
+- Решение: V6.0 — 7-фазный план, использует V5.0 Graph как фундамент
+
+### Исследование (parallel Explore agents)
+
+**D:\karp** — теория памяти:
+- 6-слойная модель (working/episodic/semantic/procedural/artifact/meta)
+- Dual-lane (fast/slow): captured→proposed→draft / reviewed→canonical→archived
+- Memory Controller с 3 режимами (self-managed/external/hybrid)
+- Спроектированные UI: Layer Map, Episode Timeline, Context Budget, Salience Queue, Record Inspector, Trace, KG, Artifact Lineage
+
+**E:\MASys** — practical engine:
+- Prisma таблицы: ConversationSession, Episode, MemoryEntity, VectorEntry, Skill, MemoryDecision, MemoryPendingWrite
+- 13+ memory модулей: memory-controller, memory-retriever, knowledge-graph, entity-memory, episode-memory, wiki-memory, conversation-memory, result-store, vector-store, skill-library, context-assembly, memory-decay, memory-export, embedder, llama-embedder
+- MemoryPage с 8 tabs (UI минималистичный — таблицы и JSON)
+- tRPC: memory.*, runs.*, agents.*, workspaces.*, gmindAgents.*
+- WS live updates: `ws://localhost:3001/ws?runId=<id>`
+- Гэп: visual canvas для KG, timeline, skill tree, run trace
+
+### V6.0 Roadmap (7 фаз, ~10 дней)
+
+**Prerequisite**: V5.0 Phase 4-5 (Frontend graph UI) — без drag-from-edge KG canvas не получится.
+
+| Phase | Что | Срок |
+|-------|-----|------|
+| 1. MASys Bridge & Types | REST proxy + types + WS bridge | 1д |
+| 2. Memory Layer Map | 6 карточек слоёв с health | 1д |
+| 3. Knowledge Graph Canvas | KG sync → V5.0 graph + canvas | 2д |
+| 4. Episode Timeline | Hronologica + filter + reflection actions | 1.5д |
+| 5. Context Budget | Sankey + sandwich + evicted preview | 1д |
+| 6. Skill Evolution Tree | Skill graph через V5.0 | 1.5д |
+| 7. Pipeline Trace Map | Run timeline + memory recalls links | 2д |
+
+### Выполнено
+- [x] Параллельное исследование karp + MASys (2 Explore agents)
+- [x] Skill `memory-visualization.md` — полная архитектура V6.0 (~500 строк)
+- [x] Memory: `project_karp_memory.md` (D:\karp концепции)
+- [x] Memory: `project_masys_memory_engine.md` (MASys как memory engine)
+- [x] MEMORY.md index обновлён
+- [x] Roadmap (project_v4x_roadmap.md) — V6.0 запланирован
+
+### Архитектура (краткая)
+
+```
+Gmind UI Layer
+├── NavRail + новые 2 модуля:
+│   ├── 📊 Memory Workbench (7 sub-views)
+│   └── 🔄 Pipeline Workbench (3 sub-views)
+└── Gmind backend (Go) — proxy к MASys tRPC
+        ↓ HTTP/WS
+MASys (:3000/3001) — 13+ memory modules + Prisma + tRPC
+```
+
+### Не делаем сейчас (V6.1+)
+- Запись (mutate) в MASys через Gmind UI
+- Memory editor inside Gmind (создание ADR/skills)
+- Multi-namespace switching
+- Embeddings comparison Gmind vs MASys
+- Tauri Mobile
+
+### Открытые решения (для discussion)
+1. **Порядок**: сначала V5.0 Phase 4-5 (frontend graph) или сразу V6.0 Phase 1 (bridge)?
+2. **Скоуп MVP**: какие 3 фазы из 7 — приоритетные? (рекомендую: 1+2+4 = bridge + layer map + episode timeline)
+3. **KG sync mode**: одноразовая команда, polling 30s или WS push (рекомендую: explicit + WS для новых)
+4. **Namespace handling**: добавить namespace column в `relationships` таблицу? (рекомендую: да, мигр. 011)
+
+---
+
 ## Сессия: 2026-05-22 — V5.0 Graph Relationships (Phase 1-3 backend)
 
 ### Контекст

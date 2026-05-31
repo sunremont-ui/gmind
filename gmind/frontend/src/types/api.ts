@@ -32,10 +32,38 @@ export interface CopyTopicToWorkbookRequest {
   target_parent_id?: string
 }
 
+// V5.0 relationship types
+export type RelationshipType =
+  | 'relates_to' | 'depends_on' | 'supports'
+  | 'contradicts' | 'references' | 'blocks' | 'custom'
+
+export type RelationshipDirection = 'forward' | 'bidirectional' | 'undirected'
+export type RelationshipStyle = 'solid' | 'dashed' | 'dotted'
+
 export interface CreateRelationshipRequest {
+  // Legacy
   title?: string
-  end1_id: string
-  end2_id: string
+  end1_id?: string
+  end2_id?: string
+  // V5.0
+  from_topic_id?: string
+  to_topic_id?: string
+  type?: RelationshipType
+  direction?: RelationshipDirection
+  weight?: number
+  notes?: string
+  color?: string
+  style?: RelationshipStyle
+}
+
+export interface UpdateRelationshipRequest {
+  title?: string
+  type?: RelationshipType
+  direction?: RelationshipDirection
+  weight?: number
+  notes?: string
+  color?: string
+  style?: RelationshipStyle
 }
 
 export interface CreateSheetRequest {
@@ -83,8 +111,27 @@ export interface Position {
 export interface Relationship {
   id: string
   title?: string
+  // Legacy fields
   end1_id: string
   end2_id: string
+  // V5.0 fields
+  workbook_id?: string
+  from_workbook_id?: string
+  from_sheet_id?: string
+  from_topic_id?: string
+  to_workbook_id?: string
+  to_sheet_id?: string
+  to_topic_id?: string
+  type?: RelationshipType
+  direction?: RelationshipDirection
+  weight?: number
+  notes?: string
+  color?: string
+  style?: RelationshipStyle
+  created_by?: string
+  created_at?: string
+  updated_at?: string
+  metadata?: string
 }
 
 export interface Sheet {

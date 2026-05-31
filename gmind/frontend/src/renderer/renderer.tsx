@@ -3,6 +3,7 @@ import type { LayoutNode, Relationship } from '../types'
 import { TopicNode } from '../components/MindMap/TopicNode'
 import { RelationshipLine } from '../components/MindMap/RelationshipLine'
 import { useThemeStore } from '../store/theme'
+import { useRelationshipsStore } from '../store/relationships'
 import { DEFAULT_NODE_HEIGHT, DEFAULT_SIBLING_GAP } from './layout'
 
 const CULL_PADDING = 400
@@ -67,6 +68,9 @@ export function MindMapRenderer({
     [selectedTopicId, selectedTopicIds],
   )
   const theme = useThemeStore(s => s.theme)
+  // V5.0: prefer store (single source of truth) over workbook JSON
+  const storeRels = useRelationshipsStore(s => s.relationships)
+  const effectiveRels = storeRels.length > 0 ? storeRels : relationships
 
   const isInViewport = (nx: number, ny: number, nw: number, nh: number) => {
     if (!viewportRect) return true
@@ -194,21 +198,40 @@ export function MindMapRenderer({
         />
       ))}
       {nodeComponents}
-      {relationships.map(rel => {
-        const from = nodePositions.get(rel.end1_id)
-        const to = nodePositions.get(rel.end2_id)
-        if (!from || !to) return null
-        return (
-          <RelationshipLine
-            key={rel.id}
-            relationship={rel}
-            fromX={from.x}
-            fromY={from.y}
-            toX={to.x}
-            toY={to.y}
-          />
-        )
-      })}
+      {(() => {
+        // V5.0: bundle parallel multi-edges per (from,to) pair for offset rendering
+        const groups = new Map<string, Relationship[]>()
+        for (const rel of effectiveRels) {
+          const fid = rel.from_topic_id || rel.end1_id
+          const tid = rel.to_topic_id || rel.end2_id
+          const key = fid < tid ? `${fid}|${tid}` : `${tid}|${fid}`
+          const list = groups.get(key) ?? []
+          list.push(rel)
+          groups.set(key, list)
+        }
+        return effectiveRels.map(rel => {
+          const fid = rel.from_topic_id || rel.end1_id
+          const tid = rel.to_topic_id || rel.end2_id
+          const from = nodePositions.get(fid)
+          const to = nodePositions.get(tid)
+          if (!from || !to) return null
+          const key = fid < tid ? `${fid}|${tid}` : `${tid}|${fid}`
+          const bundle = groups.get(key) ?? [rel]
+          const offsetIndex = bundle.indexOf(rel)
+          return (
+            <RelationshipLine
+              key={rel.id}
+              relationship={rel}
+              fromX={from.x}
+              fromY={from.y}
+              toX={to.x}
+              toY={to.y}
+              offsetIndex={offsetIndex}
+              offsetCount={bundle.length}
+            />
+          )
+        })
+      })()}
       {floatingTopics.map(ft => {
         const pos = ft.position || { x: 200, y: 200 }
         const w = Math.max(60, Math.min(200, (ft.title?.length || 1) * 8 + 20))
