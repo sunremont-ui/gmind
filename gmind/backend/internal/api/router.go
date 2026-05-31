@@ -193,6 +193,29 @@ func (h *Handler) Router(cfg *config.Config) http.Handler {
 		r.Delete("/{relID}", h.DeleteRelationshipV2)
 	})
 
+	// V6.0 MASys Memory Bridge — REST proxy to MASys tRPC + SSE bridge
+	r.Route("/api/v1/masys", func(r chi.Router) {
+		r.Get("/health", h.MASysHealth)
+		r.Route("/memory", func(r chi.Router) {
+			r.Get("/namespaces", h.MASysListNamespaces)
+			r.Get("/episodes", h.MASysListEpisodes)
+			r.Get("/entities", h.MASysListEntities)
+			r.Get("/skills", h.MASysListSkills)
+			r.Get("/conversations", h.MASysListConversations)
+			r.Get("/wiki", h.MASysListWiki)
+			r.Get("/results", h.MASysListResults)
+			r.Get("/decisions", h.MASysListDecisions)
+			r.Get("/pending", h.MASysListPending)
+			r.Post("/recall", h.MASysMemoryRecall)
+		})
+		r.Route("/runs", func(r chi.Router) {
+			r.Get("/", h.MASysListRuns)
+			r.Get("/{runID}", h.MASysGetRun)
+			r.Get("/{runID}/events", h.MASysGetRunEvents)
+			r.Get("/{runID}/stream", h.MASysRunStream)
+		})
+	})
+
 	r.Route("/api/v1/webhooks", func(r chi.Router) {
 		r.Post("/", h.CreateWebhook)
 		r.Get("/", h.ListWebhooks)

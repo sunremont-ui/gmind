@@ -4,6 +4,71 @@
 
 ---
 
+## Сессия: 2026-06-01 — V6.0 Phase 1 (MASys Memory Bridge)
+
+### Контекст
+- V5.0 graph UI готов; начат V6.0 Memory & Pipeline Workbench
+- Phase 1: bridge backend (REST proxy + SSE) + frontend types + store + stub panel
+
+### Выполнено
+
+**Backend (Go):**
+- [x] `backend/internal/api/masys_memory.go` — REST proxy к MASys tRPC
+  - Helpers: `callTRPCQuery` (GET с url-encoded input), `callTRPCMutation` (POST body), `writeMASysJSON` (unwrap result.data)
+  - Endpoints: 10 шт.
+- [x] `backend/internal/api/masys_sse.go` — SSE bridge для run events
+  - Connects Gmind backend → MASys WS, re-emits как `event: <type>\ndata: <json>\n\n`
+  - 20s keepalive, Escape via context cancel
+  - Использует `gorilla/websocket` (уже в deps)
+- [x] `router.go` — регистрация `/api/v1/masys/*` (memory/runs/health)
+- [x] `go build ./...` чист; `go test ./internal/api/...` OK
+
+**Frontend (TypeScript/React):**
+- [x] `types/masys.ts` — 12 интерфейсов (Episode/Entity/Skill/Conversation/Wiki/Result/Decision/Pending/Run/RunEvent/RecallResult/Health)
+- [x] `api/masys.ts` — fetch wrapper + 14 методов (health, listX × 8, recall, listRuns, getRun, getRunEvents, streamRun→EventSource)
+- [x] `store/masysMemory.ts` — Zustand: health + namespaces + 8 layers + loading flags + `fetchX` × 8 + `refreshAll`
+- [x] `components/MemoryWorkbench/MemoryWorkbenchPanel.tsx` — skeleton:
+  - Reachability indicator (✓/✗ + error)
+  - Namespace switcher
+  - 8 layer cards с counters
+  - Refresh button
+- [x] `modules/memory-workbench/module.ts` — AppModule, order=5, icon LumenBrain, 2 commands (open, refresh)
+- [x] `modules/registry.ts` — добавлен MemoryWorkbenchModule
+- [x] `tsc --noEmit` чист; Vitest 62/62 OK
+
+### API endpoints (V6.0 Phase 1)
+
+```
+GET  /api/v1/masys/health
+GET  /api/v1/masys/memory/namespaces
+GET  /api/v1/masys/memory/episodes?namespace=...&limit=...
+GET  /api/v1/masys/memory/entities?namespace=...
+GET  /api/v1/masys/memory/skills?namespace=...
+GET  /api/v1/masys/memory/conversations?namespace=...
+GET  /api/v1/masys/memory/wiki?namespace=...
+GET  /api/v1/masys/memory/results?namespace=...
+GET  /api/v1/masys/memory/decisions?namespace=...
+GET  /api/v1/masys/memory/pending?namespace=...
+POST /api/v1/masys/memory/recall  { namespace, query, limit }
+GET  /api/v1/masys/runs?limit=...
+GET  /api/v1/masys/runs/{runID}
+GET  /api/v1/masys/runs/{runID}/events
+GET  /api/v1/masys/runs/{runID}/stream    ← SSE bridge
+```
+
+tRPC mappings: `memory.episode.recent`, `memory.entity.list`, `memory.skill.list` (с fallback на `workspaces.skills`), `memory.conversation.list`, `memory.wiki.list`, `memory.result.list`, `memory.controller.decisions`, `memory.controller.pending`, `memory.retriever.search`, `memory.entity.namespaces`, `runs.list/get/events`.
+
+### Следующее (Phase 2-7)
+
+- Phase 2: Layer Map — 6 карточек слоёв с health metrics
+- Phase 3: Knowledge Graph Canvas (sync MASys entities → V5.0 graph)
+- Phase 4: Episode Timeline
+- Phase 5: Context Budget (Sankey)
+- Phase 6: Skill Evolution Tree
+- Phase 7: Pipeline Trace Map + SSE live
+
+---
+
 ## Сессия: 2026-06-01 — V5.0 Phase 4-5 (Frontend graph UI)
 
 ### Контекст

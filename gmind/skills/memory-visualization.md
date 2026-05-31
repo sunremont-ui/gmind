@@ -422,12 +422,55 @@ frontend/src/components/Charts/               — reusable
 
 ## Roadmap status
 
-- **Phase 1** (MASys Bridge) — следующий
-- **Phase 2** (Layer Map) — после 1
+- **Phase 1** (MASys Bridge) ✅ DONE 2026-06-01
+- **Phase 2** (Layer Map) — следующий
 - **Phase 3** (KG Canvas) — параллельно с Phase 4 после 2
 - **Phase 4** (Episode Timeline) — параллельно с Phase 3
 - **Phase 5** (Context Budget) — после 4
 - **Phase 6** (Skill Tree) — после 5
 - **Phase 7** (Pipeline Trace) — финальный
 
-Итого: ~10 дней работы для V6.0 backend+frontend.
+## Phase 1 deliverables (2026-06-01)
+
+### Backend
+- `backend/internal/api/masys_memory.go` — REST proxy:
+  - `callTRPCQuery(method, input)` → GET `/trpc/<method>?input=<urlencoded>`, unwraps `result.data`
+  - `callTRPCMutation(method, input)` → POST body, unwraps
+  - 10 endpoints: `/api/v1/masys/{health, memory/{namespaces,episodes,entities,skills,conversations,wiki,results,decisions,pending,recall}, runs, runs/{id}, runs/{id}/events}`
+- `backend/internal/api/masys_sse.go` — SSE bridge for `runs/{id}/stream`:
+  - dial MASys WS → re-emit как `event: <type>\ndata: <json>\n\n`
+  - 20s keepalive comments, Escape via context cancel
+  - eventTypeOf() reads `.type` from message; sanitizeEventName() replaces whitespace with dots
+- gorilla/websocket уже в зависимостях
+
+### Frontend
+- `frontend/src/types/masys.ts` — 12 интерфейсов (MASys{Health,Episode,MemoryEntity,Skill,Conversation,WikiPage,Result,Decision,PendingWrite,Run,RunEvent,RecallResult})
+- `frontend/src/api/masys.ts` — fetch helper + 14 методов; `streamRun(runID)` возвращает EventSource
+- `frontend/src/store/masysMemory.ts` — Zustand: health + namespaces + 8 layers data + per-layer loading flags + `refreshAll`
+- `frontend/src/components/MemoryWorkbench/MemoryWorkbenchPanel.tsx`:
+  - Reachability indicator (✓/✗)
+  - Namespace switcher (select)
+  - 8 layer cards в grid (Episodes/Entities/Skills/Conversations/Wiki/Results/Decisions/Pending) с counter
+  - Refresh button
+- `frontend/src/modules/memory-workbench/module.ts` — AppModule (order=5, icon Brain, 2 commands)
+- Registered в `modules/registry.ts`
+
+### Запуск
+
+```bash
+# 1. Запустить MASys на :3000
+cd E:\MASys && pnpm dev
+
+# 2. Запустить Gmind на :1010/:1011
+cd D:\Gmind\gmind && powershell -ExecutionPolicy Bypass -File scripts/start.ps1
+
+# 3. Открыть Gmind → NavRail → нажать на 🧠 Brain (5-я иконка)
+# Panel покажет reachability + 8 layer cards с counters из MASys
+```
+
+### Тесты
+
+- Go: `go build ./...` чист, `go test ./internal/api/...` OK
+- TS: `tsc --noEmit` чист, Vitest 62/62 OK
+
+Итого Phase 1: ~3 часа работы. Осталось Phase 2-7 ~ 8 дней.

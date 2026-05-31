@@ -4,6 +4,7 @@ import { NotesModule } from './notes/module'
 import { AgentSandboxModule } from './agent-sandbox/module'
 import { MaSysModule } from './masys/module'
 import { AIModule } from './ai/module'
+import { MemoryWorkbenchModule } from './memory-workbench/module'
 
 export const MODULE_REGISTRY: AppModule[] = [
   MindMapModule,
@@ -11,6 +12,7 @@ export const MODULE_REGISTRY: AppModule[] = [
   AgentSandboxModule,
   MaSysModule,
   AIModule,
+  MemoryWorkbenchModule,
 ].sort((a, b) => a.order - b.order)
 
 export function getModule(id: string): AppModule | undefined {

@@ -291,6 +291,25 @@ Parallel fan-out + supervisor роль для координации неско�
 
 ---
 
+## V6.0 — Memory & Pipeline Workbench
+
+### Phase 1 — MASys Bridge ✅ DONE (2026-06-01)
+
+| Изменение | Файл |
+|-----------|------|
+| Go REST proxy (10 endpoints + helpers callTRPCQuery/Mutation) | `backend/internal/api/masys_memory.go` |
+| SSE bridge для run streams (gorilla/websocket → SSE) | `backend/internal/api/masys_sse.go` |
+| Routes: `/api/v1/masys/{health,memory/*,runs/*}` | `backend/internal/api/router.go` |
+| TS types: 12 интерфейсов | `frontend/src/types/masys.ts` |
+| API client: 14 методов, EventSource for stream | `frontend/src/api/masys.ts` |
+| Zustand store: health + 8 layers + namespace switcher | `frontend/src/store/masysMemory.ts` |
+| Memory Workbench panel skeleton (8 layer cards) | `frontend/src/components/MemoryWorkbench/MemoryWorkbenchPanel.tsx` |
+| AppModule (order=5, icon Brain) | `frontend/src/modules/memory-workbench/module.ts` |
+
+Все builds clean: go build/test, tsc --noEmit, Vitest 62/62.
+
+### Phase 2-7 — Coming next
+
 ## V6.0 — Memory & Pipeline Workbench (planned, 7 phases)
 
 Gmind становится visual workbench для агентской памяти (D:\karp) и пайплайнов (E:\MASys).
