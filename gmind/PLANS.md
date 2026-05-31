@@ -4,6 +4,72 @@
 
 ---
 
+## Сессия: 2026-06-01 — V6.0 Phase 2 (Memory Layer Map)
+
+### Контекст
+- Phase 1 готов; Phase 2 — визуализация 6-слойной karp модели поверх 8 MASys layers
+- karp 6 слоёв: Working / Episodic / Semantic / Procedural / Artifact / Meta
+- Каждый слой получает health metrics с heuristics
+
+### Выполнено
+
+**Mapping (8 MASys → 6 karp):**
+- Working ← Conversations (active sessions + summaries + message count)
+- Episodic ← Episodes (total + errors + recent 24h)
+- Semantic ← Entities + Wiki pages (low-mention warning, stale >60d)
+- Procedural ← Skills (active count + avg successRate + unused detection)
+- Artifact ← Results (expiring soon + expired warnings)
+- Meta ← Decisions + Pending writes (queue size + old pending detection)
+
+**Файлы:**
+- [x] `layerMapping.ts` — pure-function aggregation (6 functions + healthColor/healthLabel + AggregatedLayer type)
+- [x] `LayerMap.tsx` — 2×3 grid of LayerCard with icon + label + description + parts + health badge + health notes
+- [x] `LayerDrillDown.tsx` — modal showing recent items per layer (5 list variants)
+- [x] `MemoryWorkbenchPanel.tsx` — Tabs view (Layer Map / Raw layers); TabBtn helper
+
+**Health levels (3 уровня):**
+- `ok` (green) — данных достаточно, нет аномалий
+- `warn` (amber) — есть гниющие данные, low-quality items
+- `crit` (red) — много ошибок / низкая success rate
+
+### Health heuristics
+
+| Layer | Метрика | Threshold |
+|-------|---------|-----------|
+| Working | compressed_count vs total_msgs | 0 compressed at >100 msgs → warn |
+| Episodic | error_rate | >30% warn, >50% crit |
+| Episodic | stale_count | >70% старше 30 дней → warn |
+| Semantic | low_mention_ratio | >40% entities с <2 mentions → warn |
+| Semantic | stale_entities | >0 entities старше 60 дней → warn |
+| Procedural | low_success_skills | >30% с success<50% → crit |
+| Procedural | unused_skills | >50% не запускались → warn |
+| Artifact | expired_count | >0 → warn |
+| Artifact | expiring_soon | в течение 7 дней → notes |
+| Meta | pending_queue | >50 → warn, >100 → crit |
+| Meta | old_pending | старше 7 дней → warn |
+
+### Drill-down UX
+
+Click на любую карточку → modal с recent items (top 30-50 per layer):
+- Working: sessions + compressed summary preview
+- Episodic: action + status + tags + timestamp + agent
+- Semantic: entities (name/type/mentions/lastSeen) + wiki pages
+- Procedural: name + successRate badge (color-coded) + usage count
+- Artifact: name + type + namespace + expiresAt
+- Meta: decisions log + pending queue
+
+Esc или click на overlay → close.
+
+### Тесты
+- `tsc --noEmit` чист
+- Vitest: 62/62 OK
+
+### Следующее (Phase 3)
+- Knowledge Graph Canvas: sync MASys entities + relations → V5.0 graph через POST `/api/v1/workbooks/{id}/relationships`
+- Использует существующий drag-from-edge UI
+
+---
+
 ## Сессия: 2026-06-01 — V6.0 Phase 1 (MASys Memory Bridge)
 
 ### Контекст

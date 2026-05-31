@@ -308,7 +308,20 @@ Parallel fan-out + supervisor роль для координации неско�
 
 Все builds clean: go build/test, tsc --noEmit, Vitest 62/62.
 
-### Phase 2-7 — Coming next
+### Phase 2 — Memory Layer Map ✅ DONE (2026-06-01)
+
+6-слойная karp модель поверх 8 MASys layers.
+
+| Изменение | Файл |
+|-----------|------|
+| Pure-function aggregation (6 layers + health metrics) | `frontend/src/components/MemoryWorkbench/layerMapping.ts` |
+| Layer Map 2×3 grid with health badges + parts + notes | `LayerMap.tsx` |
+| Drill-down modal (5 list types) | `LayerDrillDown.tsx` |
+| Tabs view (Layer Map / Raw layers) | `MemoryWorkbenchPanel.tsx` |
+
+Health heuristics: error_rate, stale_count, low_mention_ratio, low_success_skills, unused_skills, expired_count, pending_queue, old_pending.
+
+### Phase 3-7 — Coming next
 
 ## V6.0 — Memory & Pipeline Workbench (planned, 7 phases)
 

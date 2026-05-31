@@ -1,10 +1,14 @@
-// V6.0 — Memory Workbench panel (skeleton with layer summary).
-// Phase 1 just renders: connection status, namespace switcher, 8 layer counters.
-// Detailed views (Layer Map, Timeline, KG Canvas, etc.) come in Phase 2-7.
-import { useEffect } from 'react'
+// V6.0 — Memory Workbench panel.
+// Phase 1: connection + 8 raw layer cards.
+// Phase 2: tabs — Layer Map (6 karp cards with health) + Raw layers (8 cards).
+// Phases 3-7 (KG Canvas, Episode Timeline, Context Budget, Skill Tree, Pipeline Trace) — coming.
+import { useEffect, useState } from 'react'
 import { useMASysMemoryStore } from '../../store/masysMemory'
 import type { ModulePanelProps } from '../../modules/types'
+import { LayerMap } from './LayerMap'
 import { colors, fonts, fontSizes, fontWeights, spacing, radii, shadows, transitions } from '../../styles/tokens'
+
+type ViewMode = 'layer-map' | 'raw'
 
 interface LayerStat {
   key: string
@@ -21,6 +25,7 @@ export function MemoryWorkbenchPanel({ onClose }: ModulePanelProps) {
     loading,
     checkHealth, fetchNamespaces, setActiveNamespace, refreshAll,
   } = useMASysMemoryStore()
+  const [view, setView] = useState<ViewMode>('layer-map')
 
   useEffect(() => {
     checkHealth()
@@ -139,40 +144,58 @@ export function MemoryWorkbenchPanel({ onClose }: ModulePanelProps) {
         >↻ Refresh</button>
       </div>
 
-      {/* 8 layer cards grid */}
+      {/* Tabs */}
+      <div style={{
+        margin: `${spacing.md}px ${spacing.lg}px 0`,
+        display: 'flex',
+        gap: spacing.xs,
+        flexShrink: 0,
+      }}>
+        <TabBtn active={view === 'layer-map'} onClick={() => setView('layer-map')}>📐 Layer Map</TabBtn>
+        <TabBtn active={view === 'raw'} onClick={() => setView('raw')}>🗂 Raw layers</TabBtn>
+      </div>
+
+      {/* Content */}
       <div style={{
         flex: 1, minHeight: 0, overflowY: 'auto',
-        padding: spacing.lg,
-        display: 'grid',
-        gridTemplateColumns: '1fr 1fr',
-        gap: spacing.md,
       }}>
-        {layers.map(layer => (
-          <div
-            key={layer.key}
-            style={{
-              padding: spacing.md,
-              background: colors.bgTertiary,
-              boxShadow: shadows.neuMd,
-              borderRadius: radii.lg,
-              fontFamily: fonts.ui,
-              display: 'flex',
-              flexDirection: 'column',
-              gap: spacing.xs,
-              transition: `box-shadow ${transitions.fast}`,
-            }}
-            onMouseEnter={e => { e.currentTarget.style.boxShadow = shadows.neuLg }}
-            onMouseLeave={e => { e.currentTarget.style.boxShadow = shadows.neuMd }}
-          >
-            <div style={{ fontSize: 20 }}>{layer.icon}</div>
-            <div style={{ fontSize: fontSizes.subhead, fontWeight: fontWeights.semibold, color: colors.text }}>
-              {layer.label}
-            </div>
-            <div style={{ fontSize: fontSizes.caption, color: colors.textSecondary }}>
-              {layer.loading ? 'Загрузка…' : `${layer.count} элементов`}
-            </div>
+        {view === 'layer-map' && <LayerMap />}
+
+        {view === 'raw' && (
+          <div style={{
+            padding: spacing.lg,
+            display: 'grid',
+            gridTemplateColumns: '1fr 1fr',
+            gap: spacing.md,
+          }}>
+            {layers.map(layer => (
+              <div
+                key={layer.key}
+                style={{
+                  padding: spacing.md,
+                  background: colors.bgTertiary,
+                  boxShadow: shadows.neuMd,
+                  borderRadius: radii.lg,
+                  fontFamily: fonts.ui,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: spacing.xs,
+                  transition: `box-shadow ${transitions.fast}`,
+                }}
+                onMouseEnter={e => { e.currentTarget.style.boxShadow = shadows.neuLg }}
+                onMouseLeave={e => { e.currentTarget.style.boxShadow = shadows.neuMd }}
+              >
+                <div style={{ fontSize: 20 }}>{layer.icon}</div>
+                <div style={{ fontSize: fontSizes.subhead, fontWeight: fontWeights.semibold, color: colors.text }}>
+                  {layer.label}
+                </div>
+                <div style={{ fontSize: fontSizes.caption, color: colors.textSecondary }}>
+                  {layer.loading ? 'Загрузка…' : `${layer.count} элементов`}
+                </div>
+              </div>
+            ))}
           </div>
-        ))}
+        )}
       </div>
 
       {/* Future expansion footer */}
@@ -183,8 +206,35 @@ export function MemoryWorkbenchPanel({ onClose }: ModulePanelProps) {
         textAlign: 'center',
         fontFamily: fonts.ui,
       }}>
-        V6.0 Phase 1 · Phase 2 (Layer Map) → Phase 7 (Pipeline Trace) — coming
+        V6.0 Phase 2 · Phases 3–7 (KG Canvas, Timeline, Context Budget, Skill Tree, Pipeline Trace) — coming
       </div>
     </div>
+  )
+}
+
+function TabBtn({ active, onClick, children }: {
+  active: boolean
+  onClick: () => void
+  children: React.ReactNode
+}) {
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        padding: `${spacing.xs}px ${spacing.md}px`,
+        background: colors.bgTertiary,
+        boxShadow: active ? shadows.neuInsetSm : shadows.neuSm,
+        border: 'none',
+        borderRadius: radii.sm,
+        color: active ? colors.accent : colors.text,
+        fontSize: fontSizes.caption,
+        fontWeight: fontWeights.medium,
+        fontFamily: fonts.ui,
+        cursor: 'pointer',
+        transition: `box-shadow ${transitions.fast}, color ${transitions.fast}`,
+      }}
+    >
+      {children}
+    </button>
   )
 }

@@ -16,9 +16,11 @@
 
 **V5.0 Phase 4-5 — Frontend Graph UI DONE (2026-06-01).** EdgeAnchorsLayer + FantomLine + ConnectionPopover + RelationshipPanel + RelationshipFilter, decorator pattern без правки TopicNode. Multi-edge offset, self-loop arcs, hover-highlight, filter по типу.
 
-**V6.0 Phase 1 MASys Bridge — DONE (2026-06-01).** REST proxy (10 endpoints) + SSE bridge для run streams + frontend types/api/store + Memory Workbench panel skeleton (8 layer cards) + новый AppModule.
+**V6.0 Phase 1-2 — DONE (2026-06-01).**
+- Phase 1: MASys Bridge (REST proxy + SSE + types/api/store + panel skeleton)
+- Phase 2: Memory Layer Map (6-слойная karp модель поверх 8 MASys layers, health metrics с heuristics, drill-down modal)
 
-**Активный roadmap:** V6.0 Phase 2 (Layer Map) → Phase 7 (Pipeline Trace), см. `skills/memory-visualization.md`.
+**Активный roadmap:** V6.0 Phase 3 (KG Canvas) → Phase 7 (Pipeline Trace), см. `skills/memory-visualization.md`.
 
 **Что работает:**
 - ✅ REST API (CRUD workbooks/sheets/topics/relationships, floating topics, AI provider, llama-server, import-json, collaborators, MCP)
@@ -86,6 +88,7 @@
 - ✅ **V5.0 Graph Relationships (backend)** — typed/directional edges, multi-edge, Traverse + DetectCycles, 6 agent tools, migration 010
 - ✅ **V5.0 Graph Relationships (frontend Phase 4-5)** — drag-from-edge UI, FantomLine, ConnectionPopover, RelationshipPanel, RelationshipFilter, multi-edge offset, self-loop arcs
 - ✅ **V6.0 Phase 1 MASys Bridge** — REST proxy + SSE bridge + Memory Workbench panel skeleton (8 layer cards)
+- ✅ **V6.0 Phase 2 Memory Layer Map** — 6-layer karp model, health metrics, drill-down per layer
 - ✅ Comments on nodes (💬 иконка + CommentsPanel)
 - ✅ External Model Servers — JSON-конфиг + GET/PUT /api/v1/model-servers + UI таблица в AIServerPanel
 - ✅ Port range 1010–1200: backend:1010, vite:1011, docker-nginx:1012, llama.cpp:1100

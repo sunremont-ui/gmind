@@ -423,8 +423,8 @@ frontend/src/components/Charts/               — reusable
 ## Roadmap status
 
 - **Phase 1** (MASys Bridge) ✅ DONE 2026-06-01
-- **Phase 2** (Layer Map) — следующий
-- **Phase 3** (KG Canvas) — параллельно с Phase 4 после 2
+- **Phase 2** (Layer Map) ✅ DONE 2026-06-01
+- **Phase 3** (KG Canvas) — следующий
 - **Phase 4** (Episode Timeline) — параллельно с Phase 3
 - **Phase 5** (Context Budget) — после 4
 - **Phase 6** (Skill Tree) — после 5
