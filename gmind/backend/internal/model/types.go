@@ -95,11 +95,32 @@ type Position struct {
 	Y float64 `json:"y"`
 }
 
+// Relationship — V5.0 graph edge with type, direction, cross-scope endpoints, multi-edge support.
+// Legacy End1ID/End2ID kept for backward compatibility; new code uses FromTopicID/ToTopicID.
 type Relationship struct {
 	ID     string `json:"id"`
 	Title  string `json:"title,omitempty"`
+	// Legacy fields (V4.x)
 	End1ID string `json:"end1_id"`
 	End2ID string `json:"end2_id"`
+	// V5.0 extended fields
+	WorkbookID      string  `json:"workbook_id,omitempty"`
+	FromWorkbookID  string  `json:"from_workbook_id,omitempty"`  // "" = same as WorkbookID
+	FromSheetID     string  `json:"from_sheet_id,omitempty"`     // "" = primary sheet
+	FromTopicID     string  `json:"from_topic_id,omitempty"`     // V5.0 canonical; mirrors End1ID for legacy
+	ToWorkbookID    string  `json:"to_workbook_id,omitempty"`
+	ToSheetID       string  `json:"to_sheet_id,omitempty"`
+	ToTopicID       string  `json:"to_topic_id,omitempty"`       // V5.0 canonical; mirrors End2ID for legacy
+	Type            string  `json:"type,omitempty"`              // relates_to|depends_on|supports|contradicts|references|blocks|custom
+	Direction       string  `json:"direction,omitempty"`         // forward|bidirectional|undirected
+	Weight          float64 `json:"weight,omitempty"`            // 0.0–1.0
+	Notes           string  `json:"notes,omitempty"`
+	Color           string  `json:"color,omitempty"`
+	Style           string  `json:"style,omitempty"`             // solid|dashed|dotted
+	CreatedBy       string  `json:"created_by,omitempty"`        // user|agent_<id>|legacy
+	CreatedAt       string  `json:"created_at,omitempty"`
+	UpdatedAt       string  `json:"updated_at,omitempty"`
+	Metadata        string  `json:"metadata,omitempty"`          // JSON string
 }
 
 type CreateWorkbookRequest struct {
@@ -186,9 +207,34 @@ type UpdateTopicRequest struct {
 }
 
 type CreateRelationshipRequest struct {
+	// Legacy compat
 	Title  string `json:"title,omitempty"`
-	End1ID string `json:"end1_id"`
-	End2ID string `json:"end2_id"`
+	End1ID string `json:"end1_id,omitempty"`
+	End2ID string `json:"end2_id,omitempty"`
+	// V5.0 canonical fields (preferred)
+	FromTopicID    string  `json:"from_topic_id,omitempty"`
+	ToTopicID      string  `json:"to_topic_id,omitempty"`
+	FromWorkbookID string  `json:"from_workbook_id,omitempty"`
+	FromSheetID    string  `json:"from_sheet_id,omitempty"`
+	ToWorkbookID   string  `json:"to_workbook_id,omitempty"`
+	ToSheetID      string  `json:"to_sheet_id,omitempty"`
+	Type           string  `json:"type,omitempty"`
+	Direction      string  `json:"direction,omitempty"`
+	Weight         float64 `json:"weight,omitempty"`
+	Notes          string  `json:"notes,omitempty"`
+	Color          string  `json:"color,omitempty"`
+	Style          string  `json:"style,omitempty"`
+	CreatedBy      string  `json:"created_by,omitempty"`
+}
+
+type UpdateRelationshipRequest struct {
+	Title     *string  `json:"title,omitempty"`
+	Type      *string  `json:"type,omitempty"`
+	Direction *string  `json:"direction,omitempty"`
+	Weight    *float64 `json:"weight,omitempty"`
+	Notes     *string  `json:"notes,omitempty"`
+	Color     *string  `json:"color,omitempty"`
+	Style     *string  `json:"style,omitempty"`
 }
 
 type MoveTopicRequest struct {

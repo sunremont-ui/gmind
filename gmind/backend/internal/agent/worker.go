@@ -81,6 +81,11 @@ func (wp *WorkerPool) SetRAG(svc *rag.Service) {
 	wp.executor.SetRAG(svc)
 }
 
+// SetRelationshipStore wires the V5.0 graph relationship store for graph tools.
+func (wp *WorkerPool) SetRelationshipStore(rs *store.RelationshipStore) {
+	wp.executor.SetRelationshipStore(rs)
+}
+
 // StartWorker starts a background goroutine for an agent.
 func (wp *WorkerPool) StartWorker(agentInfo *AgentInfo) {
 	wp.mu.Lock()

@@ -12,7 +12,9 @@
 
 **V4.4 Parallel UI + Export — DONE (2026-05-22).** TaskList grouped card по `parallel_group_id`; backend `/export/freemind` endpoint.
 
-**Активный roadmap:** V4.5 (Web Worker layout), V4.6 (MCP Bridge) — см. [07-improvements.md](07-improvements.md) и `PLANS.md`.
+**V5.0 Graph Relationships — Backend DONE (2026-05-22).** Phase 1-3: миграция 010, RelationshipStore + Traverse + DetectCycles, REST API, 6 agent tools в category `graph`. Поддержка multi-edge, 3 направлений, cross-sheet/workbook, self-loop, циклов.
+
+**Активный roadmap:** V5.0 Phase 4-5 (Frontend UI: drag-from-edge, RelationshipPanel, visual polish) — см. [07-improvements.md](07-improvements.md) и `skills/graph-relationships.md`.
 
 **Что работает:**
 - ✅ REST API (CRUD workbooks/sheets/topics/relationships, floating topics, AI provider, llama-server, import-json, collaborators, MCP)
@@ -77,6 +79,7 @@
 - ✅ **V4.2 RAG Search** — semantic_search tool + GET /api/v1/search (OpenAI text-embedding-3-small, cosine similarity, pure Go)
 - ✅ **V4.3 Multi-Agent Orchestration** — parallel_delegate (до 16 задач), list_agents, роль supervisor, миграция 009_parallel_groups
 - ✅ **V4.4 Parallel UI + Export** — grouped TaskList card, backend FreeMind/Markdown endpoints
+- ✅ **V5.0 Graph Relationships (backend)** — typed/directional edges, multi-edge, Traverse + DetectCycles, 6 agent tools, migration 010
 - ✅ Comments on nodes (💬 иконка + CommentsPanel)
 - ✅ External Model Servers — JSON-конфиг + GET/PUT /api/v1/model-servers + UI таблица в AIServerPanel
 - ✅ Port range 1010–1200: backend:1010, vite:1011, docker-nginx:1012, llama.cpp:1100

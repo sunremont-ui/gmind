@@ -59,10 +59,17 @@ func (t *Topic) InsertChildAt(index int, child *Topic) {
 
 func NewRelationship(title, end1ID, end2ID string) *Relationship {
 	return &Relationship{
-		ID:     uuid.New().String(),
-		Title:  title,
-		End1ID: end1ID,
-		End2ID: end2ID,
+		ID:          uuid.New().String(),
+		Title:       title,
+		End1ID:      end1ID,
+		End2ID:      end2ID,
+		FromTopicID: end1ID,
+		ToTopicID:   end2ID,
+		Type:        "relates_to",
+		Direction:   "forward",
+		Weight:      1.0,
+		Style:       "solid",
+		CreatedBy:   "user",
 	}
 }
 

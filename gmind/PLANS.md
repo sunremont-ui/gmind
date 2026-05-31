@@ -4,6 +4,78 @@
 
 ---
 
+## Сессия: 2026-05-22 — V5.0 Graph Relationships (Phase 1-3 backend)
+
+### Контекст
+- V4.4 закрыт, ядро программы расширяется для памяти агентов
+- Требование: связи во все стороны (sibling, cross-branch, cross-sheet, cross-workbook, self-loop, циклы, multi-edge)
+- Решено через AskUserQuestion-голосование:
+  - Multi-edge: ✅ разрешён (несколько типов между одной парой)
+  - Направления: 3 (forward, bidirectional, undirected)
+  - UI: drag-from-edge (4 anchors при hover)
+  - Scope: ВСЁ (self-loop, cross-sheet, cross-workbook, циклы)
+
+### Выполнено (Backend Phase 1-3)
+
+**Phase 1: Foundation**
+- [x] Skill `graph-relationships.md` — архитектура, типы, алгоритмы, roadmap
+- [x] Миграция `010_relationships.up/down.sql` — таблица + 4 индекса
+- [x] `model.Relationship` extension — legacy `End1ID/End2ID` сохранены + 17 новых полей (FromTopicID/ToTopicID/Type/Direction/Weight/Notes/Color/Style/CreatedBy/Metadata + cross-scope endpoints)
+- [x] `model.UpdateRelationshipRequest` — pointer-based partial update
+- [x] `store/relationships.go` — `RelationshipStore`: Insert/Get/Update/Delete + ListByWorkbook/ListByTopic/FindBetween + DeleteByTopic/DeleteByWorkbook cascade + **Traverse (BFS)** + **DetectCycles (DFS с color marking)**
+- [x] `store/relationships_test.go` — 4 теста: CRUD, multi-edge, Traverse depth 1/2, cycles, self-loop
+
+**Phase 2: REST API**
+- [x] `api/relationships.go` — handlers + validators (type/direction/style) + cycle prevention (`?strict=true`)
+- [x] Endpoints:
+  - `POST /api/v1/workbooks/{id}/relationships` (CreateRelationshipV2 — accept legacy + V5.0 fields)
+  - `GET /api/v1/workbooks/{id}/relationships?topic_id=...&type=...`
+  - `PUT /api/v1/relationships/{relID}`
+  - `DELETE /api/v1/relationships/{relID}` (scope-agnostic)
+  - `DELETE /api/v1/workbooks/{id}/relationships/{relID}` (legacy, тоже работает)
+  - `GET /api/v1/workbooks/{id}/cycles?type=depends_on`
+  - `GET /api/v1/workbooks/{id}/topics/{topicID}/related?depth=N&types=...`
+- [x] Backward compat: `EmbedRelationshipsIntoSheet` в GetWorkbook
+- [x] Cascade delete: при DeleteTopic — `relationships.DeleteByTopic`
+- [x] Handler.relationships wired в `New()`
+
+**Phase 3: Agent Tools**
+- [x] 6 новых tools в category `"graph"`:
+  - `create_relationship(from, to, type, direction?, title?, weight?, notes?, workbook_id?)`
+  - `list_relationships(topic_id, type?, direction?)`
+  - `get_related_topics(topic_id, depth=1..5, types?)`
+  - `detect_cycles(workbook_id, type?)`
+  - `update_relationship(relationship_id, type?, direction?, title?, weight?, notes?, color?, style?)`
+  - `delete_relationship(relationship_id)`
+- [x] `GetToolsForRole` обновлён — все 8 ролей получили graph category
+- [x] `ToolExecutor.relStore` + `SetRelationshipStore`; `WorkerPool.SetRelationshipStore`
+- [x] `main.go` — wired `relStore` в worker pool
+- [x] `created_by` авто-генерация: `agent_<callerTask.AgentID>` для агентских вызовов
+
+### Тесты
+
+- Go: `relationships_test.go` 4/4 OK (CRUD, Traverse, Cycles, SelfLoop)
+- Go: `agent` + `api` + `wiki` + `ws` + `mcp` — все OK
+- FTS test failures — pre-existing (modernc.org/sqlite без sqlite_fts5 build tag), не V5.0 регрессия
+- TypeScript: `tsc --noEmit` чистый
+
+### Осталось (V5.0 Phase 4-5)
+
+- [ ] Phase 4: Frontend UI
+  - TopicNode hover → 4 edge anchors
+  - Drag handler с fantom line
+  - ConnectionPopover (type/direction)
+  - RelationshipLine rewrite (arrows, type styles, multi-edge offset, self-loop arc)
+  - RelationshipPanel sidebar
+  - Cross-sheet badge
+- [ ] Phase 5: Visual Polish
+  - Filter toolbar по type/direction
+  - Hover-highlight subgraph
+  - Cycle warning indicator
+  - PropertiesPanel "Relations" tab
+
+---
+
 ## Сессия: 2026-05-22 — V4.4 Parallel UI + Export endpoints + README
 
 ### Контекст

@@ -351,7 +351,7 @@ Go Backend                       Fastify + tRPC
 
 - **`backend/internal/core/`** — ядро: Module interface, Registry, EventBus, Lifecycle с графом зависимостей
 - **`backend/internal/agent/`** — Agent Module: Registry + Manager (implements core.Module), WorkerPool, TaskStore
-  - `tools.go` — ToolRegistry: create_topic, update_topic, create_multiple_topics, add_note, get_topic, get_workbook, summarize_topics, search_web, wiki_search, wiki_read, wiki_write, run_masys_pipeline, **delete_topic**, **move_topic**, **list_topics**, **delegate_to_agent**, **save_note**, **search_notes**; `RegisterTool(t)` + `GetRegistry()` с mutex для расширяемости
+  - `tools.go` — ToolRegistry: create_topic, update_topic, create_multiple_topics, add_note, get_topic, get_workbook, summarize_topics, search_web, wiki_search, wiki_read, wiki_write, run_masys_pipeline, delete_topic, move_topic, list_topics, delegate_to_agent, save_note, search_notes, parallel_delegate, list_agents, semantic_search, **create_relationship**, **list_relationships**, **get_related_topics**, **detect_cycles**, **update_relationship**, **delete_relationship** (V5.0 graph); `RegisterTool(t)` + `GetRegistry()` с mutex для расширяемости
   - `executor.go` — `getCallbacks(task *Task)`: task передаётся для делегирования (delegate_to_agent знает caller); `RegisterCallback(name, fn)` для плагинов; `saveNote`/`searchNotes` handlers
   - `module.go` — `Manager.GetTask(id)` публичный геттер для polling в delegate_to_agent
 - **`backend/internal/api/module.go`** — HTTP handlers для агентов (CRUD), модульные endpoints

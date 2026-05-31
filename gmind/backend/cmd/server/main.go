@@ -127,8 +127,19 @@ func main() {
 	embeddingStore := store.NewEmbeddingStore(db.DB())
 	ragSvc := rag.New(cfg.AIAPIKey, cfg.AIEndpoint, embeddingStore)
 	wp.SetRAG(ragSvc)
+
+	// V5.0: graph relationships for agent tools (create_relationship, get_related_topics, etc.)
+	relStore := store.NewRelationshipStore(db.DB())
+	wp.SetRelationshipStore(relStore)
 	// Index all existing topics in background (silent on missing API key)
 	go ragSvc.IndexAll(context.Background(), db)
+
+	// GI-7: backfill the full-text index in background (no API key needed)
+	go func() {
+		if err := db.ReindexAllFTS(); err != nil {
+			log.Printf("fts backfill: %v", err)
+		}
+	}()
 
 	scheduleStore := store.NewScheduledTaskStore(db.DB())
 	agentModule.InitScheduler(scheduleStore, wp)

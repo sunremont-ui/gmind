@@ -82,6 +82,9 @@ func (h *Handler) GetWorkbook(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// V5.0 backward compat: embed relationships from new table into Sheet.Relationships JSON
+	h.EmbedRelationshipsIntoSheet(wb)
+
 	writeJSON(w, http.StatusOK, wb)
 }
 

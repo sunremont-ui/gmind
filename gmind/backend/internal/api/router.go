@@ -40,6 +40,7 @@ type Handler struct {
 	mcpHandler      http.HandlerFunc
 	maSysBaseURL    string
 	webhooks        *webhook.Store
+	relationships   *store.RelationshipStore
 }
 
 // SetRAG wires a RAG service for semantic search endpoints and agent tools.
@@ -61,6 +62,7 @@ func New(s *store.Store, hub *ws.Hub, cfgPath string, registry *core.Registry, s
 	}
 	if s != nil {
 		h.webhooks = webhook.NewStore(s.DB())
+		h.relationships = store.NewRelationshipStore(s.DB())
 	}
 	// Extract agent module ref for worker pool updates
 	if registry != nil {
@@ -124,8 +126,11 @@ func (h *Handler) Router(cfg *config.Config) http.Handler {
 				r.Post("/floating-topics", h.CreateFloatingTopic)
 				r.Put("/floating-topics/{topicID}", h.UpdateFloatingTopic)
 				r.Delete("/floating-topics/{topicID}", h.DeleteFloatingTopic)
-				r.Post("/relationships", h.CreateRelationship)
+				r.Post("/relationships", h.CreateRelationshipV2)
+				r.Get("/relationships", h.ListRelationships)
 				r.Delete("/relationships/{relID}", h.DeleteRelationship)
+				r.Get("/cycles", h.DetectCyclesEndpoint)
+				r.Get("/topics/{topicID}/related", h.RelatedTopics)
 				r.Get("/export", h.ExportXMind)
 				r.Get("/export/markdown", h.ExportMarkdown)
 				r.Get("/export/freemind", h.ExportFreeMind)
@@ -169,15 +174,23 @@ func (h *Handler) Router(cfg *config.Config) http.Handler {
 	r.Post("/api/v1/config", h.ApplyConfig)
 	r.Get("/api/v1/masys/pipelines", h.ListMaSysPipelines)
 
-	// Semantic search
+	// Semantic search (needs an embeddings API key)
 	searchHandler := NewSearchHandler(h.ragService)
 	r.Get("/api/v1/search", searchHandler.Search)
+	// Full-text search (FTS5, always available — GI-7)
+	r.Get("/api/v1/search/text", h.SearchFullText)
 
 	r.Route("/api/v1/notes", func(r chi.Router) {
 		r.Get("/", h.ListNotes)
 		r.Post("/", h.CreateNote)
 		r.Put("/{noteID}", h.UpdateNote)
 		r.Delete("/{noteID}", h.DeleteNote)
+	})
+
+	// V5.0 relationships — scope-agnostic update/delete
+	r.Route("/api/v1/relationships", func(r chi.Router) {
+		r.Put("/{relID}", h.UpdateRelationshipV2)
+		r.Delete("/{relID}", h.DeleteRelationshipV2)
 	})
 
 	r.Route("/api/v1/webhooks", func(r chi.Router) {

@@ -272,6 +272,11 @@ func (h *Handler) DeleteTopic(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// V5.0: cascade-delete relationships referencing this topic
+	if h.relationships != nil {
+		_ = h.relationships.DeleteByTopic(topicID)
+	}
+
 	if h.webhooks != nil {
 		h.webhooks.Notify("topic.deleted", map[string]any{
 			"workbook_id": workbookID,
@@ -585,6 +590,22 @@ func (h *Handler) DeleteRelationship(w http.ResponseWriter, r *http.Request) {
 	workbookID := chi.URLParam(r, "workbookID")
 	relID := chi.URLParam(r, "relID")
 
+	// V5.0: try table-backed delete first
+	if h.relationships != nil {
+		if err := h.relationships.Delete(relID); err == nil {
+			// Also clean any legacy embedding in workbook JSON (best-effort)
+			if wb, _ := h.store.GetWorkbook(workbookID); wb != nil {
+				for _, sheet := range wb.Sheets {
+					sheet.RemoveRelationship(relID)
+				}
+				_ = h.store.UpdateWorkbook(wb)
+			}
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+	}
+
+	// Fallback: legacy path
 	wb, err := h.store.GetWorkbook(workbookID)
 	if err != nil {
 		internalError(w, err)
@@ -594,15 +615,12 @@ func (h *Handler) DeleteRelationship(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "workbook not found")
 		return
 	}
-
 	for _, sheet := range wb.Sheets {
 		sheet.RemoveRelationship(relID)
 	}
-
 	if err := h.store.UpdateWorkbook(wb); err != nil {
 		internalError(w, err)
 		return
 	}
-
 	w.WriteHeader(http.StatusNoContent)
 }

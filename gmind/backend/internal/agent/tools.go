@@ -189,6 +189,48 @@ func init() {
 		Idempotent:  true,
 	},
 	{
+		Name:        "create_relationship",
+		Description: "Creates a typed, directional relationship (edge) between two topics. Supports types: relates_to, depends_on, supports, contradicts, references, blocks, custom. Direction: forward|bidirectional|undirected. Multi-edge allowed.",
+		Schema:      json.RawMessage(`{"type":"object","properties":{"from_topic_id":{"type":"string"},"to_topic_id":{"type":"string"},"type":{"type":"string","default":"relates_to"},"direction":{"type":"string","default":"forward"},"title":{"type":"string"},"weight":{"type":"number"},"notes":{"type":"string"},"workbook_id":{"type":"string","description":"Override workbook for cross-workbook edges"}},"required":["from_topic_id","to_topic_id"]}`),
+		Category:    "graph",
+		Idempotent:  false,
+	},
+	{
+		Name:        "list_relationships",
+		Description: "Lists relationships of a topic (both incoming and outgoing). Optionally filter by type or direction.",
+		Schema:      json.RawMessage(`{"type":"object","properties":{"topic_id":{"type":"string"},"type":{"type":"string"},"direction":{"type":"string"}},"required":["topic_id"]}`),
+		Category:    "graph",
+		Idempotent:  true,
+	},
+	{
+		Name:        "get_related_topics",
+		Description: "BFS-traverses the relationship graph from a starting topic, returning visited topic IDs and traversed edges. Use for graph context, agent memory, building subgraphs.",
+		Schema:      json.RawMessage(`{"type":"object","properties":{"topic_id":{"type":"string"},"depth":{"type":"integer","default":2,"description":"BFS depth (1-5)"},"types":{"type":"array","items":{"type":"string"},"description":"Filter by these edge types"}},"required":["topic_id"]}`),
+		Category:    "graph",
+		Idempotent:  true,
+	},
+	{
+		Name:        "detect_cycles",
+		Description: "Detects directional cycles in the dependency graph of a workbook. Useful for finding contradictions or circular dependencies.",
+		Schema:      json.RawMessage(`{"type":"object","properties":{"workbook_id":{"type":"string"},"type":{"type":"string","description":"Filter cycles by edge type (e.g. 'depends_on')"}},"required":["workbook_id"]}`),
+		Category:    "graph",
+		Idempotent:  true,
+	},
+	{
+		Name:        "update_relationship",
+		Description: "Updates an existing relationship's type, direction, title, weight, notes, color, or style.",
+		Schema:      json.RawMessage(`{"type":"object","properties":{"relationship_id":{"type":"string"},"type":{"type":"string"},"direction":{"type":"string"},"title":{"type":"string"},"weight":{"type":"number"},"notes":{"type":"string"},"color":{"type":"string"},"style":{"type":"string"}},"required":["relationship_id"]}`),
+		Category:    "graph",
+		Idempotent:  true,
+	},
+	{
+		Name:        "delete_relationship",
+		Description: "Deletes a relationship by ID.",
+		Schema:      json.RawMessage(`{"type":"object","properties":{"relationship_id":{"type":"string"}},"required":["relationship_id"]}`),
+		Category:    "graph",
+		Idempotent:  false,
+	},
+	{
 		Name:        "semantic_search",
 		Description: "Searches all mindmap topics semantically using vector embeddings. Returns the most relevant topics across all workbooks. Requires OpenAI API key for embedding generation.",
 		Schema:      json.RawMessage(`{"type":"object","properties":{"query":{"type":"string","description":"Natural language search query"},"limit":{"type":"integer","description":"Max results to return","default":5},"workbook_id":{"type":"string","description":"Optional: limit search to a specific workbook"}},"required":["query"]}`),
@@ -205,24 +247,24 @@ func init() {
 func GetToolsForRole(role string) []ToolDef {
 	switch role {
 	case "researcher":
-		return filterTools("mindmap", "search", "wiki", "masys", "agent", "notes")
+		return filterTools("mindmap", "search", "wiki", "masys", "agent", "notes", "graph")
 	case "organizer":
-		return filterTools("mindmap", "masys", "agent", "notes")
+		return filterTools("mindmap", "masys", "agent", "notes", "graph")
 	case "critic":
-		return filterTools("mindmap", "analysis")
+		return filterTools("mindmap", "analysis", "graph")
 	case "expander":
-		return filterTools("mindmap")
+		return filterTools("mindmap", "graph")
 	case "summarizer":
-		return filterTools("mindmap", "analysis", "search", "notes")
+		return filterTools("mindmap", "analysis", "search", "notes", "graph")
 	case "editor":
-		return filterTools("mindmap")
+		return filterTools("mindmap", "graph")
 	case "analyst":
-		return filterTools("mindmap", "analysis", "search", "masys", "agent", "notes")
+		return filterTools("mindmap", "analysis", "search", "masys", "agent", "notes", "graph")
 	case "writer":
-		return filterTools("mindmap", "wiki", "search", "notes")
+		return filterTools("mindmap", "wiki", "search", "notes", "graph")
 	case "supervisor":
-		// Orchestrator role: delegates to other agents, can fan-out, sees notes/wiki for context
-		return filterTools("agent", "notes", "wiki", "search", "analysis")
+		// Orchestrator role: delegates to other agents, can fan-out, sees notes/wiki/graph for context
+		return filterTools("agent", "notes", "wiki", "search", "analysis", "graph")
 	default:
 		return GetRegistry()
 	}

@@ -26,6 +26,7 @@ type ToolExecutor struct {
 	searcher     Searcher
 	wiki         *wiki.Store
 	ragService   *rag.Service
+	relStore     *store.RelationshipStore
 	maSysBaseURL string
 	manager      *Manager
 
@@ -67,6 +68,11 @@ func (e *ToolExecutor) SetRAG(svc *rag.Service) {
 	e.ragService = svc
 }
 
+// SetRelationshipStore wires the V5.0 graph relationship store for graph tools.
+func (e *ToolExecutor) SetRelationshipStore(rs *store.RelationshipStore) {
+	e.relStore = rs
+}
+
 func (e *ToolExecutor) SetManager(m *Manager) {
 	e.manager = m
 }
@@ -105,6 +111,14 @@ func (e *ToolExecutor) getCallbacks(task *Task) map[string]callToolFn {
 			return e.parallelDelegate(raw, task)
 		},
 		"list_agents": e.listAgents,
+		"create_relationship": func(raw json.RawMessage) (any, error) {
+			return e.createRelationship(raw, task)
+		},
+		"list_relationships":  e.listRelationships,
+		"get_related_topics":  e.getRelatedTopics,
+		"detect_cycles":       e.detectCyclesTool,
+		"update_relationship": e.updateRelationshipTool,
+		"delete_relationship": e.deleteRelationshipTool,
 	}
 	// Merge module-registered callbacks (they can override or extend base tools).
 	e.extraCallbacksMu.RLock()
@@ -870,6 +884,233 @@ func (e *ToolExecutor) parallelDelegate(raw json.RawMessage, callerTask *Task) (
 		"group_id": groupID,
 		"results":  results,
 	}, nil
+}
+
+// --- V5.0 Graph Relationship tools ---
+
+func (e *ToolExecutor) createRelationship(raw json.RawMessage, callerTask *Task) (any, error) {
+	if e.relStore == nil {
+		return nil, errors.New("relationship store not initialized")
+	}
+	var args struct {
+		FromTopicID string  `json:"from_topic_id"`
+		ToTopicID   string  `json:"to_topic_id"`
+		Type        string  `json:"type"`
+		Direction   string  `json:"direction"`
+		Title       string  `json:"title"`
+		Weight      float64 `json:"weight"`
+		Notes       string  `json:"notes"`
+		WorkbookID  string  `json:"workbook_id"`
+	}
+	if err := json.Unmarshal(raw, &args); err != nil {
+		return nil, fmt.Errorf("invalid create_relationship args: %w", err)
+	}
+	if args.FromTopicID == "" || args.ToTopicID == "" {
+		return nil, errors.New("from_topic_id and to_topic_id are required")
+	}
+	workbookID := args.WorkbookID
+	createdBy := "agent"
+	if callerTask != nil {
+		if workbookID == "" {
+			workbookID = callerTask.WorkbookID
+		}
+		createdBy = "agent_" + callerTask.AgentID
+	}
+	if workbookID == "" {
+		return nil, errors.New("workbook_id is required (no caller context)")
+	}
+	rec := &store.RelationshipRecord{
+		WorkbookID:  workbookID,
+		FromTopicID: args.FromTopicID,
+		ToTopicID:   args.ToTopicID,
+		Type:        args.Type,
+		Direction:   args.Direction,
+		Title:       args.Title,
+		Weight:      args.Weight,
+		Notes:       args.Notes,
+		CreatedBy:   createdBy,
+	}
+	if err := e.relStore.Insert(rec); err != nil {
+		return nil, fmt.Errorf("insert relationship: %w", err)
+	}
+	return rec, nil
+}
+
+func (e *ToolExecutor) listRelationships(raw json.RawMessage) (any, error) {
+	if e.relStore == nil {
+		return nil, errors.New("relationship store not initialized")
+	}
+	var args struct {
+		TopicID   string `json:"topic_id"`
+		Type      string `json:"type"`
+		Direction string `json:"direction"`
+	}
+	if err := json.Unmarshal(raw, &args); err != nil {
+		return nil, fmt.Errorf("invalid list_relationships args: %w", err)
+	}
+	if args.TopicID == "" {
+		return nil, errors.New("topic_id is required")
+	}
+	rels, err := e.relStore.ListByTopic(args.TopicID)
+	if err != nil {
+		return nil, fmt.Errorf("list relationships: %w", err)
+	}
+	if args.Type != "" {
+		filtered := make([]*store.RelationshipRecord, 0, len(rels))
+		for _, r := range rels {
+			if r.Type == args.Type {
+				filtered = append(filtered, r)
+			}
+		}
+		rels = filtered
+	}
+	if args.Direction != "" {
+		filtered := make([]*store.RelationshipRecord, 0, len(rels))
+		for _, r := range rels {
+			if r.Direction == args.Direction {
+				filtered = append(filtered, r)
+			}
+		}
+		rels = filtered
+	}
+	if rels == nil {
+		rels = []*store.RelationshipRecord{}
+	}
+	return rels, nil
+}
+
+func (e *ToolExecutor) getRelatedTopics(raw json.RawMessage) (any, error) {
+	if e.relStore == nil {
+		return nil, errors.New("relationship store not initialized")
+	}
+	var args struct {
+		TopicID string   `json:"topic_id"`
+		Depth   int      `json:"depth"`
+		Types   []string `json:"types"`
+	}
+	if err := json.Unmarshal(raw, &args); err != nil {
+		return nil, fmt.Errorf("invalid get_related_topics args: %w", err)
+	}
+	if args.TopicID == "" {
+		return nil, errors.New("topic_id is required")
+	}
+	if args.Depth <= 0 {
+		args.Depth = 2
+	}
+	if args.Depth > 5 {
+		args.Depth = 5
+	}
+	topics, rels, err := e.relStore.Traverse(args.TopicID, args.Depth, args.Types)
+	if err != nil {
+		return nil, fmt.Errorf("traverse: %w", err)
+	}
+	return map[string]any{
+		"topic_id":      args.TopicID,
+		"depth":         args.Depth,
+		"types":         args.Types,
+		"topics":        topics,
+		"relationships": rels,
+	}, nil
+}
+
+func (e *ToolExecutor) detectCyclesTool(raw json.RawMessage) (any, error) {
+	if e.relStore == nil {
+		return nil, errors.New("relationship store not initialized")
+	}
+	var args struct {
+		WorkbookID string `json:"workbook_id"`
+		Type       string `json:"type"`
+	}
+	if err := json.Unmarshal(raw, &args); err != nil {
+		return nil, fmt.Errorf("invalid detect_cycles args: %w", err)
+	}
+	if args.WorkbookID == "" {
+		return nil, errors.New("workbook_id is required")
+	}
+	cycles, err := e.relStore.DetectCycles(args.WorkbookID, args.Type)
+	if err != nil {
+		return nil, fmt.Errorf("detect cycles: %w", err)
+	}
+	return map[string]any{
+		"workbook_id": args.WorkbookID,
+		"type":        args.Type,
+		"cycles":      cycles,
+		"count":       len(cycles),
+	}, nil
+}
+
+func (e *ToolExecutor) updateRelationshipTool(raw json.RawMessage) (any, error) {
+	if e.relStore == nil {
+		return nil, errors.New("relationship store not initialized")
+	}
+	var args struct {
+		RelationshipID string   `json:"relationship_id"`
+		Type           *string  `json:"type"`
+		Direction      *string  `json:"direction"`
+		Title          *string  `json:"title"`
+		Weight         *float64 `json:"weight"`
+		Notes          *string  `json:"notes"`
+		Color          *string  `json:"color"`
+		Style          *string  `json:"style"`
+	}
+	if err := json.Unmarshal(raw, &args); err != nil {
+		return nil, fmt.Errorf("invalid update_relationship args: %w", err)
+	}
+	if args.RelationshipID == "" {
+		return nil, errors.New("relationship_id is required")
+	}
+	patch := map[string]any{}
+	if args.Type != nil {
+		patch["type"] = *args.Type
+	}
+	if args.Direction != nil {
+		patch["direction"] = *args.Direction
+	}
+	if args.Title != nil {
+		patch["title"] = *args.Title
+	}
+	if args.Weight != nil {
+		patch["weight"] = *args.Weight
+	}
+	if args.Notes != nil {
+		patch["notes"] = *args.Notes
+	}
+	if args.Color != nil {
+		patch["color"] = *args.Color
+	}
+	if args.Style != nil {
+		patch["style"] = *args.Style
+	}
+	if err := e.relStore.Update(args.RelationshipID, patch); err != nil {
+		return nil, fmt.Errorf("update relationship: %w", err)
+	}
+	rec, err := e.relStore.Get(args.RelationshipID)
+	if err != nil {
+		return nil, fmt.Errorf("get after update: %w", err)
+	}
+	if rec == nil {
+		return nil, fmt.Errorf("relationship %s not found", args.RelationshipID)
+	}
+	return rec, nil
+}
+
+func (e *ToolExecutor) deleteRelationshipTool(raw json.RawMessage) (any, error) {
+	if e.relStore == nil {
+		return nil, errors.New("relationship store not initialized")
+	}
+	var args struct {
+		RelationshipID string `json:"relationship_id"`
+	}
+	if err := json.Unmarshal(raw, &args); err != nil {
+		return nil, fmt.Errorf("invalid delete_relationship args: %w", err)
+	}
+	if args.RelationshipID == "" {
+		return nil, errors.New("relationship_id is required")
+	}
+	if err := e.relStore.Delete(args.RelationshipID); err != nil {
+		return nil, fmt.Errorf("delete relationship: %w", err)
+	}
+	return map[string]any{"deleted": args.RelationshipID}, nil
 }
 
 func (e *ToolExecutor) semanticSearch(raw json.RawMessage) (any, error) {
