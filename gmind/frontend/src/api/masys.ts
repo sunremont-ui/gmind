@@ -12,6 +12,9 @@ import type {
   MASysRun,
   MASysRunEvent,
   MASysRecallResult,
+  MASysKGGraph,
+  KGSyncRequest,
+  KGSyncResponse,
 } from '../types/masys'
 
 const BASE = '/api/v1/masys'
@@ -77,6 +80,19 @@ export const masysApi = {
   },
   recall(namespace: string, query: string, limit = 5): Promise<MASysRecallResult[]> {
     return post('/memory/recall', { namespace, query, limit })
+  },
+
+  // V6.0 Phase 3 — Knowledge Graph
+  getGraph(namespace?: string, limit?: number): Promise<MASysKGGraph> {
+    const qs = new URLSearchParams()
+    if (namespace) qs.set('namespace', namespace)
+    if (limit) qs.set('limit', String(limit))
+    const s = qs.toString() ? `?${qs.toString()}` : ''
+    return get(`/memory/graph${s}`)
+  },
+
+  kgSync(req: KGSyncRequest): Promise<KGSyncResponse> {
+    return post('/kg-sync', req)
   },
   listRuns(limit?: number): Promise<MASysRun[]> {
     const s = limit ? `?limit=${limit}` : ''

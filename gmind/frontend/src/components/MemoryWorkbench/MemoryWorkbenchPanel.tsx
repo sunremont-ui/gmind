@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react'
 import { useMASysMemoryStore } from '../../store/masysMemory'
 import type { ModulePanelProps } from '../../modules/types'
 import { LayerMap } from './LayerMap'
+import { KGSyncDialog } from './KGSyncDialog'
 import { colors, fonts, fontSizes, fontWeights, spacing, radii, shadows, transitions } from '../../styles/tokens'
 
 type ViewMode = 'layer-map' | 'raw'
@@ -26,6 +27,7 @@ export function MemoryWorkbenchPanel({ onClose }: ModulePanelProps) {
     checkHealth, fetchNamespaces, setActiveNamespace, refreshAll,
   } = useMASysMemoryStore()
   const [view, setView] = useState<ViewMode>('layer-map')
+  const [showSync, setShowSync] = useState(false)
 
   useEffect(() => {
     checkHealth()
@@ -142,7 +144,26 @@ export function MemoryWorkbenchPanel({ onClose }: ModulePanelProps) {
             cursor: reachable ? 'pointer' : 'not-allowed',
           }}
         >↻ Refresh</button>
+        <button
+          onClick={() => setShowSync(true)}
+          disabled={!reachable}
+          title="Sync MASys Knowledge Graph into a Gmind workbook"
+          style={{
+            padding: `${spacing.xs}px ${spacing.md}px`,
+            background: reachable ? colors.accent : colors.bgTertiary,
+            color: reachable ? '#fff' : colors.textQuaternary,
+            boxShadow: reachable ? 'none' : shadows.neuSm,
+            border: 'none',
+            borderRadius: radii.sm,
+            fontSize: fontSizes.caption,
+            fontWeight: fontWeights.medium,
+            fontFamily: fonts.ui,
+            cursor: reachable ? 'pointer' : 'not-allowed',
+          }}
+        >🌐 Sync KG</button>
       </div>
+
+      {showSync && <KGSyncDialog onClose={() => setShowSync(false)} />}
 
       {/* Tabs */}
       <div style={{

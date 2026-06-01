@@ -119,3 +119,40 @@ export interface MASysRecallResult {
   text?: string
   meta?: Record<string, unknown>
 }
+
+// V6.0 Phase 3 — Knowledge Graph
+export interface MASysKGNode {
+  name: string
+  type: string
+  description?: string
+  attributes?: Record<string, unknown>
+  mentions?: number
+}
+
+export interface MASysKGEdge {
+  sourceName: string
+  targetName: string
+  predicate: string
+}
+
+export interface MASysKGGraph {
+  nodes: MASysKGNode[]
+  edges: MASysKGEdge[]
+}
+
+export interface KGSyncRequest {
+  namespace: string
+  workbook_title?: string
+  workbook_id?: string
+  limit?: number
+}
+
+export interface KGSyncResponse {
+  workbook_id: string
+  sheet_id: string
+  topics_created: number
+  relationships_created: number
+  nodes_total: number
+  edges_total: number
+  mapping: Record<string, string>
+}

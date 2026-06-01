@@ -206,8 +206,10 @@ func (h *Handler) Router(cfg *config.Config) http.Handler {
 			r.Get("/results", h.MASysListResults)
 			r.Get("/decisions", h.MASysListDecisions)
 			r.Get("/pending", h.MASysListPending)
+			r.Get("/graph", h.MASysGetGraph)
 			r.Post("/recall", h.MASysMemoryRecall)
 		})
+		r.Post("/kg-sync", h.MASysKGSync)
 		r.Route("/runs", func(r chi.Router) {
 			r.Get("/", h.MASysListRuns)
 			r.Get("/{runID}", h.MASysGetRun)

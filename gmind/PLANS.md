@@ -4,6 +4,73 @@
 
 ---
 
+## Сессия: 2026-06-01 — V6.0 Phase 3 (Knowledge Graph Canvas)
+
+### Контекст
+- Phase 2 готов (Layer Map); Phase 3 — sync MASys KG в Gmind workbook через V5.0 relationships
+- Цель: после sync можно прямо в Gmind mindmap видеть entity-relations и редактировать через drag-from-edge UI
+
+### Архитектура
+
+```
+[MASys memory.graph.get] → nodes + edges
+       ↓
+[Gmind backend MASysKGSync]
+   ├── создаёт/использует Workbook + Sheet
+   ├── для каждой entity → Topic (с notes=description, labels=[type])
+   ├── строит mapping name → topic_id (idempotent: re-use по title)
+   ├── для каждого edge → V5.0 RelationshipRecord
+   │     • mapPredicateToType (depends/requires→depends_on, supports/confirms→supports,
+   │       contradicts/conflicts→contradicts, references/cites→references,
+   │       blocks/prevents→blocks, иначе relates_to)
+   │     • idempotent: skip если уже есть edge того же type между парой
+   ├── созданные edges помечены created_by='masys-sync'
+   └── возвращает { workbook_id, topics_created, relationships_created, mapping }
+```
+
+### Выполнено
+
+**Backend (Go):**
+- [x] `masys_kg_sync.go`:
+  - `MASysGetGraph` — GET /api/v1/masys/memory/graph?namespace=...&limit=... → proxies memory.graph.get
+  - `MASysKGSync` — POST /api/v1/masys/kg-sync body { namespace, workbook_title?, workbook_id?, limit? }
+  - `mapPredicateToType` — heuristic mapping predicates
+  - `walkTopics` helper для построения existingByTitle map
+- [x] Route: `POST /api/v1/masys/kg-sync`, GET `/api/v1/masys/memory/graph`
+
+**Frontend:**
+- [x] `types/masys.ts` — добавлены MASysKGNode, MASysKGEdge, MASysKGGraph, KGSyncRequest, KGSyncResponse
+- [x] `api/masys.ts` — методы `getGraph()` и `kgSync()`
+- [x] `components/MemoryWorkbench/KGSyncDialog.tsx` — modal:
+  - Namespace select (preselected = active)
+  - Workbook title input (auto-updates от namespace)
+  - Limit input (default 200)
+  - Sync button с loading state
+  - После sync: result summary с counts + кнопка "Открыть в Mindmap" (использует `useMindMapStore.setWorkbook`)
+- [x] `MemoryWorkbenchPanel.tsx` — кнопка `🌐 Sync KG` рядом с Refresh
+
+### Тесты
+- `go build ./...` чист
+- `tsc --noEmit` чист
+- Vitest 62/62 OK
+
+### UX flow
+
+1. Открыть Memory Workbench → Brain icon
+2. Намespace switcher → select target (например "research")
+3. Click `🌐 Sync KG` → dialog
+4. Подтвердить title + limit → click Синхронизировать
+5. Видим: "Topics: 47/47, Relationships: 23/30 (7 уже были)"
+6. Click "Открыть в Mindmap" → автоматически переключение на canvas с новой workbook
+7. В canvas можно сразу drag-from-edge для добавления собственных связей
+
+### Следующее (Phase 4)
+- Episode Timeline — хронологический view эпизодов агента
+- Reflection actions: episode → semantic fact, episodes → skill candidate
+- Context usage: какие episodes в текущем prompt
+
+---
+
 ## Сессия: 2026-06-01 — V6.0 Phase 2 (Memory Layer Map)
 
 ### Контекст

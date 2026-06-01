@@ -321,7 +321,26 @@ Parallel fan-out + supervisor роль для координации неско�
 
 Health heuristics: error_rate, stale_count, low_mention_ratio, low_success_skills, unused_skills, expired_count, pending_queue, old_pending.
 
-### Phase 3-7 — Coming next
+### Phase 3 — Knowledge Graph Canvas ✅ DONE (2026-06-01)
+
+Sync MASys entities + relations → Gmind topics + V5.0 relationships.
+
+| Изменение | Файл |
+|-----------|------|
+| Backend graph proxy + KG sync handler | `backend/internal/api/masys_kg_sync.go` |
+| mapPredicateToType heuristic (5 keywords → V5.0 type) | `masys_kg_sync.go` |
+| TS types: MASysKGNode/Edge/Graph + KGSync{Request,Response} | `frontend/src/types/masys.ts` |
+| API methods: `getGraph`, `kgSync` | `frontend/src/api/masys.ts` |
+| KGSyncDialog modal (namespace/title/limit + result + "Open in Mindmap") | `frontend/src/components/MemoryWorkbench/KGSyncDialog.tsx` |
+| Sync button in MemoryWorkbench header | `MemoryWorkbenchPanel.tsx` |
+
+**Idempotency:** existing topics found by title; existing edges of same type skipped.
+
+**Predicate mapping:** depends/requires → `depends_on`, supports/confirms → `supports`, contradicts/conflicts → `contradicts`, references/cites → `references`, blocks/prevents → `blocks`, else `relates_to`.
+
+**Created edges:** `created_by='masys-sync'` для отслеживания происхождения.
+
+### Phase 4-7 — Coming next
 
 ## V6.0 — Memory & Pipeline Workbench (planned, 7 phases)
 
