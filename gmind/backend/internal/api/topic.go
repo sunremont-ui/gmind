@@ -79,6 +79,9 @@ func (h *Handler) CreateTopic(w http.ResponseWriter, r *http.Request) {
 	if req.FontWeight > 0 {
 		topic.FontWeight = req.FontWeight
 	}
+	if req.MemoryKind != "" {
+		topic.MemoryKind = req.MemoryKind
+	}
 
 	found := false
 	for _, sheet := range wb.Sheets {
@@ -236,6 +239,9 @@ func (h *Handler) UpdateTopic(w http.ResponseWriter, r *http.Request) {
 			}
 			if req.CommentIcon != "" {
 				topic.CommentIcon = req.CommentIcon
+			}
+			if req.MemoryKind != "" {
+				topic.MemoryKind = req.MemoryKind
 			}
 			found = true
 			break

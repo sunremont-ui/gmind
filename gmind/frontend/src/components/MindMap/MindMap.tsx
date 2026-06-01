@@ -28,6 +28,7 @@ import { RelationshipMarkers } from './RelationshipLine'
 import { RelationshipFilter } from './RelationshipFilter'
 import { useGraphDragTracking } from './useGraphDragTracking'
 import { useRelationshipsStore } from '../../store/relationships'
+import { KGSyncDialog } from '../MemoryWorkbench/KGSyncDialog'
 
 import { colors, fonts, fontSizes, fontWeights, spacing, radii, shadows, transitions, z } from '../../styles/tokens'
 
@@ -83,6 +84,7 @@ export function MindMap({ workbookId, onXMindImported }: MindMapProps) {
   const [showRemoteCursors, setShowRemoteCursors] = useState(() => localStorage.getItem('gmind_show_cursors') !== 'false')
   const [broadcastCursor, setBroadcastCursor] = useState(() => localStorage.getItem('gmind_broadcast') !== 'false')
   const [showShareDialog, setShowShareDialog] = useState(false)
+  const [showKGSync, setShowKGSync] = useState(false)
   const [draggingTopicId, setDraggingTopicId] = useState<string | null>(null)
   const [dragOverTopicId, setDragOverTopicId] = useState<string | null>(null)
   const [reorderTarget, setReorderTarget] = useState<{ parentId: string; insertIndex: number; nodeHeight: number } | null>(null)
@@ -161,6 +163,16 @@ export function MindMap({ workbookId, onXMindImported }: MindMapProps) {
   const createChildOptimistic = useCallback((parentId: string, index?: number) => {
     const id = crypto.randomUUID()
     const newTopic = { id, title: '', folded: false, children: [] } as Topic
+
+    // Memory Lab: type the new node by inheriting the parent's kind (default concept).
+    const wb = useMindMapStore.getState().workbook
+    let memoryKind: string | undefined
+    if (wb?.kind === 'memory_lab') {
+      const parent = useMindMapStore.getState().getTopic(parentId)
+      memoryKind = parent?.memory_kind || 'concept'
+      newTopic.memory_kind = memoryKind
+    }
+
     if (index == null) addTopic(parentId, newTopic)
     else addTopicAt(parentId, newTopic, index)
     setSelectedTopic(id)
@@ -170,11 +182,11 @@ export function MindMap({ workbookId, onXMindImported }: MindMapProps) {
       offlineQueue.add({
         type: 'create',
         endpoint: `/workbooks/${workbookId}/topics`,
-        body: { title: '', parent_id: parentId, id, index },
+        body: { title: '', parent_id: parentId, id, index, memory_kind: memoryKind },
       }).catch(() => {})
       return
     }
-    api.createTopic(workbookId, parentId, '', undefined, { id, index })
+    api.createTopic(workbookId, parentId, '', undefined, { id, index, memoryKind })
       .then(() => wsClient.sendOperation('topic_created', { parent_id: parentId, topic: newTopic }))
       .catch(err => {
         console.error('Failed to create topic:', err)
@@ -1766,6 +1778,23 @@ export function MindMap({ workbookId, onXMindImported }: MindMapProps) {
       <ConnectionPopover workbookId={workbookId} />
       <RelationshipPanel />
       <RelationshipFilter />
+
+      {/* V6.1 Memory Lab: sync MASys knowledge graph into this canvas. */}
+      {workbook?.kind === 'memory_lab' && (
+        <button
+          onClick={() => setShowKGSync(true)}
+          title="Синхронизировать граф знаний из MASys в эту карту"
+          style={{
+            position: 'absolute', bottom: spacing.lg, right: spacing.lg, zIndex: 100,
+            padding: `${spacing.sm}px ${spacing.md}px`,
+            background: colors.accent, color: '#fff', border: 'none',
+            borderRadius: radii.md, boxShadow: shadows.neuMd,
+            fontSize: fontSizes.caption, fontWeight: fontWeights.medium,
+            fontFamily: fonts.ui, cursor: 'pointer',
+          }}
+        >🌐 Sync MASys</button>
+      )}
+      {showKGSync && <KGSyncDialog targetWorkbookId={workbookId} onClose={() => setShowKGSync(false)} />}
 
       {/* StylePanel — абсолютно поверх canvas, слева */}
       <AnimatedMount

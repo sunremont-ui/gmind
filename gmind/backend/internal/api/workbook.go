@@ -133,6 +133,7 @@ func (h *Handler) UpdateWorkbook(w http.ResponseWriter, r *http.Request) {
 		wb.Private = fullRestore.Private
 		wb.OwnerID = fullRestore.OwnerID
 		wb.Sheets = fullRestore.Sheets
+		wb.Kind = fullRestore.Kind
 	} else {
 		// Fallback: partial update
 		var updates map[string]interface{}
@@ -151,6 +152,9 @@ func (h *Handler) UpdateWorkbook(w http.ResponseWriter, r *http.Request) {
 		}
 		if ownerID, ok := updates["owner_id"].(string); ok {
 			wb.OwnerID = ownerID
+		}
+		if kind, ok := updates["kind"].(string); ok {
+			wb.Kind = kind
 		}
 	}
 

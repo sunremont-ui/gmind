@@ -5,6 +5,7 @@ import { wsClient } from '../../api/ws'
 import type { Topic } from '../../types'
 import { colors, fonts, fontSizes, fontWeights, spacing, radii, shadows, transitions, sizes } from '../../styles/tokens'
 import { Button, Text, Input } from '../UI/Box'
+import { MEMORY_KINDS } from '../MindMap/memoryKinds'
 import { LumenStar, LumenHeart, LumenFlag, LumenLightbulb, LumenTarget, LumenCrown, LumenBrain, LumenRocket, LumenCode, LumenBookmark, LumenZap, LumenClock, LumenCheckCircle, LumenCloud, LumenSun, LumenGlobe, LumenLock, LumenKey, LumenMusic, LumenCamera, LumenImage, LumenUser, LumenBot, LumenHome, LumenFlame, LumenChevronRight, LumenX } from '../UI/LumenIcon'
 import type { IconProps } from '../UI/LumenIcon'
 
@@ -331,6 +332,24 @@ export function PropertiesPanel({ workbookId, onClose, onCommentsClick }: Proper
           <div style={{ padding: `${spacing.xs}px 0 ${spacing.md}px`, display: 'flex', flexDirection: 'column', gap: spacing.lg }}>
             {ctrl('Title', (
               <Input value={title} onChange={v => { setTitle(v); autoSave({ title: v }) }} />
+            ))}
+            {/* Memory Lab: classify the node by memory kind. */}
+            {workbook?.kind === 'memory_lab' && ctrl('Memory kind', (
+              <select
+                value={topic.memory_kind || ''}
+                onChange={e => autoSave({ memory_kind: e.target.value })}
+                style={{
+                  width: '100%', padding: `${spacing.sm}px ${spacing.md}px`,
+                  background: colors.fill, border: `1px solid ${colors.separator}`,
+                  borderRadius: radii.sm, color: colors.text, fontSize: fontSizes.label,
+                  fontFamily: fonts.ui,
+                }}
+              >
+                <option value="">—</option>
+                {Object.entries(MEMORY_KINDS).map(([k, d]) => (
+                  <option key={k} value={k}>{d.icon} {d.label}</option>
+                ))}
+              </select>
             ))}
             {topic && !workbook?.sheets.some(s => s.root_topic.id === selectedTopicId) && !isFloating && ctrl('Parent', (
               <div style={{ fontSize: fontSizes.label, color: colors.textSecondary, background: colors.fill, padding: `${spacing.sm}px ${spacing.md}px`, borderRadius: radii.sm, border: `1px solid ${colors.separator}` }}>

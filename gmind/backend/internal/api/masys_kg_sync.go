@@ -157,19 +157,35 @@ func (h *Handler) MASysKGSync(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "workbook has no sheets")
 		return
 	}
+	// Syncing a knowledge graph into a workbook makes it a memory-lab canvas.
+	if wb.Kind == "" {
+		wb.Kind = "memory_lab"
+	}
 	sheet := wb.Sheets[0]
 	root := sheet.RootTopic
 
-	// 3. Build mapping name → topic_id. If syncing into existing wb, reuse topics with matching titles.
+	// 3. Build mapping name → topic_id. Identity is by stable MasysRef.Key so a
+	// re-sync after a node was renamed in Gmind does not create a duplicate.
+	// Topics without a ref (legacy / hand-made) are still matched by title.
 	mapping := map[string]string{}
+	existingByRef := map[string]string{}
 	existingByTitle := map[string]string{}
 	walkTopics(root, func(t *model.Topic) {
-		existingByTitle[t.Title] = t.ID
+		if t.MasysRef != nil && t.MasysRef.Namespace == req.Namespace {
+			existingByRef[t.MasysRef.Key] = t.ID
+		}
+		if _, ok := existingByTitle[t.Title]; !ok {
+			existingByTitle[t.Title] = t.ID
+		}
 	})
 
 	topicsCreated := 0
 	for _, node := range graph.Nodes {
 		if node.Name == "" {
+			continue
+		}
+		if id, ok := existingByRef[node.Name]; ok {
+			mapping[node.Name] = id
 			continue
 		}
 		if id, ok := existingByTitle[node.Name]; ok {
@@ -180,12 +196,16 @@ func (h *Handler) MASysKGSync(w http.ResponseWriter, r *http.Request) {
 		if node.Description != "" {
 			t.Notes = node.Description
 		}
-		// Stamp type in labels for visibility
+		// Stamp type in labels for visibility …
 		if node.Type != "" {
 			t.Labels = append(t.Labels, node.Type)
 		}
+		// … and structurally as the memory kind + stable external ref.
+		t.MemoryKind = node.Type
+		t.MasysRef = &model.MasysRef{Namespace: req.Namespace, Kind: node.Type, Key: node.Name}
 		root.AddChild(t)
 		mapping[node.Name] = t.ID
+		existingByRef[node.Name] = t.ID
 		existingByTitle[node.Name] = t.ID
 		topicsCreated++
 	}

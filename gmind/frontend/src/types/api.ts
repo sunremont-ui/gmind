@@ -78,6 +78,7 @@ export interface CreateTopicRequest {
   // V6.1 optimistic creation: client-supplied id + insertion index.
   id?: string
   index?: number
+  memory_kind?: string
 }
 
 export interface CreateWorkbookRequest {
@@ -194,6 +195,15 @@ export interface Topic {
   sibling_gap?: number
   comment_count?: number
   comment_icon?: string
+  // V6.1 Memory Lab ontology
+  memory_kind?: string
+  masys_ref?: MasysRef
+}
+
+export interface MasysRef {
+  namespace: string
+  kind: string
+  key: string
 }
 
 export interface UpdateTopicRequest {
@@ -233,6 +243,7 @@ export interface UpdateTopicRequest {
   level_gap?: number
   sibling_gap?: number
   comment_icon?: string
+  memory_kind?: string
 }
 
 export interface Workbook {
@@ -244,6 +255,8 @@ export interface Workbook {
   owner_id: string
   created_at: string
   updated_at: string
+  // "" / "mindmap" = ordinary map; "memory_lab" = typed memory-design canvas.
+  kind?: string
 }
 
 export interface AddCollaboratorRequest {

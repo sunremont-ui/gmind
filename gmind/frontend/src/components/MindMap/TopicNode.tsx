@@ -5,6 +5,7 @@ import type { LayoutNode, TopicStyle } from '../../types'
 import { useThemeStore } from '../../store/theme'
 import { useLayoutStore } from '../../store/layout'
 import { colors, fonts, fontSizes, fontWeights as fw, anim } from '../../styles/tokens'
+import { kindDef } from './memoryKinds'
 
 interface TopicNodeProps {
   layout: LayoutNode
@@ -318,6 +319,17 @@ export const TopicNode = memo(function TopicNode({
           style={{ transition: `height ${aniExpand}` }}
         />
       )}
+
+      {/* Memory Lab kind indicator — a small colour dot in the top-left corner. */}
+      {(() => {
+        const kd = kindDef(topic.memory_kind)
+        if (!kd) return null
+        return (
+          <circle cx={7} cy={7} r={4} fill={kd.color} stroke={colors.white} strokeWidth={1} pointerEvents="none">
+            <title>{kd.icon} {kd.label}</title>
+          </circle>
+        )
+      })()}
 
       {/* Inline editing — auto-grows with text */}
       {isEditing ? (

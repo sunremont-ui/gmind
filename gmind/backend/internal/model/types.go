@@ -25,6 +25,9 @@ type Workbook struct {
 	OwnerID    string    `json:"owner_id"`
 	CreatedAt  time.Time `json:"created_at"`
 	UpdatedAt  time.Time `json:"updated_at"`
+	// Kind marks special workbook modes. "" / "mindmap" = ordinary map;
+	// "memory_lab" = typed memory-design canvas linked to MASys.
+	Kind string `json:"kind,omitempty"`
 }
 
 const (
@@ -88,6 +91,21 @@ type Topic struct {
 	SiblingGap     int       `json:"sibling_gap,omitempty"`
 	CommentCount   int       `json:"comment_count,omitempty"`
 	CommentIcon    string    `json:"comment_icon,omitempty"`
+	// V6.1 Memory Lab ontology.
+	// MemoryKind classifies the node as a memory artifact (karp layer or MASys
+	// type): working|episodic|semantic|procedural|artifact|meta, or finer
+	// entity:person/place/org/concept, skill, episode, result, decision.
+	MemoryKind string    `json:"memory_kind,omitempty"`
+	// MasysRef is the stable external identity of the backing MASys record.
+	// Identity is by ref (not title), so renaming a node does not break round-trip.
+	MasysRef   *MasysRef `json:"masys_ref,omitempty"`
+}
+
+// MasysRef — stable pointer to a MASys memory record.
+type MasysRef struct {
+	Namespace string `json:"namespace"`
+	Kind      string `json:"kind"` // MASys entity/record type (e.g. "concept", "person", "skill")
+	Key       string `json:"key"`  // stable key within (namespace, kind) — e.g. entity name
 }
 
 type Position struct {
@@ -171,6 +189,8 @@ type CreateTopicRequest struct {
 	// Index — optional insertion position among the parent's children.
 	// nil → append at the end.
 	Index *int `json:"index,omitempty"`
+	// MemoryKind — optional Memory Lab classification for the new node.
+	MemoryKind string `json:"memory_kind,omitempty"`
 }
 
 type UpdateTopicRequest struct {
@@ -210,6 +230,7 @@ type UpdateTopicRequest struct {
 	LevelGap       int       `json:"level_gap,omitempty"`
 	SiblingGap     int       `json:"sibling_gap,omitempty"`
 	CommentIcon    string    `json:"comment_icon,omitempty"`
+	MemoryKind     string    `json:"memory_kind,omitempty"`
 }
 
 type CreateRelationshipRequest struct {

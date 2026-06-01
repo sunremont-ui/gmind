@@ -20,6 +20,7 @@ import { useAgentStore } from './store/agent'
 import { useMindMapStore } from './store/mindmap'
 import { offlineStorage, offlineQueue } from './utils/offline'
 import { ensureInboxWorkbook } from './utils/inbox'
+import { createMemoryLabWorkbook } from './utils/memoryLab'
 import { useOnlineStatus } from './hooks/useOnlineStatus'
 import { saveSession, loadSession, syncPendingOps } from './utils/sync'
 import { colors, fonts, fontSizes, fontWeights, spacing, radii, sizes, transitions, gradients } from './styles/tokens'
@@ -243,6 +244,13 @@ export function App() {
         setWorkbook(wb)
         setActiveWorkbookId(wb.id)
       } catch {}
+    }},
+    { id: 'new-memory-lab', label: 'New Memory Lab', shortcut: '', icon: 'sparkles', section: 'Workbook', action: async () => {
+      try {
+        const wb = await createMemoryLabWorkbook()
+        setWorkbook(wb)
+        setActiveWorkbookId(wb.id)
+      } catch (err) { console.error('create memory lab failed:', err) }
     }},
     // Aggregate commands from all modules
     ...MODULE_REGISTRY.flatMap(m => m.commands ? m.commands(moduleContext) : []),

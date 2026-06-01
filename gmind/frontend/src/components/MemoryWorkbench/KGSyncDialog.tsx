@@ -13,9 +13,12 @@ import { colors, fonts, fontSizes, fontWeights, spacing, radii, shadows } from '
 
 interface Props {
   onClose: () => void
+  // When set, sync into this existing workbook instead of creating a new one
+  // (used by the Memory Lab canvas affordance).
+  targetWorkbookId?: string
 }
 
-export function KGSyncDialog({ onClose }: Props) {
+export function KGSyncDialog({ onClose, targetWorkbookId }: Props) {
   const activeNamespace = useMASysMemoryStore(s => s.activeNamespace)
   const namespaces = useMASysMemoryStore(s => s.namespaces)
   const [namespace, setNamespace] = useState(activeNamespace || 'default')
@@ -44,6 +47,7 @@ export function KGSyncDialog({ onClose }: Props) {
       const resp = await masysApi.kgSync({
         namespace,
         workbook_title: title,
+        workbook_id: targetWorkbookId,
         limit: limit > 0 ? limit : undefined,
       })
       setResult(resp)
