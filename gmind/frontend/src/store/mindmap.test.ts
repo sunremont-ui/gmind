@@ -137,6 +137,79 @@ describe('updateTopicInTree', () => {
   })
 })
 
+describe('addTopicAt', () => {
+  it('inserts at the given index', () => {
+    useMindMapStore.getState().setWorkbook(makeWorkbook([makeTopic('a'), makeTopic('b')]))
+    useMindMapStore.getState().addTopicAt('root', makeTopic('mid'), 1)
+    const ids = useMindMapStore.getState().workbook!.sheets[0].root_topic.children!.map(c => c.id)
+    expect(ids).toEqual(['a', 'mid', 'b'])
+  })
+
+  it('appends when index omitted or out of range', () => {
+    useMindMapStore.getState().setWorkbook(makeWorkbook([makeTopic('a')]))
+    useMindMapStore.getState().addTopicAt('root', makeTopic('end'), 99)
+    const ids = useMindMapStore.getState().workbook!.sheets[0].root_topic.children!.map(c => c.id)
+    expect(ids).toEqual(['a', 'end'])
+  })
+
+  it('does not insert a duplicate id', () => {
+    useMindMapStore.getState().setWorkbook(makeWorkbook([makeTopic('dup')]))
+    useMindMapStore.getState().addTopicAt('root', makeTopic('dup'), 0)
+    expect(useMindMapStore.getState().workbook!.sheets[0].root_topic.children!).toHaveLength(1)
+  })
+})
+
+describe('isDescendant', () => {
+  it('detects nested descendants', () => {
+    const gc = makeTopic('gc')
+    const child = makeTopic('child', [gc])
+    useMindMapStore.getState().setWorkbook(makeWorkbook([child]))
+    const s = useMindMapStore.getState()
+    expect(s.isDescendant('child', 'gc')).toBe(true)
+    expect(s.isDescendant('root', 'gc')).toBe(true)
+    expect(s.isDescendant('gc', 'child')).toBe(false)
+    expect(s.isDescendant('child', 'nope')).toBe(false)
+  })
+})
+
+describe('moveTopicInTree', () => {
+  it('reparents a topic under a new parent', () => {
+    useMindMapStore.getState().setWorkbook(makeWorkbook([makeTopic('a'), makeTopic('b')]))
+    useMindMapStore.getState().moveTopicInTree('b', 'a', 0)
+    const root = useMindMapStore.getState().workbook!.sheets[0].root_topic
+    expect(root.children!.map(c => c.id)).toEqual(['a'])
+    expect(useMindMapStore.getState().getTopic('a')!.children!.map(c => c.id)).toEqual(['b'])
+  })
+
+  it('blocks moving a node into its own descendant (no-op)', () => {
+    const gc = makeTopic('gc')
+    const child = makeTopic('child', [gc])
+    useMindMapStore.getState().setWorkbook(makeWorkbook([child]))
+    useMindMapStore.getState().moveTopicInTree('child', 'gc', 0)
+    // unchanged: child still under root, gc still under child
+    const root = useMindMapStore.getState().workbook!.sheets[0].root_topic
+    expect(root.children!.map(c => c.id)).toEqual(['child'])
+    expect(useMindMapStore.getState().getTopic('child')!.children!.map(c => c.id)).toEqual(['gc'])
+  })
+
+  it('reparents a floating topic preserving its id', () => {
+    const wb = makeWorkbook([makeTopic('parent')])
+    wb.sheets[0].floating_topics = [makeTopic('floater')]
+    useMindMapStore.getState().setWorkbook(wb)
+    useMindMapStore.getState().moveTopicInTree('floater', 'parent', 0)
+    const sheet = useMindMapStore.getState().workbook!.sheets[0]
+    expect(sheet.floating_topics).toHaveLength(0)
+    expect(useMindMapStore.getState().getTopic('parent')!.children!.map(c => c.id)).toEqual(['floater'])
+  })
+
+  it('is a no-op when the new parent is not in the tree', () => {
+    useMindMapStore.getState().setWorkbook(makeWorkbook([makeTopic('a')]))
+    useMindMapStore.getState().moveTopicInTree('a', 'ghost', 0)
+    // 'a' must not be dropped
+    expect(useMindMapStore.getState().getTopic('a')).not.toBeNull()
+  })
+})
+
 describe('getTopic', () => {
   it('finds root topic', () => {
     useMindMapStore.getState().setWorkbook(makeWorkbook())

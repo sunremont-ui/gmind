@@ -165,6 +165,12 @@ type CreateTopicRequest struct {
 	Icon        string    `json:"icon,omitempty"`
 	FontFamily  string    `json:"font_family,omitempty"`
 	FontWeight  int       `json:"font_weight,omitempty"`
+	// ID — optional client-supplied id for optimistic creation. If empty the
+	// server generates one. Replaying the same id is idempotent.
+	ID string `json:"id,omitempty"`
+	// Index — optional insertion position among the parent's children.
+	// nil → append at the end.
+	Index *int `json:"index,omitempty"`
 }
 
 type UpdateTopicRequest struct {

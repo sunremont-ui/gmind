@@ -33,7 +33,7 @@ import { colors, fonts, fontSizes, fontWeights, spacing, radii, shadows, transit
 
 import { parseMarkdownToTopics } from '../../utils/markdown'
 import { parseFreeMind } from '../../utils/freemind'
-import { offlineSettings } from '../../utils/offline'
+import { offlineSettings, offlineQueue } from '../../utils/offline'
 
 interface MindMapProps {
   workbookId: string
@@ -64,7 +64,10 @@ export function MindMap({ workbookId, onXMindImported }: MindMapProps) {
     toggleSelectedTopic,
     updateTopicInTree,
     addTopic,
+    addTopicAt,
     removeTopic,
+    moveTopicInTree,
+    isDescendant,
   } = useMindMapStore()
 
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; topicId: string } | null>(null)
@@ -92,6 +95,7 @@ export function MindMap({ workbookId, onXMindImported }: MindMapProps) {
   // V5.0 relationships
   const fetchRelationships = useRelationshipsStore(s => s.fetch)
   const setHighlight = useRelationshipsStore(s => s.setHighlight)
+  const openConnectionPopover = useRelationshipsStore(s => s.openPopover)
 
   // Zoom & pan
   const [zoom, setZoom] = useState(1)
@@ -150,6 +154,33 @@ export function MindMap({ workbookId, onXMindImported }: MindMapProps) {
     if (undoStack.current.length > MAX_HISTORY) undoStack.current.shift()
     redoStack.current = []
   }, [])
+
+  // V6.1 — optimistic child/sibling creation: the node (with a client-generated
+  // id) appears and enters edit mode immediately, while the server create runs
+  // in the background. Offline → queued; online failure → rolled back.
+  const createChildOptimistic = useCallback((parentId: string, index?: number) => {
+    const id = crypto.randomUUID()
+    const newTopic = { id, title: '', folded: false, children: [] } as Topic
+    if (index == null) addTopic(parentId, newTopic)
+    else addTopicAt(parentId, newTopic, index)
+    setSelectedTopic(id)
+    setEditingTopicId(id)
+
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+      offlineQueue.add({
+        type: 'create',
+        endpoint: `/workbooks/${workbookId}/topics`,
+        body: { title: '', parent_id: parentId, id, index },
+      }).catch(() => {})
+      return
+    }
+    api.createTopic(workbookId, parentId, '', undefined, { id, index })
+      .then(() => wsClient.sendOperation('topic_created', { parent_id: parentId, topic: newTopic }))
+      .catch(err => {
+        console.error('Failed to create topic:', err)
+        removeTopic(id) // rollback optimistic node
+      })
+  }, [workbookId, addTopic, addTopicAt, setSelectedTopic, removeTopic])
 
   const undo = useCallback(async () => {
     const stack = undoStack.current
@@ -629,30 +660,29 @@ export function MindMap({ workbookId, onXMindImported }: MindMapProps) {
     const isFloating = dragState.current.isFloating
 
     if (targetId && targetId !== sourceId) {
-      pushHistory()
-      try {
-        if (isFloating) {
-          const ft = useMindMapStore.getState().getTopic(sourceId)
-          if (ft) {
-            await api.deleteFloatingTopic(workbookId, sourceId)
-            useMindMapStore.getState().removeFloatingTopic(sourceId)
-            const newTopic = await api.createTopic(workbookId, targetId, ft.title || '')
-            useMindMapStore.getState().addTopic(targetId, newTopic)
-            wsClient.sendOperation('floating_deleted', { topic_id: sourceId })
-            wsClient.sendOperation('topic_created', { parent_id: targetId, topic: newTopic })
-          }
-        } else {
-          // Use reorder insertIndex when dragging over siblings (same parent)
-          const pId = parentMap.get(sourceId)
-          const rt = reorderTarget
-          const isReorder = rt && rt.parentId === pId && rt.insertIndex >= 0
-          await api.moveTopic(workbookId, sourceId, targetId, isReorder ? rt.insertIndex : undefined)
-          wsClient.sendOperation('move', { topic_id: sourceId, new_parent_id: targetId })
-        }
-        const wb = await api.getWorkbook(workbookId)
-        useMindMapStore.getState().setWorkbook(wb)
-      } catch (err) {
-        console.error('Failed to move topic:', err)
+      // Guard: can't reparent a node into its own subtree (mirrors backend).
+      if (isDescendant(sourceId, targetId)) {
+        console.warn('Move blocked: target is a descendant of the dragged topic')
+      } else {
+        pushHistory()
+        // Reorder among siblings keeps its position; a plain reparent inserts at
+        // the front (index 0) to match the backend's default.
+        const pId = parentMap.get(sourceId)
+        const rt = reorderTarget
+        const isReorder = rt && rt.parentId === pId && rt.insertIndex >= 0
+        const index = isReorder ? rt.insertIndex : 0
+        // Optimistic local move — handles both tree and floating sources, and
+        // preserves the topic id (and any relationships referencing it).
+        moveTopicInTree(sourceId, targetId, index)
+        wsClient.sendOperation('move', { topic_id: sourceId, new_parent_id: targetId })
+        api.moveTopic(workbookId, sourceId, targetId, index).catch(async err => {
+          console.error('Failed to move topic:', err)
+          // Reconcile with the server on failure.
+          try {
+            const wb = await api.getWorkbook(workbookId)
+            useMindMapStore.getState().setWorkbook(wb)
+          } catch {}
+        })
       }
     } else if (isFloating && dragState.current?.pointerSvgX != null && dragState.current?.pointerSvgY != null) {
       const px = dragState.current.pointerSvgX
@@ -675,7 +705,7 @@ export function MindMap({ workbookId, onXMindImported }: MindMapProps) {
     setDragLine(null)
     setConnectLine(null)
     setReorderTarget(null)
-  }, [workbookId, pushHistory, toSvgPoint, parentMap, reorderTarget])
+  }, [workbookId, pushHistory, toSvgPoint, parentMap, reorderTarget, isDescendant, moveTopicInTree])
 
   // Use refs to avoid stale closures and prevent listener re-attachment during drag
   const handlePointerMoveRef = useRef<(e: PointerEvent) => void>(handlePointerMove)
@@ -1319,12 +1349,7 @@ export function MindMap({ workbookId, onXMindImported }: MindMapProps) {
           const selId = useMindMapStore.getState().selectedTopicId || activeSheet?.root_topic?.id
           if (!selId) return
           pushHistory()
-          api.createTopic(workbookId, selId, '').then(topic => {
-            addTopic(selId, topic)
-            wsClient.sendOperation('topic_created', { parent_id: selId, topic })
-            setSelectedTopic(topic.id)
-            setEditingTopicId(topic.id)
-          }).catch(err => console.error('Failed to add topic:', err))
+          createChildOptimistic(selId)
         }
         return
       }
@@ -1347,13 +1372,21 @@ export function MindMap({ workbookId, onXMindImported }: MindMapProps) {
           if (!root) return
           const parent = findParent(root, selId)
           if (!parent) return
+          const sibIndex = (parent.children || []).findIndex(c => c.id === selId)
           pushHistory()
-          api.createTopic(workbookId, parent.id, '').then(topic => {
-            addTopic(parent.id, topic)
-            wsClient.sendOperation('topic_created', { parent_id: parent.id, topic })
-            setSelectedTopic(topic.id)
-            setEditingTopicId(topic.id)
-          }).catch(err => console.error('Failed to add sibling:', err))
+          createChildOptimistic(parent.id, sibIndex < 0 ? undefined : sibIndex + 1)
+        }
+        return
+      }
+
+      // L — link the two most-recently selected topics (opens the connection popover).
+      if ((e.key === 'l' || e.key === 'L') && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        if (tag !== 'INPUT' && tag !== 'TEXTAREA' && !editingTopicId) {
+          const ids = useMindMapStore.getState().selectedTopicIds
+          if (ids.length >= 2) {
+            e.preventDefault()
+            openConnectionPopover(ids[0], ids[1], window.innerWidth / 2 - 150, window.innerHeight / 2 - 140)
+          }
         }
         return
       }
@@ -1369,7 +1402,7 @@ export function MindMap({ workbookId, onXMindImported }: MindMapProps) {
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [selectedTopicIds, undo, redo, workbookId, activeSheet, activeTool, goBack, goForward, editingTopicId, addTopic, setSelectedTopic, pushHistory])
+  }, [selectedTopicIds, undo, redo, workbookId, activeSheet, activeTool, goBack, goForward, editingTopicId, addTopic, setSelectedTopic, pushHistory, createChildOptimistic, openConnectionPopover])
 
   if (!workbook) {
     return (

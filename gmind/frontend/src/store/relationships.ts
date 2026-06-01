@@ -94,7 +94,21 @@ export const useRelationshipsStore = create<RelationshipsState>((set, get) => ({
   },
 
   async create(workbookID, req) {
-    const rel = await relationshipsApi.create(workbookID, req)
+    // Guard: refuse an identical edge (same endpoints, type and direction).
+    const from = req.from_topic_id
+    const to = req.to_topic_id
+    const type = req.type || 'relates_to'
+    const direction = req.direction || 'forward'
+    const dup = get().relationships.find(r =>
+      relationshipFromId(r) === from &&
+      relationshipToId(r) === to &&
+      relationshipType(r) === type &&
+      relationshipDirection(r) === direction,
+    )
+    if (dup) throw new Error('Такая связь уже существует')
+    // For dependency edges, ask the backend to reject cycles (strict mode).
+    const strict = type === 'depends_on'
+    const rel = await relationshipsApi.create(workbookID, req, strict)
     set({ relationships: [...get().relationships, rel] })
     return rel
   },

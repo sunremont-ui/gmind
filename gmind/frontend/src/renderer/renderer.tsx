@@ -5,6 +5,7 @@ import { RelationshipLine } from '../components/MindMap/RelationshipLine'
 import { useThemeStore } from '../store/theme'
 import { useRelationshipsStore } from '../store/relationships'
 import { DEFAULT_NODE_HEIGHT, DEFAULT_SIBLING_GAP } from './layout'
+import { edgeAttachment } from './edgeAttachment'
 
 const CULL_PADDING = 400
 
@@ -93,7 +94,7 @@ export function MindMapRenderer({
     const edges: { path: string; dash: string; key: string; opacity: number }[] = []
     const regularNodes: React.ReactNode[] = []
     const topNodes: React.ReactNode[] = []
-    const positions = new Map<string, { x: number; y: number }>()
+    const positions = new Map<string, { x: number; y: number; w: number; h: number }>()
     const shiftMap = new Map<string, number>()
 
     const collectEdges = (node: LayoutNode) => {
@@ -119,7 +120,7 @@ export function MindMapRenderer({
 
     const renderNode = (node: LayoutNode, parentFolded = false) => {
       if (!node || !node.topic) return
-      positions.set(node.topic.id, { x: node.x, y: node.y })
+      positions.set(node.topic.id, { x: node.x, y: node.y, w: node.width, h: node.height })
       const hidden = !isInViewport(node.x, node.y, node.width, node.height) || parentFolded
       const el = (
         <TopicNode
@@ -160,6 +161,13 @@ export function MindMapRenderer({
       renderNode(root)
     }
 
+    // Register floating-topic rects so relationships touching them attach correctly.
+    for (const ft of floatingTopics) {
+      const pos = ft.position || { x: 200, y: 200 }
+      const w = ft.node_width ? Math.max(60, Math.min(300, ft.node_width)) : Math.max(60, Math.min(200, (ft.title?.length || 1) * 8 + 20))
+      positions.set(ft.id, { x: pos.x, y: pos.y, w, h: 40 })
+    }
+
     // Compute shiftY for sibling reorder preview
     if (reorderTarget && root) {
       const walkShift = (n: LayoutNode) => {
@@ -182,7 +190,7 @@ export function MindMapRenderer({
     onTopicSelect, onTopicDoubleClick, onTopicContextMenu,
     onTopicDragStart, onTopicDragOver, onTopicDrop,
     onTopicEditSave, onTopicEditCancel, onTopicCommentsClick, onTopicFoldToggle,
-    expandedTopicIds, onTopicExpandToggle,
+    expandedTopicIds, onTopicExpandToggle, floatingTopics,
   ])
 
   return (
@@ -218,14 +226,28 @@ export function MindMapRenderer({
           const key = fid < tid ? `${fid}|${tid}` : `${tid}|${fid}`
           const bundle = groups.get(key) ?? [rel]
           const offsetIndex = bundle.indexOf(rel)
+          // Self-loop: anchor at the node's own rect (RelationshipLine draws a dome).
+          if (fid === tid) {
+            return (
+              <RelationshipLine
+                key={rel.id}
+                relationship={rel}
+                fromX={from.x} fromY={from.y} toX={from.x} toY={from.y}
+                nodeWidth={from.w} nodeHeight={from.h}
+                offsetIndex={offsetIndex} offsetCount={bundle.length}
+              />
+            )
+          }
+          // Side-aware: attach to the facing borders of the two node rects.
+          const at = edgeAttachment(from, to)
           return (
             <RelationshipLine
               key={rel.id}
               relationship={rel}
-              fromX={from.x}
-              fromY={from.y}
-              toX={to.x}
-              toY={to.y}
+              fromX={at.fromX}
+              fromY={at.fromY}
+              toX={at.toX}
+              toY={at.toY}
               offsetIndex={offsetIndex}
               offsetCount={bundle.length}
             />

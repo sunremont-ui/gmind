@@ -22,12 +22,14 @@ export function ConnectionPopover({ workbookId }: Props) {
   const [direction, setDirection] = useState<RelationshipDirection>('forward')
   const [title, setTitle] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   if (!pending) return null
 
   const handleSave = async () => {
     if (submitting) return
     setSubmitting(true)
+    setError(null)
     try {
       await create(workbookId, {
         from_topic_id: pending.fromTopicId,
@@ -41,8 +43,9 @@ export function ConnectionPopover({ workbookId }: Props) {
       setDirection('forward')
       setTitle('')
       closePopover()
-    } catch (err) {
+    } catch (err: any) {
       console.error('Create relationship failed:', err)
+      setError(err?.message ?? 'Не удалось создать связь')
       setSubmitting(false)
     }
   }
@@ -154,6 +157,10 @@ export function ConnectionPopover({ workbookId }: Props) {
           }}
         />
       </label>
+
+      {error && (
+        <div style={{ fontSize: fontSizes.caption, color: '#ef4444' }}>✗ {error}</div>
+      )}
 
       <div style={{ display: 'flex', gap: spacing.sm, marginTop: spacing.xs }}>
         <button

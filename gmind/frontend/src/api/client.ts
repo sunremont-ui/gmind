@@ -77,10 +77,10 @@ export const api = {
     mutatingRequest<void>(`/workbooks/${workbookId}/sheets/${sheetId}`, { method: 'DELETE' }),
 
   // Topics
-  createTopic: (workbookId: string, parentId: string, title: string, position?: Position) =>
+  createTopic: (workbookId: string, parentId: string, title: string, position?: Position, opts?: { id?: string; index?: number }) =>
     mutatingRequest<Topic>(`/workbooks/${workbookId}/topics`, {
       method: 'POST',
-      body: JSON.stringify({ title, parent_id: parentId, position } satisfies CreateTopicRequest),
+      body: JSON.stringify({ title, parent_id: parentId, position, id: opts?.id, index: opts?.index } satisfies CreateTopicRequest),
     }),
 
   updateTopic: (workbookId: string, topicId: string, data: Partial<UpdateTopicRequest>) =>

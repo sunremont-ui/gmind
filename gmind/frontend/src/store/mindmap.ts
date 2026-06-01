@@ -20,7 +20,10 @@ interface MindMapState {
 
   updateTopicInTree: (topicId: string, updates: Partial<Topic>) => void
   addTopic: (parentId: string, topic: Topic) => void
+  addTopicAt: (parentId: string, topic: Topic, index?: number) => void
   removeTopic: (topicId: string) => void
+  moveTopicInTree: (sourceId: string, newParentId: string, index?: number) => void
+  isDescendant: (ancestorId: string, maybeDescendantId: string) => boolean
 
   addFloatingTopic: (topic: Topic) => void
   updateFloatingTopic: (topicId: string, updates: Partial<Topic>) => void
@@ -108,6 +111,84 @@ export const useMindMapStore = create<MindMapState>((set, get) => ({
     }))
 
     set({ workbook: updated })
+  },
+
+  // Like addTopic but inserts at a specific position among the parent's children
+  // (index out of range → appended). Used for optimistic Tab/Enter creation.
+  addTopicAt: (parentId, topic, index) => {
+    const { workbook } = get()
+    if (!workbook) return
+
+    const exists = (t: Topic): boolean =>
+      t.id === topic.id || (t.children ?? []).some(exists)
+    if (workbook.sheets.some(s => exists(s.root_topic))) return
+
+    const addRecursive = (t: Topic): Topic => {
+      if (t.id === parentId) {
+        const arr = [...(t.children || [])]
+        const i = index == null || index < 0 || index > arr.length ? arr.length : index
+        arr.splice(i, 0, topic)
+        return { ...t, children: arr }
+      }
+      if (t.children) return { ...t, children: t.children.map(addRecursive) }
+      return t
+    }
+
+    set({
+      workbook: {
+        ...workbook,
+        sheets: workbook.sheets.map(sheet => ({
+          ...sheet,
+          root_topic: addRecursive(sheet.root_topic),
+        })),
+      },
+    })
+  },
+
+  // True if maybeDescendantId is anywhere inside ancestorId's subtree.
+  isDescendant: (ancestorId, maybeDescendantId) => {
+    const anc = get().getTopic(ancestorId)
+    if (!anc) return false
+    const walk = (t: Topic): boolean =>
+      (t.children ?? []).some(c => c.id === maybeDescendantId || walk(c))
+    return walk(anc)
+  },
+
+  // Reparent a topic (tree or floating) under newParentId at index. Mirrors the
+  // backend MoveTopic so the move can be applied optimistically without a refetch.
+  // No-op if the move is invalid (self, own-descendant, or parent not in tree).
+  moveTopicInTree: (sourceId, newParentId, index) => {
+    const { workbook } = get()
+    if (!workbook) return
+    if (sourceId === newParentId) return
+    if (get().isDescendant(sourceId, newParentId)) return
+    const source = get().getTopic(sourceId)
+    if (!source) return
+
+    let inserted = false
+    const rebuild = (t: Topic): Topic => {
+      let children = (t.children ?? []).filter(c => c.id !== sourceId).map(rebuild)
+      if (t.id === newParentId) {
+        const arr = [...children]
+        const i = index == null || index < 0 || index > arr.length ? arr.length : index
+        arr.splice(i, 0, source)
+        children = arr
+        inserted = true
+      }
+      return { ...t, children }
+    }
+
+    const sheets = workbook.sheets.map(sheet => ({
+      ...sheet,
+      root_topic: rebuild(sheet.root_topic),
+      floating_topics: (sheet.floating_topics ?? []).filter(ft => ft.id !== sourceId),
+    }))
+
+    // If the new parent wasn't found in the tree, abort without mutating so the
+    // source topic is never dropped.
+    if (!inserted) return
+
+    set({ workbook: { ...workbook, sheets } })
   },
 
   removeTopic: (topicId) => {

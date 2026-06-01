@@ -9,6 +9,16 @@ func NewTopic(title string) *Topic {
 	}
 }
 
+// NewTopicWithID creates a topic with a caller-supplied id. Used for optimistic
+// client-side creation where the client generates the id up front so the node
+// can be rendered before the server round-trip completes.
+func NewTopicWithID(id, title string) *Topic {
+	return &Topic{
+		ID:    id,
+		Title: title,
+	}
+}
+
 func (t *Topic) DeepCopy() *Topic {
 	copy := &Topic{
 		ID:         uuid.New().String(),

@@ -75,6 +75,9 @@ export interface CreateTopicRequest {
   title: string
   parent_id: string
   position?: Position
+  // V6.1 optimistic creation: client-supplied id + insertion index.
+  id?: string
+  index?: number
 }
 
 export interface CreateWorkbookRequest {

@@ -608,6 +608,158 @@ func TestMoveTopic(t *testing.T) {
 	}
 }
 
+// --- V6.1 node-interaction: client id / index / idempotency ---
+
+func TestCreateTopicWithClientIDAndIndex(t *testing.T) {
+	router, _ := newTestRouter(t)
+
+	createW := httptest.NewRecorder()
+	router.ServeHTTP(createW, requestJSON(t, "POST", "/api/v1/workbooks", map[string]string{"title": "WB"}))
+	var wb map[string]interface{}
+	json.Unmarshal(createW.Body.Bytes(), &wb)
+	wbID := wb["id"].(string)
+	rootID := wb["sheets"].([]interface{})[0].(map[string]interface{})["root_topic"].(map[string]interface{})["id"].(string)
+
+	// Two regular children (A, B).
+	for _, title := range []string{"A", "B"} {
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, requestJSON(t, "POST", "/api/v1/workbooks/"+wbID+"/topics", map[string]string{"title": title, "parent_id": rootID}))
+	}
+
+	// Insert a client-id topic at index 0.
+	clientID := "11111111-1111-4111-8111-111111111111"
+	insertBody := map[string]interface{}{"title": "Inserted", "parent_id": rootID, "id": clientID, "index": 0}
+	insW := httptest.NewRecorder()
+	router.ServeHTTP(insW, requestJSON(t, "POST", "/api/v1/workbooks/"+wbID+"/topics", insertBody))
+	if insW.Code != http.StatusCreated {
+		t.Fatalf("create with id: status=%d body=%s", insW.Code, insW.Body.String())
+	}
+	var inserted map[string]interface{}
+	json.Unmarshal(insW.Body.Bytes(), &inserted)
+	if inserted["id"] != clientID {
+		t.Errorf("server did not honor client id: got %v", inserted["id"])
+	}
+
+	// Replaying the same id is idempotent → 200, no duplicate.
+	repW := httptest.NewRecorder()
+	router.ServeHTTP(repW, requestJSON(t, "POST", "/api/v1/workbooks/"+wbID+"/topics", insertBody))
+	if repW.Code != http.StatusOK {
+		t.Errorf("idempotent replay: status=%d, want 200", repW.Code)
+	}
+
+	// Verify order [Inserted, A, B] and count 3.
+	getW := httptest.NewRecorder()
+	router.ServeHTTP(getW, requestJSON(t, "GET", "/api/v1/workbooks/"+wbID, nil))
+	var got map[string]interface{}
+	json.Unmarshal(getW.Body.Bytes(), &got)
+	children := got["sheets"].([]interface{})[0].(map[string]interface{})["root_topic"].(map[string]interface{})["children"].([]interface{})
+	if len(children) != 3 {
+		t.Fatalf("children count = %d, want 3 (no duplicate)", len(children))
+	}
+	if children[0].(map[string]interface{})["title"] != "Inserted" {
+		t.Errorf("index insert failed: first child = %v, want Inserted", children[0].(map[string]interface{})["title"])
+	}
+
+	// Invalid id is rejected.
+	badW := httptest.NewRecorder()
+	router.ServeHTTP(badW, requestJSON(t, "POST", "/api/v1/workbooks/"+wbID+"/topics", map[string]interface{}{"title": "X", "parent_id": rootID, "id": "not-a-uuid"}))
+	if badW.Code != http.StatusBadRequest {
+		t.Errorf("invalid id: status=%d, want 400", badW.Code)
+	}
+}
+
+func TestMoveFloatingTopicToParent(t *testing.T) {
+	router, _ := newTestRouter(t)
+
+	createW := httptest.NewRecorder()
+	router.ServeHTTP(createW, requestJSON(t, "POST", "/api/v1/workbooks", map[string]string{"title": "WB"}))
+	var wb map[string]interface{}
+	json.Unmarshal(createW.Body.Bytes(), &wb)
+	wbID := wb["id"].(string)
+	rootID := wb["sheets"].([]interface{})[0].(map[string]interface{})["root_topic"].(map[string]interface{})["id"].(string)
+
+	// A regular child to serve as the new parent.
+	childW := httptest.NewRecorder()
+	router.ServeHTTP(childW, requestJSON(t, "POST", "/api/v1/workbooks/"+wbID+"/topics", map[string]string{"title": "Parent", "parent_id": rootID}))
+	var child map[string]interface{}
+	json.Unmarshal(childW.Body.Bytes(), &child)
+	parentID := child["id"].(string)
+
+	// A floating topic.
+	floatW := httptest.NewRecorder()
+	router.ServeHTTP(floatW, requestJSON(t, "POST", "/api/v1/workbooks/"+wbID+"/floating-topics", map[string]string{"title": "Floater"}))
+	var float map[string]interface{}
+	json.Unmarshal(floatW.Body.Bytes(), &float)
+	floatID := float["id"].(string)
+
+	// Move the floating topic under the parent.
+	moveW := httptest.NewRecorder()
+	router.ServeHTTP(moveW, requestJSON(t, "POST", "/api/v1/workbooks/"+wbID+"/topics/"+floatID+"/move", map[string]interface{}{"new_parent_id": parentID, "index": 0}))
+	if moveW.Code != http.StatusOK {
+		t.Fatalf("move floating: status=%d body=%s", moveW.Code, moveW.Body.String())
+	}
+
+	getW := httptest.NewRecorder()
+	router.ServeHTTP(getW, requestJSON(t, "GET", "/api/v1/workbooks/"+wbID, nil))
+	var got map[string]interface{}
+	json.Unmarshal(getW.Body.Bytes(), &got)
+	sheet := got["sheets"].([]interface{})[0].(map[string]interface{})
+
+	// Floating list must no longer contain it.
+	if fts, ok := sheet["floating_topics"].([]interface{}); ok {
+		for _, ft := range fts {
+			if ft.(map[string]interface{})["id"] == floatID {
+				t.Error("floating topic still present in floating_topics after move")
+			}
+		}
+	}
+	// It must now be a child of Parent, with its id preserved.
+	root := sheet["root_topic"].(map[string]interface{})
+	var parentNode map[string]interface{}
+	for _, c := range root["children"].([]interface{}) {
+		if c.(map[string]interface{})["id"] == parentID {
+			parentNode = c.(map[string]interface{})
+		}
+	}
+	if parentNode == nil {
+		t.Fatal("parent not found")
+	}
+	gks := parentNode["children"].([]interface{})
+	if len(gks) != 1 || gks[0].(map[string]interface{})["id"] != floatID {
+		t.Errorf("floating topic not reparented with preserved id: %+v", gks)
+	}
+}
+
+func TestMoveTopicToOwnDescendantRejected(t *testing.T) {
+	router, _ := newTestRouter(t)
+
+	createW := httptest.NewRecorder()
+	router.ServeHTTP(createW, requestJSON(t, "POST", "/api/v1/workbooks", map[string]string{"title": "WB"}))
+	var wb map[string]interface{}
+	json.Unmarshal(createW.Body.Bytes(), &wb)
+	wbID := wb["id"].(string)
+	rootID := wb["sheets"].([]interface{})[0].(map[string]interface{})["root_topic"].(map[string]interface{})["id"].(string)
+
+	aW := httptest.NewRecorder()
+	router.ServeHTTP(aW, requestJSON(t, "POST", "/api/v1/workbooks/"+wbID+"/topics", map[string]string{"title": "A", "parent_id": rootID}))
+	var a map[string]interface{}
+	json.Unmarshal(aW.Body.Bytes(), &a)
+	aID := a["id"].(string)
+
+	bW := httptest.NewRecorder()
+	router.ServeHTTP(bW, requestJSON(t, "POST", "/api/v1/workbooks/"+wbID+"/topics", map[string]string{"title": "B", "parent_id": aID}))
+	var b map[string]interface{}
+	json.Unmarshal(bW.Body.Bytes(), &b)
+	bID := b["id"].(string)
+
+	// Moving A under its own descendant B must be rejected.
+	moveW := httptest.NewRecorder()
+	router.ServeHTTP(moveW, requestJSON(t, "POST", "/api/v1/workbooks/"+wbID+"/topics/"+aID+"/move", map[string]interface{}{"new_parent_id": bID, "index": 0}))
+	if moveW.Code != http.StatusBadRequest {
+		t.Errorf("move to own descendant: status=%d, want 400", moveW.Code)
+	}
+}
+
 // --- Copy topic to workbook test ---
 
 func TestCreateTopicValidation(t *testing.T) {

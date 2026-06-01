@@ -6,6 +6,7 @@ import (
 
 	"github.com/gmind/backend/internal/model"
 	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
 )
 
 func (h *Handler) CreateTopic(w http.ResponseWriter, r *http.Request) {
@@ -26,7 +27,28 @@ func (h *Handler) CreateTopic(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	topic := model.NewTopic(req.Title)
+	// Optimistic-create idempotency: if the client supplied an id that already
+	// exists (e.g. a replayed offline-queue request), return the existing topic
+	// instead of creating a duplicate.
+	if req.ID != "" {
+		if _, err := uuid.Parse(req.ID); err != nil {
+			writeError(w, http.StatusBadRequest, "invalid topic id")
+			return
+		}
+		for _, sheet := range wb.Sheets {
+			if existing := sheet.FindTopic(req.ID); existing != nil {
+				writeJSON(w, http.StatusOK, existing)
+				return
+			}
+		}
+	}
+
+	var topic *model.Topic
+	if req.ID != "" {
+		topic = model.NewTopicWithID(req.ID, req.Title)
+	} else {
+		topic = model.NewTopic(req.Title)
+	}
 	if req.Position != nil {
 		topic.Position = req.Position
 	}
@@ -62,7 +84,11 @@ func (h *Handler) CreateTopic(w http.ResponseWriter, r *http.Request) {
 	for _, sheet := range wb.Sheets {
 		parent := sheet.FindTopic(req.ParentID)
 		if parent != nil {
-			parent.AddChild(topic)
+			if req.Index != nil {
+				parent.InsertChildAt(*req.Index, topic)
+			} else {
+				parent.AddChild(topic)
+			}
 			found = true
 			break
 		}
@@ -434,12 +460,14 @@ func (h *Handler) MoveTopic(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Find and remove the source topic
+	// Find and remove the source topic. RemoveTopic handles both the topic tree
+	// and top-level floating topics, so dragging a floating topic onto a parent
+	// reparents it while preserving its id (and any relationships referencing it).
 	var topicToMove *model.Topic
 	for _, sheet := range wb.Sheets {
 		topicToMove = sheet.FindTopic(topicID)
 		if topicToMove != nil {
-			removeTopicFromParent(sheet.RootTopic, topicID)
+			sheet.RemoveTopic(topicID)
 			break
 		}
 	}
