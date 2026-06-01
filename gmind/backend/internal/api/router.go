@@ -208,6 +208,17 @@ func (h *Handler) Router(cfg *config.Config) http.Handler {
 			r.Get("/pending", h.MASysListPending)
 			r.Get("/graph", h.MASysGetGraph)
 			r.Post("/recall", h.MASysMemoryRecall)
+
+			// V6.1 — write-back mutations
+			r.Delete("/episodes/{id}", h.MASysDeleteEpisode)
+			r.Delete("/results/{id}", h.MASysDeleteResult)
+			r.Post("/results/delete-expired", h.MASysDeleteExpiredResults)
+			r.Post("/wiki", h.MASysWriteWiki)
+			r.Delete("/wiki/{slug}", h.MASysDeleteWiki)
+			r.Post("/entities/delete", h.MASysDeleteEntity)
+			r.Post("/entities/merge", h.MASysMergeEntities)
+			r.Post("/skills/forget", h.MASysForgetSkills)
+			r.Post("/skills/acquire", h.MASysAcquireSkills)
 		})
 		r.Post("/kg-sync", h.MASysKGSync)
 		r.Route("/runs", func(r chi.Router) {

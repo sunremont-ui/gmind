@@ -39,6 +39,14 @@ async function post<T>(path: string, body: unknown): Promise<T> {
   return resp.json() as Promise<T>
 }
 
+async function del<T>(path: string): Promise<T> {
+  const resp = await fetch(BASE + path, { method: 'DELETE' })
+  if (!resp.ok) {
+    throw new Error(`DELETE ${path} → ${resp.status}: ${await resp.text().catch(() => resp.statusText)}`)
+  }
+  return resp.json() as Promise<T>
+}
+
 function ns(namespace?: string): string {
   return namespace ? `?namespace=${encodeURIComponent(namespace)}` : ''
 }
@@ -110,5 +118,34 @@ export const masysApi = {
    */
   streamRun(runID: string): EventSource {
     return new EventSource(`${BASE}/runs/${runID}/stream`)
+  },
+
+  // ── V6.1 write-back mutations ──────────────────────────────────────────────
+  deleteEpisode(id: string): Promise<{ ok: boolean }> {
+    return del(`/memory/episodes/${encodeURIComponent(id)}`)
+  },
+  deleteResult(id: string): Promise<{ ok: boolean }> {
+    return del(`/memory/results/${encodeURIComponent(id)}`)
+  },
+  deleteExpiredResults(): Promise<{ deleted: number }> {
+    return post('/memory/results/delete-expired', {})
+  },
+  writeWiki(page: { slug: string; title: string; content: string; namespace?: string; parentSlug?: string; tags?: string[] }): Promise<MASysWikiPage> {
+    return post('/memory/wiki', page)
+  },
+  deleteWiki(slug: string, namespace?: string): Promise<{ deleted: boolean }> {
+    return del(`/memory/wiki/${encodeURIComponent(slug)}${ns(namespace)}`)
+  },
+  deleteEntity(name: string, type: string, namespace?: string): Promise<{ deleted: boolean }> {
+    return post('/memory/entities/delete', { name, type, namespace })
+  },
+  mergeEntities(sourceId: string, targetId: string): Promise<unknown> {
+    return post('/memory/entities/merge', { sourceId, targetId })
+  },
+  forgetSkills(opts: { namespace?: string; minSuccessRate?: number; minUses?: number; unusedDays?: number }): Promise<{ deprecated: number }> {
+    return post('/memory/skills/forget', opts)
+  },
+  acquireSkills(opts: { namespace?: string; minOccurrences?: number; lookback?: number }): Promise<{ acquired: unknown }> {
+    return post('/memory/skills/acquire', opts)
   },
 }

@@ -12,9 +12,10 @@ import { EpisodeTimeline } from './EpisodeTimeline'
 import { ContextBudget } from './ContextBudget'
 import { SkillTree } from './SkillTree'
 import { PipelineTrace } from './PipelineTrace'
+import { MaintenancePanel } from './MaintenancePanel'
 import { colors, fonts, fontSizes, fontWeights, spacing, radii, shadows, transitions } from '../../styles/tokens'
 
-type ViewMode = 'layer-map' | 'timeline' | 'budget' | 'skills' | 'trace' | 'raw'
+type ViewMode = 'layer-map' | 'timeline' | 'budget' | 'skills' | 'trace' | 'maintain' | 'raw'
 
 interface LayerStat {
   key: string
@@ -182,6 +183,7 @@ export function MemoryWorkbenchPanel({ onClose }: ModulePanelProps) {
         <TabBtn active={view === 'budget'} onClick={() => setView('budget')}>💰 Budget</TabBtn>
         <TabBtn active={view === 'skills'} onClick={() => setView('skills')}>🌳 Skills</TabBtn>
         <TabBtn active={view === 'trace'} onClick={() => setView('trace')}>🔀 Trace</TabBtn>
+        <TabBtn active={view === 'maintain'} onClick={() => setView('maintain')}>🛠 Maintain</TabBtn>
         <TabBtn active={view === 'raw'} onClick={() => setView('raw')}>🗂 Raw</TabBtn>
       </div>
 
@@ -198,6 +200,8 @@ export function MemoryWorkbenchPanel({ onClose }: ModulePanelProps) {
         {view === 'skills' && <SkillTree />}
 
         {view === 'trace' && <PipelineTrace />}
+
+        {view === 'maintain' && <MaintenancePanel />}
 
         {view === 'raw' && (
           <div style={{
@@ -244,7 +248,7 @@ export function MemoryWorkbenchPanel({ onClose }: ModulePanelProps) {
         textAlign: 'center',
         fontFamily: fonts.ui,
       }}>
-        V6.0 complete · Memory Workbench Phases 1–7 ✓
+        V6.1 · write-back включён (Maintain) · Phases 1–7 ✓
       </div>
     </div>
   )

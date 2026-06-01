@@ -49,6 +49,15 @@ interface MASysMemoryState {
   fetchDecisions: () => Promise<void>
   fetchPending: () => Promise<void>
   refreshAll: () => Promise<void>
+
+  // V6.1 — write-back mutations (each refreshes the affected layer on success)
+  deleteEntity: (name: string, type: string) => Promise<void>
+  deleteEpisode: (id: string) => Promise<void>
+  deleteResult: (id: string) => Promise<void>
+  deleteWiki: (slug: string) => Promise<void>
+  deleteExpiredResults: () => Promise<number>
+  forgetSkills: (opts: { minSuccessRate?: number; minUses?: number; unusedDays?: number }) => Promise<number>
+  acquireSkills: (opts: { minOccurrences?: number; lookback?: number }) => Promise<void>
 }
 
 export const useMASysMemoryStore = create<MASysMemoryState>((set, get) => ({
@@ -105,6 +114,38 @@ export const useMASysMemoryStore = create<MASysMemoryState>((set, get) => ({
       s.fetchConversations(), s.fetchWiki(), s.fetchResults(),
       s.fetchDecisions(), s.fetchPending(),
     ])
+  },
+
+  // ── V6.1 mutations ─────────────────────────────────────────────────────────
+  async deleteEntity(name, type) {
+    await masysApi.deleteEntity(name, type, get().activeNamespace)
+    await get().fetchEntities()
+  },
+  async deleteEpisode(id) {
+    await masysApi.deleteEpisode(id)
+    await get().fetchEpisodes()
+  },
+  async deleteResult(id) {
+    await masysApi.deleteResult(id)
+    await get().fetchResults()
+  },
+  async deleteWiki(slug) {
+    await masysApi.deleteWiki(slug, get().activeNamespace)
+    await get().fetchWiki()
+  },
+  async deleteExpiredResults() {
+    const { deleted } = await masysApi.deleteExpiredResults()
+    await get().fetchResults()
+    return deleted
+  },
+  async forgetSkills(opts) {
+    const { deprecated } = await masysApi.forgetSkills({ ...opts, namespace: get().activeNamespace })
+    await get().fetchSkills()
+    return deprecated
+  },
+  async acquireSkills(opts) {
+    await masysApi.acquireSkills({ ...opts, namespace: get().activeNamespace })
+    await Promise.allSettled([get().fetchSkills(), get().fetchEpisodes()])
   },
 }))
 
