@@ -7,9 +7,10 @@ import { useMASysMemoryStore } from '../../store/masysMemory'
 import type { ModulePanelProps } from '../../modules/types'
 import { LayerMap } from './LayerMap'
 import { KGSyncDialog } from './KGSyncDialog'
+import { EpisodeTimeline } from './EpisodeTimeline'
 import { colors, fonts, fontSizes, fontWeights, spacing, radii, shadows, transitions } from '../../styles/tokens'
 
-type ViewMode = 'layer-map' | 'raw'
+type ViewMode = 'layer-map' | 'timeline' | 'raw'
 
 interface LayerStat {
   key: string
@@ -173,7 +174,8 @@ export function MemoryWorkbenchPanel({ onClose }: ModulePanelProps) {
         flexShrink: 0,
       }}>
         <TabBtn active={view === 'layer-map'} onClick={() => setView('layer-map')}>📐 Layer Map</TabBtn>
-        <TabBtn active={view === 'raw'} onClick={() => setView('raw')}>🗂 Raw layers</TabBtn>
+        <TabBtn active={view === 'timeline'} onClick={() => setView('timeline')}>⏱ Timeline</TabBtn>
+        <TabBtn active={view === 'raw'} onClick={() => setView('raw')}>🗂 Raw</TabBtn>
       </div>
 
       {/* Content */}
@@ -181,6 +183,8 @@ export function MemoryWorkbenchPanel({ onClose }: ModulePanelProps) {
         flex: 1, minHeight: 0, overflowY: 'auto',
       }}>
         {view === 'layer-map' && <LayerMap />}
+
+        {view === 'timeline' && <EpisodeTimeline />}
 
         {view === 'raw' && (
           <div style={{

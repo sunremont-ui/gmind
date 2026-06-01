@@ -425,7 +425,7 @@ frontend/src/components/Charts/               — reusable
 - **Phase 1** (MASys Bridge) ✅ DONE 2026-06-01
 - **Phase 2** (Layer Map) ✅ DONE 2026-06-01
 - **Phase 3** (KG Canvas) ✅ DONE 2026-06-01
-- **Phase 4** (Episode Timeline) — параллельно с Phase 3
+- **Phase 4** (Episode Timeline) ✅ DONE 2026-06-01
 - **Phase 5** (Context Budget) — после 4
 - **Phase 6** (Skill Tree) — после 5
 - **Phase 7** (Pipeline Trace) — финальный

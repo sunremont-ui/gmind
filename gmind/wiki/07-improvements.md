@@ -340,7 +340,24 @@ Sync MASys entities + relations → Gmind topics + V5.0 relationships.
 
 **Created edges:** `created_by='masys-sync'` для отслеживания происхождения.
 
-### Phase 4-7 — Coming next
+### Phase 4 — Episode Timeline ✅ DONE (2026-06-01)
+
+Хронологическая lane эпизодов с фильтрами и skill detection.
+
+| Изменение | Файл |
+|-----------|------|
+| EpisodeTimeline component (filters + day buckets + skill candidates + details modal) | `frontend/src/components/MemoryWorkbench/EpisodeTimeline.tsx` |
+| Tab integration `⏱ Timeline` (3-й tab) | `MemoryWorkbenchPanel.tsx` |
+
+**Фильтры:** all/success/error · 24h/7d/∞ · agent dropdown.
+
+**Day buckets:** YYYY-MM-DD группировка, desc sort, max 20/bucket + counter.
+
+**Skill candidates:** action повторяющиеся ≥3× success → подсвечиваются (potential automation).
+
+**Episode details modal:** ID + status + agent + pipeline + namespace + timestamp + tags + input/output JSON.
+
+### Phase 5-7 — Coming next
 
 ## V6.0 — Memory & Pipeline Workbench (planned, 7 phases)
 

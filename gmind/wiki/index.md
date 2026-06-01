@@ -16,12 +16,13 @@
 
 **V5.0 Phase 4-5 — Frontend Graph UI DONE (2026-06-01).** EdgeAnchorsLayer + FantomLine + ConnectionPopover + RelationshipPanel + RelationshipFilter, decorator pattern без правки TopicNode. Multi-edge offset, self-loop arcs, hover-highlight, filter по типу.
 
-**V6.0 Phase 1-3 — DONE (2026-06-01).**
+**V6.0 Phase 1-4 — DONE (2026-06-01).**
 - Phase 1: MASys Bridge (REST proxy + SSE + types/api/store + panel skeleton)
 - Phase 2: Memory Layer Map (6-слойная karp модель поверх 8 MASys layers, health metrics с heuristics, drill-down modal)
 - Phase 3: Knowledge Graph Canvas (sync MASys entities+relations → Gmind workbook через V5.0 relationships; idempotent; predicate→type mapping)
+- Phase 4: Episode Timeline (chronological lane + filters + day buckets + skill candidates + details modal)
 
-**Активный roadmap:** V6.0 Phase 4 (Episode Timeline) → Phase 7 (Pipeline Trace), см. `skills/memory-visualization.md`.
+**Активный roadmap:** V6.0 Phase 5 (Context Budget) → Phase 7 (Pipeline Trace), см. `skills/memory-visualization.md`.
 
 **Что работает:**
 - ✅ REST API (CRUD workbooks/sheets/topics/relationships, floating topics, AI provider, llama-server, import-json, collaborators, MCP)
@@ -91,6 +92,7 @@
 - ✅ **V6.0 Phase 1 MASys Bridge** — REST proxy + SSE bridge + Memory Workbench panel skeleton (8 layer cards)
 - ✅ **V6.0 Phase 2 Memory Layer Map** — 6-layer karp model, health metrics, drill-down per layer
 - ✅ **V6.0 Phase 3 KG Canvas** — sync MASys entities+relations → Gmind workbook через V5.0 relationships, predicate→type mapping
+- ✅ **V6.0 Phase 4 Episode Timeline** — chronological lane, filters, day buckets, skill candidates, details modal
 - ✅ Comments on nodes (💬 иконка + CommentsPanel)
 - ✅ External Model Servers — JSON-конфиг + GET/PUT /api/v1/model-servers + UI таблица в AIServerPanel
 - ✅ Port range 1010–1200: backend:1010, vite:1011, docker-nginx:1012, llama.cpp:1100

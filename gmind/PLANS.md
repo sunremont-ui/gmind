@@ -4,6 +4,47 @@
 
 ---
 
+## Сессия: 2026-06-01 — V6.0 Phase 4 (Episode Timeline)
+
+### Контекст
+Episode Timeline — хронологическая lane по эпизодам агента с фильтрами, day-bucket группировкой и skill candidate detection.
+
+### Реализовано
+
+**`EpisodeTimeline.tsx`** — новый view tab в Memory Workbench:
+- **Filters bar:** all/success/error (status), 24h/7d/∞ (time), agent dropdown
+- **Day buckets:** группировка по YYYY-MM-DD, sorted desc; внутри bucket — sorted by timestamp desc; max 20 per bucket (+ counter)
+- **Vertical timeline line** + dot per episode (green ok, red error)
+- **Skill candidates panel** — если есть success action повторяющийся ≥3 раз
+- **Episode rows:** action title + time + agent + tags chips
+- **Click row → modal `EpisodeDetails`:**
+  - ID, Status, Agent, Pipeline, Namespace, Timestamp, Tags
+  - Input/Output JSON blocks (pretty-printed, monospace, neumorphic inset)
+
+### Integration
+
+- `MemoryWorkbenchPanel.tsx`: добавлен 3-й tab `⏱ Timeline`
+- ViewMode тип расширен `'layer-map' | 'timeline' | 'raw'`
+
+### UX
+
+1. Brain → tab Timeline
+2. Filter by status/time/agent
+3. Skill candidates подсвечивают повторяющиеся patterns (potential automation)
+4. Click episode → full details modal
+5. Esc/overlay click closes
+
+### Тесты
+- `tsc --noEmit` чистый
+- Vitest 62/62 OK
+
+### Следующее (Phase 5-7)
+- Phase 5: Context Budget (Sankey + sandwich + evicted preview)
+- Phase 6: Skill Evolution Tree (skills через V5.0 graph)
+- Phase 7: Pipeline Trace Map + live SSE
+
+---
+
 ## Сессия: 2026-06-01 — V6.0 Phase 3 (Knowledge Graph Canvas)
 
 ### Контекст
