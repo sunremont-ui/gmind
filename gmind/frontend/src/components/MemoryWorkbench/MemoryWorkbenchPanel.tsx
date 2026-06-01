@@ -2,7 +2,7 @@
 // Phase 1: connection + 8 raw layer cards.
 // Phase 2: tabs — Layer Map (6 karp cards with health) + Raw layers (8 cards).
 // Phase 3: KG sync. Phase 4: Episode Timeline. Phase 5: Context Budget Sankey.
-// Phases 6-7 (Skill Evolution Tree, Pipeline Trace Map) — coming.
+// Phase 6: Skill Evolution Tree. Phase 7 (Pipeline Trace Map) — coming.
 import { useEffect, useState } from 'react'
 import { useMASysMemoryStore } from '../../store/masysMemory'
 import type { ModulePanelProps } from '../../modules/types'
@@ -10,9 +10,10 @@ import { LayerMap } from './LayerMap'
 import { KGSyncDialog } from './KGSyncDialog'
 import { EpisodeTimeline } from './EpisodeTimeline'
 import { ContextBudget } from './ContextBudget'
+import { SkillTree } from './SkillTree'
 import { colors, fonts, fontSizes, fontWeights, spacing, radii, shadows, transitions } from '../../styles/tokens'
 
-type ViewMode = 'layer-map' | 'timeline' | 'budget' | 'raw'
+type ViewMode = 'layer-map' | 'timeline' | 'budget' | 'skills' | 'raw'
 
 interface LayerStat {
   key: string
@@ -178,6 +179,7 @@ export function MemoryWorkbenchPanel({ onClose }: ModulePanelProps) {
         <TabBtn active={view === 'layer-map'} onClick={() => setView('layer-map')}>📐 Layer Map</TabBtn>
         <TabBtn active={view === 'timeline'} onClick={() => setView('timeline')}>⏱ Timeline</TabBtn>
         <TabBtn active={view === 'budget'} onClick={() => setView('budget')}>💰 Budget</TabBtn>
+        <TabBtn active={view === 'skills'} onClick={() => setView('skills')}>🌳 Skills</TabBtn>
         <TabBtn active={view === 'raw'} onClick={() => setView('raw')}>🗂 Raw</TabBtn>
       </div>
 
@@ -190,6 +192,8 @@ export function MemoryWorkbenchPanel({ onClose }: ModulePanelProps) {
         {view === 'timeline' && <EpisodeTimeline />}
 
         {view === 'budget' && <ContextBudget />}
+
+        {view === 'skills' && <SkillTree />}
 
         {view === 'raw' && (
           <div style={{
@@ -236,7 +240,7 @@ export function MemoryWorkbenchPanel({ onClose }: ModulePanelProps) {
         textAlign: 'center',
         fontFamily: fonts.ui,
       }}>
-        V6.0 Phase 5 · Phases 6–7 (Skill Tree, Pipeline Trace) — coming
+        V6.0 Phase 6 · Phase 7 (Pipeline Trace) — coming
       </div>
     </div>
   )
