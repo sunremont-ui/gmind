@@ -15,6 +15,9 @@ export interface Command {
 interface CommandPaletteProps {
   commands: Command[]
   onClose: () => void
+  // Optional async provider for content search (e.g. full-text topic search).
+  // Results are merged below the static commands, debounced as the user types.
+  searchProvider?: (query: string) => Promise<Command[]>
 }
 
 const ICON_MAP: Record<string, keyof typeof lumenIcons> = {
@@ -22,11 +25,15 @@ const ICON_MAP: Record<string, keyof typeof lumenIcons> = {
   sparkles: 'Sparkles',
   users: 'Users',
   plus: 'Plus',
+  search: 'Search',
+  fileText: 'FileText',
 }
 
-export function CommandPalette({ commands, onClose }: CommandPaletteProps) {
+export function CommandPalette({ commands, onClose, searchProvider }: CommandPaletteProps) {
   const [query, setQuery] = useState('')
   const [activeIdx, setActiveIdx] = useState(0)
+  const [searchResults, setSearchResults] = useState<Command[]>([])
+  const [searching, setSearching] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
 
   const filtered = query.trim()
@@ -44,30 +51,61 @@ export function CommandPalette({ commands, onClose }: CommandPaletteProps) {
     setActiveIdx(0)
   }, [query])
 
+  // Debounced content search. Cancels stale responses via a generation token.
+  useEffect(() => {
+    if (!searchProvider) return
+    const q = query.trim()
+    if (q.length < 2) {
+      setSearchResults([])
+      setSearching(false)
+      return
+    }
+    setSearching(true)
+    let cancelled = false
+    const handle = setTimeout(async () => {
+      try {
+        const res = await searchProvider(q)
+        if (!cancelled) setSearchResults(res)
+      } catch {
+        if (!cancelled) setSearchResults([])
+      } finally {
+        if (!cancelled) setSearching(false)
+      }
+    }, 200)
+    return () => {
+      cancelled = true
+      clearTimeout(handle)
+    }
+  }, [query, searchProvider])
+
+  // Static commands first, then async content-search hits. `ordered` is the
+  // flat list in visual (section) order so keyboard nav and Enter stay in sync.
+  const sections = new Map<string, Command[]>()
+  for (const cmd of [...filtered, ...searchResults]) {
+    const sec = cmd.section || 'General'
+    if (!sections.has(sec)) sections.set(sec, [])
+    sections.get(sec)!.push(cmd)
+  }
+  const ordered: Command[] = []
+  for (const [, cmds] of sections) ordered.push(...cmds)
+
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'ArrowDown') {
       e.preventDefault()
-      setActiveIdx(i => Math.min(i + 1, filtered.length - 1))
+      setActiveIdx(i => Math.min(i + 1, ordered.length - 1))
     } else if (e.key === 'ArrowUp') {
       e.preventDefault()
       setActiveIdx(i => Math.max(i - 1, 0))
     } else if (e.key === 'Enter') {
       e.preventDefault()
-      if (filtered[activeIdx]) {
-        filtered[activeIdx].action()
+      if (ordered[activeIdx]) {
+        ordered[activeIdx].action()
         onClose()
       }
     } else if (e.key === 'Escape') {
       e.preventDefault()
       onClose()
     }
-  }
-
-  const sections = new Map<string, Command[]>()
-  for (const cmd of filtered) {
-    const sec = cmd.section || 'General'
-    if (!sections.has(sec)) sections.set(sec, [])
-    sections.get(sec)!.push(cmd)
   }
 
   let idx = 0
@@ -85,7 +123,8 @@ export function CommandPalette({ commands, onClose }: CommandPaletteProps) {
     )
     for (const cmd of cmds) {
       const i = idx++
-      const LucideIcon = cmd.icon ? ICON_MAP[cmd.icon] : undefined
+      const iconKey = cmd.icon ? ICON_MAP[cmd.icon] : undefined
+      const LucideIcon = iconKey && lumenIcons[iconKey] ? iconKey : undefined
       items.push(
         <div
           key={cmd.id}
@@ -177,7 +216,7 @@ export function CommandPalette({ commands, onClose }: CommandPaletteProps) {
             value={query}
             onChange={e => setQuery(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Type a command..."
+            placeholder={searchProvider ? 'Search commands and topics...' : 'Type a command...'}
             style={{
               flex: 1, padding: `${spacing.sm}px 0`,
               fontSize: fontSizes.subhead,
@@ -193,7 +232,9 @@ export function CommandPalette({ commands, onClose }: CommandPaletteProps) {
         <div style={{ flex: 1, overflow: 'auto', padding: `${spacing.xs}px 0` }}>
           {items.length === 0 ? (
             <div style={{ padding: spacing.xxl, textAlign: 'center' }}>
-              <Text color={colors.textTertiary}>No matching commands</Text>
+              <Text color={colors.textTertiary}>
+                {searching ? 'Searching…' : query.trim() ? 'No matches' : 'No matching commands'}
+              </Text>
             </div>
           ) : items}
         </div>

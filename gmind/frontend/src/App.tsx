@@ -15,6 +15,7 @@ const QuickCapture = lazy(() => import('./components/QuickCapture/QuickCapture')
 const CommandPalette = lazy(() => import('./components/CommandPalette/CommandPalette').then(m => ({ default: m.CommandPalette })))
 import { api } from './api/client'
 import { secrets } from './api/secrets'
+import { searchApi } from './api/search'
 import { useAgentStore } from './store/agent'
 import { useMindMapStore } from './store/mindmap'
 import { offlineStorage, offlineQueue } from './utils/offline'
@@ -262,6 +263,25 @@ export function App() {
     }
   }
 
+  // GI-7: full-text topic search for the command palette. Maps FTS hits to
+  // commands that open the owning workbook and select the matched topic.
+  const handleTopicSearch = useCallback(async (query: string): Promise<Command[]> => {
+    const hits = await searchApi.fullText(query, { limit: 8 })
+    return hits.map(r => ({
+      id: `fts-${r.workbook_id}-${r.topic_id}`,
+      label: r.title || '(untitled)',
+      shortcut: r.workbook_title,
+      icon: 'fileText',
+      section: 'Topics',
+      action: async () => {
+        if (r.workbook_id !== activeWorkbookId) {
+          await handleSelectWorkbook(r.workbook_id)
+        }
+        useMindMapStore.getState().setSelectedTopic(r.topic_id)
+      },
+    }))
+  }, [activeWorkbookId])
+
   const handleNavRailToggle = (moduleId: string) => {
     // Mindmap module closes any open panel and returns to canvas
     if (moduleId === 'mindmap') {
@@ -366,6 +386,7 @@ export function App() {
           <CommandPalette
             commands={commands}
             onClose={() => setShowCommandPalette(false)}
+            searchProvider={handleTopicSearch}
           />
         )}
       </Suspense>

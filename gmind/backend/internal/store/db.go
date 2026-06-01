@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"log"
 	"time"
 
 	"github.com/gmind/backend/internal/model"
@@ -54,7 +55,13 @@ func (s *Store) CreateWorkbook(wb *model.Workbook) error {
 		`INSERT INTO workbooks (id, title, data, created_at, updated_at) VALUES (?, ?, ?, ?, ?)`,
 		wb.ID, wb.Title, string(data), wb.CreatedAt.Format(time.RFC3339), wb.UpdatedAt.Format(time.RFC3339),
 	)
-	return err
+	if err != nil {
+		return err
+	}
+	if ftsErr := s.syncWorkbookFTS(wb); ftsErr != nil {
+		log.Printf("fts sync (create %s): %v", wb.ID, ftsErr)
+	}
+	return nil
 }
 
 func (s *Store) GetWorkbook(id string) (*model.Workbook, error) {
@@ -107,12 +114,23 @@ func (s *Store) UpdateWorkbook(wb *model.Workbook) error {
 		`UPDATE workbooks SET title = ?, data = ?, updated_at = ? WHERE id = ?`,
 		wb.Title, string(data), wb.UpdatedAt.Format(time.RFC3339), wb.ID,
 	)
-	return err
+	if err != nil {
+		return err
+	}
+	if ftsErr := s.syncWorkbookFTS(wb); ftsErr != nil {
+		log.Printf("fts sync (update %s): %v", wb.ID, ftsErr)
+	}
+	return nil
 }
 
 func (s *Store) DeleteWorkbook(id string) error {
-	_, err := s.db.Exec(`DELETE FROM workbooks WHERE id = ?`, id)
-	return err
+	if _, err := s.db.Exec(`DELETE FROM workbooks WHERE id = ?`, id); err != nil {
+		return err
+	}
+	if ftsErr := s.deleteWorkbookFTS(id); ftsErr != nil {
+		log.Printf("fts sync (delete %s): %v", id, ftsErr)
+	}
+	return nil
 }
 
 // CommentStore
