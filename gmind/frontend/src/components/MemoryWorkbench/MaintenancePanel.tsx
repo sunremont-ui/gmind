@@ -4,6 +4,7 @@
 // confirmation and reporting its outcome.
 import { useState } from 'react'
 import { useMASysMemoryStore } from '../../store/masysMemory'
+import { WikiEditor } from './WikiEditor'
 import { colors, fonts, fontSizes, fontWeights, spacing, radii, shadows } from '../../styles/tokens'
 
 type Status = { kind: 'idle' } | { kind: 'busy' } | { kind: 'ok'; msg: string } | { kind: 'err'; msg: string }
@@ -17,6 +18,7 @@ export function MaintenancePanel() {
   const [unusedDays, setUnusedDays] = useState(30)
   // acquire criteria
   const [minOcc, setMinOcc] = useState(3)
+  const [showWikiEditor, setShowWikiEditor] = useState(false)
 
   const expiredCount = results.filter(r => {
     if (!r.expiresAt) return false
@@ -32,6 +34,18 @@ export function MaintenancePanel() {
       }}>
         ⚠️ Действия ниже <b>изменяют</b> память MASys в namespace <code>{activeNamespace}</code>. Необратимо.
       </div>
+
+      <button
+        onClick={() => setShowWikiEditor(true)}
+        style={{
+          alignSelf: 'flex-start',
+          padding: `${spacing.xs}px ${spacing.md}px`,
+          background: colors.accent, color: '#fff', border: 'none',
+          borderRadius: radii.sm, fontSize: fontSizes.caption,
+          fontWeight: fontWeights.medium, fontFamily: fonts.ui, cursor: 'pointer',
+        }}
+      >📖 Создать wiki-страницу</button>
+      {showWikiEditor && <WikiEditor onClose={() => setShowWikiEditor(false)} />}
 
       <ActionCard
         icon="📦"

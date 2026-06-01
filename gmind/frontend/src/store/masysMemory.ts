@@ -55,6 +55,7 @@ interface MASysMemoryState {
   deleteEpisode: (id: string) => Promise<void>
   deleteResult: (id: string) => Promise<void>
   deleteWiki: (slug: string) => Promise<void>
+  writeWiki: (page: { slug: string; title: string; content: string; parentSlug?: string; tags?: string[] }) => Promise<void>
   deleteExpiredResults: () => Promise<number>
   forgetSkills: (opts: { minSuccessRate?: number; minUses?: number; unusedDays?: number }) => Promise<number>
   acquireSkills: (opts: { minOccurrences?: number; lookback?: number }) => Promise<void>
@@ -131,6 +132,10 @@ export const useMASysMemoryStore = create<MASysMemoryState>((set, get) => ({
   },
   async deleteWiki(slug) {
     await masysApi.deleteWiki(slug, get().activeNamespace)
+    await get().fetchWiki()
+  },
+  async writeWiki(page) {
+    await masysApi.writeWiki({ ...page, namespace: get().activeNamespace })
     await get().fetchWiki()
   },
   async deleteExpiredResults() {

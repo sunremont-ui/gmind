@@ -1,7 +1,9 @@
 // V6.0 Phase 2 — modal showing recent items for a karp layer.
-import { useEffect } from 'react'
+// V6.1 — per-item delete buttons (write-back) where a store action exists.
+import { useEffect, useState } from 'react'
 import { useMASysMemoryStore } from '../../store/masysMemory'
 import type { KarpLayer } from './layerMapping'
+import { WikiEditor } from './WikiEditor'
 import { colors, fonts, fontSizes, fontWeights, spacing, radii, shadows } from '../../styles/tokens'
 
 interface Props {
@@ -107,6 +109,29 @@ function rowStyle(): React.CSSProperties {
   }
 }
 
+// V6.1 — confirmation-gated delete button. The store action refreshes the
+// affected layer, so the row disappears on success.
+function DeleteBtn({ onDelete, confirm }: { onDelete: () => Promise<void>; confirm: string }) {
+  const [busy, setBusy] = useState(false)
+  return (
+    <button
+      disabled={busy}
+      title="Удалить из памяти MASys"
+      onClick={async (e) => {
+        e.stopPropagation()
+        if (!window.confirm(confirm)) return
+        setBusy(true)
+        try { await onDelete() } catch (err: any) { alert(err?.message ?? String(err)) } finally { setBusy(false) }
+      }}
+      style={{
+        background: 'none', border: 'none', cursor: busy ? 'wait' : 'pointer',
+        color: colors.textQuaternary, fontSize: 12, padding: '0 2px', lineHeight: 1,
+        flexShrink: 0,
+      }}
+    >{busy ? '…' : '🗑'}</button>
+  )
+}
+
 function Empty({ label }: { label: string }) {
   return (
     <div style={{
@@ -119,14 +144,18 @@ function Empty({ label }: { label: string }) {
 }
 
 function ListEpisodes({ data }: { data: import('../../types/masys').MASysEpisode[] }) {
+  const deleteEpisode = useMASysMemoryStore(s => s.deleteEpisode)
   if (data.length === 0) return <Empty label="Эпизодов нет" />
   return <div>
     {data.slice(0, 50).map(ep => (
       <div key={ep.id} style={rowStyle()}>
-        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: spacing.sm }}>
           <strong style={{ color: colors.text }}>{ep.action}</strong>
-          <span style={{ color: ep.status === 'error' ? colors.red : colors.green }}>
-            {ep.status ?? 'ok'}
+          <span style={{ display: 'flex', alignItems: 'center', gap: spacing.sm }}>
+            <span style={{ color: ep.status === 'error' ? colors.red : colors.green }}>
+              {ep.status ?? 'ok'}
+            </span>
+            <DeleteBtn confirm={`Удалить эпизод «${ep.action}»?`} onDelete={() => deleteEpisode(ep.id)} />
           </span>
         </div>
         <div style={{ fontSize: 10, marginTop: 2 }}>
@@ -161,15 +190,21 @@ function ListSemantic({ entities, wiki }: {
   entities: import('../../types/masys').MASysMemoryEntity[]
   wiki: import('../../types/masys').MASysWikiPage[]
 }) {
+  const deleteEntity = useMASysMemoryStore(s => s.deleteEntity)
+  const deleteWiki = useMASysMemoryStore(s => s.deleteWiki)
+  const [editPage, setEditPage] = useState<import('../../types/masys').MASysWikiPage | null>(null)
   if (entities.length === 0 && wiki.length === 0) return <Empty label="Нет фактов" />
   return <div>
     {entities.length > 0 && <>
       <h4 style={{ margin: `${spacing.sm}px 0`, fontSize: fontSizes.label, color: colors.text }}>Entities</h4>
       {entities.slice(0, 30).map(e => (
         <div key={e.id} style={rowStyle()}>
-          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: spacing.sm }}>
             <strong style={{ color: colors.text }}>{e.name}</strong>
-            <span>{e.type}</span>
+            <span style={{ display: 'flex', alignItems: 'center', gap: spacing.sm }}>
+              <span>{e.type}</span>
+              <DeleteBtn confirm={`Удалить сущность «${e.name}» (${e.type})?`} onDelete={() => deleteEntity(e.name, e.type)} />
+            </span>
           </div>
           {e.description && <div style={{ marginTop: 2, fontSize: 11 }}>{e.description}</div>}
           <div style={{ fontSize: 10, marginTop: 2 }}>
@@ -182,11 +217,27 @@ function ListSemantic({ entities, wiki }: {
       <h4 style={{ margin: `${spacing.sm}px 0`, fontSize: fontSizes.label, color: colors.text }}>Wiki</h4>
       {wiki.slice(0, 20).map(w => (
         <div key={w.slug} style={rowStyle()}>
-          <strong style={{ color: colors.text }}>{w.title}</strong>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: spacing.sm }}>
+            <strong style={{ color: colors.text }}>{w.title}</strong>
+            <span style={{ display: 'flex', alignItems: 'center', gap: spacing.sm }}>
+              <button
+                onClick={() => setEditPage(w)}
+                title="Редактировать"
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: colors.textQuaternary, fontSize: 12, padding: '0 2px', lineHeight: 1 }}
+              >✏️</button>
+              <DeleteBtn confirm={`Удалить wiki-страницу «${w.title}»?`} onDelete={() => deleteWiki(w.slug)} />
+            </span>
+          </div>
           <div style={{ fontSize: 10 }}>{w.slug} · v{w.version ?? 1}</div>
         </div>
       ))}
     </>}
+    {editPage && (
+      <WikiEditor
+        initial={{ slug: editPage.slug, title: editPage.title, content: editPage.content, tags: editPage.tags }}
+        onClose={() => setEditPage(null)}
+      />
+    )}
   </div>
 }
 
@@ -213,13 +264,17 @@ function ListSkills({ data }: { data: import('../../types/masys').MASysSkill[] }
 }
 
 function ListResults({ data }: { data: import('../../types/masys').MASysResult[] }) {
+  const deleteResult = useMASysMemoryStore(s => s.deleteResult)
   if (data.length === 0) return <Empty label="Артефактов нет" />
   return <div>
     {data.slice(0, 30).map(r => (
       <div key={r.id} style={rowStyle()}>
-        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: spacing.sm }}>
           <strong style={{ color: colors.text }}>{r.name}</strong>
-          <span>{r.type}</span>
+          <span style={{ display: 'flex', alignItems: 'center', gap: spacing.sm }}>
+            <span>{r.type}</span>
+            <DeleteBtn confirm={`Удалить артефакт «${r.name}»?`} onDelete={() => deleteResult(r.id)} />
+          </span>
         </div>
         <div style={{ fontSize: 10, marginTop: 2 }}>
           {r.namespace} · expires: {r.expiresAt ?? '∞'} · tags: {r.tags?.join(', ') || '—'}
