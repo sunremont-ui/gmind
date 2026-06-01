@@ -2,7 +2,7 @@
 // Phase 1: connection + 8 raw layer cards.
 // Phase 2: tabs — Layer Map (6 karp cards with health) + Raw layers (8 cards).
 // Phase 3: KG sync. Phase 4: Episode Timeline. Phase 5: Context Budget Sankey.
-// Phase 6: Skill Evolution Tree. Phase 7 (Pipeline Trace Map) — coming.
+// Phase 6: Skill Evolution Tree. Phase 7: Pipeline Trace Map (+ live SSE).
 import { useEffect, useState } from 'react'
 import { useMASysMemoryStore } from '../../store/masysMemory'
 import type { ModulePanelProps } from '../../modules/types'
@@ -11,9 +11,10 @@ import { KGSyncDialog } from './KGSyncDialog'
 import { EpisodeTimeline } from './EpisodeTimeline'
 import { ContextBudget } from './ContextBudget'
 import { SkillTree } from './SkillTree'
+import { PipelineTrace } from './PipelineTrace'
 import { colors, fonts, fontSizes, fontWeights, spacing, radii, shadows, transitions } from '../../styles/tokens'
 
-type ViewMode = 'layer-map' | 'timeline' | 'budget' | 'skills' | 'raw'
+type ViewMode = 'layer-map' | 'timeline' | 'budget' | 'skills' | 'trace' | 'raw'
 
 interface LayerStat {
   key: string
@@ -180,6 +181,7 @@ export function MemoryWorkbenchPanel({ onClose }: ModulePanelProps) {
         <TabBtn active={view === 'timeline'} onClick={() => setView('timeline')}>⏱ Timeline</TabBtn>
         <TabBtn active={view === 'budget'} onClick={() => setView('budget')}>💰 Budget</TabBtn>
         <TabBtn active={view === 'skills'} onClick={() => setView('skills')}>🌳 Skills</TabBtn>
+        <TabBtn active={view === 'trace'} onClick={() => setView('trace')}>🔀 Trace</TabBtn>
         <TabBtn active={view === 'raw'} onClick={() => setView('raw')}>🗂 Raw</TabBtn>
       </div>
 
@@ -194,6 +196,8 @@ export function MemoryWorkbenchPanel({ onClose }: ModulePanelProps) {
         {view === 'budget' && <ContextBudget />}
 
         {view === 'skills' && <SkillTree />}
+
+        {view === 'trace' && <PipelineTrace />}
 
         {view === 'raw' && (
           <div style={{
@@ -240,7 +244,7 @@ export function MemoryWorkbenchPanel({ onClose }: ModulePanelProps) {
         textAlign: 'center',
         fontFamily: fonts.ui,
       }}>
-        V6.0 Phase 6 · Phase 7 (Pipeline Trace) — coming
+        V6.0 complete · Memory Workbench Phases 1–7 ✓
       </div>
     </div>
   )
