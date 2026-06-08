@@ -314,8 +314,10 @@ export function MindMap({ workbookId, onXMindImported }: MindMapProps) {
           break
         }
         case 'workbook_updated':
-        case 'move': {
-          // Complex ops — fall back to full reload
+        case 'move':
+        case 'swap':
+        case 'detach': {
+          // Complex structural ops — fall back to full reload on peers.
           loadWorkbook()
           break
         }
@@ -713,6 +715,7 @@ export function MindMap({ workbookId, onXMindImported }: MindMapProps) {
         // Center of target → exchange the two nodes' tree positions.
         pushHistory()
         swapTopics(sourceId, targetId)
+        wsClient.sendOperation('swap', { topic_id: sourceId, other_id: targetId })
         api.swapTopics(workbookId, sourceId, targetId).catch(err => {
           console.error('Failed to swap topics:', err)
           reconcile()
@@ -747,6 +750,7 @@ export function MindMap({ workbookId, onXMindImported }: MindMapProps) {
       pushHistory()
       const newPos = { x: px - 30, y: py - 20 }
       detachToFloating(sourceId, newPos)
+      wsClient.sendOperation('detach', { topic_id: sourceId })
       api.detachTopic(workbookId, sourceId, newPos).catch(err => {
         console.error('Failed to detach topic:', err)
         reconcile()
