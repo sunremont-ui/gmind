@@ -127,6 +127,37 @@ func TestDetachTopic(t *testing.T) {
 	}
 }
 
+func TestCreateChildUnderFloatingTopic(t *testing.T) {
+	router, _ := newTestRouter(t)
+	wbID, _ := newWorkbookWithRoot(t, router)
+
+	// Create a floating topic.
+	fw := httptest.NewRecorder()
+	router.ServeHTTP(fw, requestJSON(t, "POST", "/api/v1/workbooks/"+wbID+"/floating-topics", map[string]interface{}{
+		"title":    "Float",
+		"position": map[string]float64{"x": 100, "y": 100},
+	}))
+	if fw.Code != http.StatusOK && fw.Code != http.StatusCreated {
+		t.Fatalf("create floating: status=%d body=%s", fw.Code, fw.Body.String())
+	}
+	var ft map[string]interface{}
+	json.Unmarshal(fw.Body.Bytes(), &ft)
+	floatID := ft["id"].(string)
+
+	// Create a child whose parent is the floating topic.
+	childID := createTopicT(t, router, wbID, floatID, "FloatChild")
+
+	sheet := fetchRoot(t, router, wbID)
+	floating, _ := sheet["floating_topics"].([]interface{})
+	if len(floating) != 1 {
+		t.Fatalf("want 1 floating topic, got %d", len(floating))
+	}
+	kids := childIDs(floating[0].(map[string]interface{}))
+	if len(kids) != 1 || kids[0] != childID {
+		t.Errorf("child not added under floating parent: want [%s], got %v", childID, kids)
+	}
+}
+
 func TestDetachRootRejected(t *testing.T) {
 	router, _ := newTestRouter(t)
 	wbID, rootID := newWorkbookWithRoot(t, router)

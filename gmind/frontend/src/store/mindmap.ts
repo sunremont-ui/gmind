@@ -82,6 +82,8 @@ export const useMindMapStore = create<MindMapState>((set, get) => ({
     updated.sheets = updated.sheets.map(sheet => ({
       ...sheet,
       root_topic: updateRecursive(sheet.root_topic),
+      // Also reaches nodes nested inside floating subtrees.
+      floating_topics: (sheet.floating_topics ?? []).map(updateRecursive),
     }))
 
     set({ workbook: updated })
@@ -95,7 +97,9 @@ export const useMindMapStore = create<MindMapState>((set, get) => ({
       if (t.id === topic.id) return true
       return (t.children ?? []).some(existsInTree)
     }
-    if (workbook.sheets.some(s => existsInTree(s.root_topic))) return
+    const dup = workbook.sheets.some(s =>
+      existsInTree(s.root_topic) || (s.floating_topics ?? []).some(existsInTree))
+    if (dup) return
 
     const updated = { ...workbook }
 
@@ -109,9 +113,11 @@ export const useMindMapStore = create<MindMapState>((set, get) => ({
       return t
     }
 
+    // Parent may live in the main tree or inside a floating subtree.
     updated.sheets = updated.sheets.map(sheet => ({
       ...sheet,
       root_topic: addRecursive(sheet.root_topic),
+      floating_topics: (sheet.floating_topics ?? []).map(addRecursive),
     }))
 
     set({ workbook: updated })
@@ -125,7 +131,9 @@ export const useMindMapStore = create<MindMapState>((set, get) => ({
 
     const exists = (t: Topic): boolean =>
       t.id === topic.id || (t.children ?? []).some(exists)
-    if (workbook.sheets.some(s => exists(s.root_topic))) return
+    const dup = workbook.sheets.some(s =>
+      exists(s.root_topic) || (s.floating_topics ?? []).some(exists))
+    if (dup) return
 
     const addRecursive = (t: Topic): Topic => {
       if (t.id === parentId) {
@@ -144,6 +152,7 @@ export const useMindMapStore = create<MindMapState>((set, get) => ({
         sheets: workbook.sheets.map(sheet => ({
           ...sheet,
           root_topic: addRecursive(sheet.root_topic),
+          floating_topics: (sheet.floating_topics ?? []).map(addRecursive),
         })),
       },
     })
@@ -267,6 +276,12 @@ export const useMindMapStore = create<MindMapState>((set, get) => ({
     updated.sheets = updated.sheets.map(sheet => ({
       ...sheet,
       root_topic: removeRecursive(sheet.root_topic) ?? sheet.root_topic,
+      // Also prune nested children inside floating subtrees (top-level floating
+      // topics are removed via removeFloatingTopic, so keep them here).
+      floating_topics: (sheet.floating_topics ?? []).map(ft => ({
+        ...ft,
+        children: (ft.children ?? []).map(removeRecursive).filter((c): c is Topic => c !== null),
+      })),
     }))
 
     set({ workbook: updated })
@@ -337,7 +352,8 @@ export const useMindMapStore = create<MindMapState>((set, get) => ({
       const found = findRecursive(sheet.root_topic)
       if (found) return found
       for (const ft of sheet.floating_topics ?? []) {
-        if (ft.id === topicId) return ft
+        const inFloating = findRecursive(ft)
+        if (inFloating) return inFloating
       }
     }
     return null

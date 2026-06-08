@@ -1817,7 +1817,10 @@ export function MindMap({ workbookId, onXMindImported }: MindMapProps) {
           />
 
           {/* V5.0: edge anchors on selected node */}
-          <EdgeAnchorsLayer node={findLayoutNode(layoutResult, selectedTopicId)} />
+          <EdgeAnchorsLayer node={
+            findLayoutNode(layoutResult, selectedTopicId)
+            ?? floatingLayouts.reduce<LayoutNode | null>((acc, fl) => acc ?? findLayoutNode(fl, selectedTopicId), null)
+          } />
 
           {/* Node-drag drop hint over the target: center=swap, edge=child-direction */}
           {dropZone && draggingTopicId && (() => {

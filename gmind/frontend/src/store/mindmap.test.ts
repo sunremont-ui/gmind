@@ -249,6 +249,44 @@ describe('detachToFloating', () => {
   })
 })
 
+describe('floating parents', () => {
+  const withFloating = () => {
+    const wb = makeWorkbook([makeTopic('a')])
+    wb.sheets[0].floating_topics = [makeTopic('float', [makeTopic('fchild')])]
+    useMindMapStore.getState().setWorkbook(wb)
+    useMindMapStore.setState({ activeSheetId: 'sheet1' })
+  }
+
+  it('addTopic adds a child under a floating topic', () => {
+    withFloating()
+    useMindMapStore.getState().addTopic('float', makeTopic('newkid'))
+    const float = useMindMapStore.getState().getTopic('float')
+    expect(float!.children!.map(c => c.id)).toEqual(['fchild', 'newkid'])
+  })
+
+  it('getTopic finds a node nested inside a floating subtree', () => {
+    withFloating()
+    const t = useMindMapStore.getState().getTopic('fchild')
+    expect(t).not.toBeNull()
+    expect(t!.id).toBe('fchild')
+  })
+
+  it('removeTopic prunes a nested floating child but keeps the floating root', () => {
+    withFloating()
+    useMindMapStore.getState().removeTopic('fchild')
+    const sheet = useMindMapStore.getState().workbook!.sheets[0]
+    expect(sheet.floating_topics!.map(f => f.id)).toEqual(['float'])
+    expect(useMindMapStore.getState().getTopic('fchild')).toBeNull()
+    expect(useMindMapStore.getState().getTopic('float')).not.toBeNull()
+  })
+
+  it('updateTopicInTree reaches a nested floating child', () => {
+    withFloating()
+    useMindMapStore.getState().updateTopicInTree('fchild', { title: 'Renamed' })
+    expect(useMindMapStore.getState().getTopic('fchild')!.title).toBe('Renamed')
+  })
+})
+
 describe('getTopic', () => {
   it('finds root topic', () => {
     useMindMapStore.getState().setWorkbook(makeWorkbook())

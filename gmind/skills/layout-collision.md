@@ -74,7 +74,7 @@ gmindLastLayout()        // stats последнего прогона
 - **Per-side fold у выбранного узла недоступен** — у selected бейджи скрыты, показаны интерактивные якоря (`EdgeAnchorsLayer`). Свернуть сторону можно у НЕвыбранного узла.
 - **Per-side fold не делает reflow** — by design (требование «не перемещается»): дети свёрнутой стороны прячутся на местах, пустота остаётся.
 - **Drop тела узла на floating-узел** — теперь явный no-op (snap back), без рассинхрона: `targetFloating`-гард в `handlePointerUpGlobal`. Floating-источник на center другого узла → reparent (swap только для tree-источника).
-- **Интерактивные якоря у floating-узлов не рисуются** — `EdgeAnchorsLayer` берёт только основное дерево (`layoutResult`). Бейджи числа детей у floating-поддеревьев есть (идут через `renderNode`), фолд по ним работает.
+- **Floating-родители теперь полноценны (2026-06-08)** — `EdgeAnchorsLayer` ищет выбранный узел и в `floatingLayouts`, поэтому у floating-узлов есть якоря (создать ребёнка/связь). Стор-хелперы `addTopic`/`addTopicAt`/`removeTopic`/`updateTopicInTree`/`getTopic` обходят floating-поддеревья как корни; backend `CreateTopic`/`UpdateTopic` уже работали через `sheet.FindTopic`.
 
 ## Тесты
 
