@@ -232,7 +232,8 @@ func (h *Handler) MASysListPending(w http.ResponseWriter, r *http.Request) {
 
 // MASysListNamespaces — discovery endpoint for the UI namespace switcher.
 func (h *Handler) MASysListNamespaces(w http.ResponseWriter, r *http.Request) {
-	data, err := h.callTRPCQuery(r.Context(), "memory.entity.namespaces", nil)
+	// entity router has no `namespaces`; wiki exposes the namespace list.
+	data, err := h.callTRPCQuery(r.Context(), "memory.wiki.namespaces", nil)
 	h.writeMASysJSON(w, data, err)
 }
 
