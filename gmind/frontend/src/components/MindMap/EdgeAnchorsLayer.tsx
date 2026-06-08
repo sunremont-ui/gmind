@@ -4,6 +4,8 @@
 //   • потянуть в пустоту → создать дочерний узел в направлении драга (ghost);
 //   • кликнуть → сразу создать дочерний узел в направлении точки;
 //   • правый клик → меню выбора направления.
+// Рядом с якорем стороны, где есть дети, — маленькая кнопка −/+ сворачивания
+// этой стороны (для невыбранных узлов то же делает клик по бейджу в renderer).
 import { useState } from 'react'
 import type { LayoutNode } from '../../types'
 import { useRelationshipsStore } from '../../store/relationships'
@@ -12,14 +14,18 @@ import { colors } from '../../styles/tokens'
 
 interface Props {
   node: LayoutNode | null
+  // Свернуть/развернуть детей одной стороны выбранного узла.
+  onToggleSide?: (topicId: string, side: AnchorSide) => void
 }
+
+const FOLD_OFFSET = 20 // насколько кнопка fold вынесена наружу за якорь
 
 const ANCHOR_RADIUS = 7
 const ANCHOR_HOVER_RADIUS = 11
 const ANCHOR_FILL = colors.accent
 const ANCHOR_STROKE = '#fff'
 
-export function EdgeAnchorsLayer({ node }: Props) {
+export function EdgeAnchorsLayer({ node, onToggleSide }: Props) {
   const beginDrag = useRelationshipsStore(s => s.beginDrag)
   const openAnchorMenu = useRelationshipsStore(s => s.openAnchorMenu)
   const isDragging = useRelationshipsStore(s => s.drag.isDragging)
@@ -31,6 +37,7 @@ export function EdgeAnchorsLayer({ node }: Props) {
 
   const { x, y, width, height } = node
   const topicId = node.topic.id
+  const foldedSides = new Set(node.topic.folded_sides ?? [])
 
   // Count existing children per direction (by their laid-out position relative
   // to this node's centre) so each anchor can show its branch count.
@@ -103,6 +110,30 @@ export function EdgeAnchorsLayer({ node }: Props) {
                 {count}
               </text>
             ) : null}
+          </g>
+        )
+      })}
+
+      {/* Маленькая кнопка −/+ снаружи якоря для сворачивания стороны с детьми. */}
+      {onToggleSide && anchors.map(a => {
+        if (counts[a.side] === 0) return null
+        const fx = a.cx + (a.side === 'right' ? FOLD_OFFSET : a.side === 'left' ? -FOLD_OFFSET : 0)
+        const fy = a.cy + (a.side === 'bottom' ? FOLD_OFFSET : a.side === 'top' ? -FOLD_OFFSET : 0)
+        const folded = foldedSides.has(a.side)
+        const t = 4
+        return (
+          <g key={`fold-${a.side}`} style={{ cursor: 'pointer' }}
+            onPointerDown={(e) => { e.stopPropagation() }}
+            onClick={(e) => { e.stopPropagation(); onToggleSide(topicId, a.side) }}
+          >
+            <title>{folded ? 'Развернуть' : 'Свернуть'} сторону ({counts[a.side]})</title>
+            <circle cx={fx} cy={fy} r={7}
+              fill={folded ? '#fff' : colors.accent}
+              stroke={folded ? colors.accent : '#fff'} strokeWidth={1.5} opacity={0.95} />
+            <g stroke={folded ? colors.accent : '#fff'} strokeWidth={2} strokeLinecap="round" pointerEvents="none">
+              <line x1={fx - t} y1={fy} x2={fx + t} y2={fy} />
+              {folded && <line x1={fx} y1={fy - t} x2={fx} y2={fy + t} />}
+            </g>
           </g>
         )
       })}
