@@ -9,6 +9,9 @@ if not exist "%BIN_DIR%" mkdir "%BIN_DIR%"
 
 echo Building gmind-server.exe...
 cd /d "%~dp0..\backend"
-CGO_ENABLED=0 go build -o "%BIN_DIR%\gmind-server-%TARGET%.exe" ./cmd/server
+set CGO_ENABLED=0
+set GOOS=windows
+set GOARCH=amd64
+go build -o "%BIN_DIR%\gmind-server-%TARGET%.exe" ./cmd/server
 
 echo Done: %BIN_DIR%\gmind-server-%TARGET%.exe
