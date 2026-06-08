@@ -82,6 +82,9 @@ func (h *Handler) CreateTopic(w http.ResponseWriter, r *http.Request) {
 	if req.MemoryKind != "" {
 		topic.MemoryKind = req.MemoryKind
 	}
+	if req.ChildDir != "" {
+		topic.ChildDir = req.ChildDir
+	}
 
 	found := false
 	for _, sheet := range wb.Sheets {
@@ -170,6 +173,9 @@ func (h *Handler) UpdateTopic(w http.ResponseWriter, r *http.Request) {
 			}
 			if req.BranchSide != "" {
 				topic.BranchSide = req.BranchSide
+			}
+			if req.ChildDir != "" {
+				topic.ChildDir = req.ChildDir
 			}
 			if req.EdgeStyle != "" {
 				topic.EdgeStyle = req.EdgeStyle

@@ -6,6 +6,26 @@ function makeTopic(id: string, title: string, overrides: Partial<Topic> = {}): T
   return { id, title, folded: false, children: [], ...overrides }
 }
 
+// Собирает видимые узлы и проверяет, что нет пар с реальным наложением AABB.
+function noOverlaps(root: import('../types').LayoutNode): boolean {
+  const nodes: import('../types').LayoutNode[] = []
+  const collect = (n: import('../types').LayoutNode) => {
+    nodes.push(n)
+    if (n.topic?.folded) return
+    for (const c of n.children || []) collect(c)
+  }
+  collect(root)
+  for (let i = 0; i < nodes.length; i++) {
+    for (let j = i + 1; j < nodes.length; j++) {
+      const a = nodes[i], b = nodes[j]
+      const penX = Math.min(a.x + a.width, b.x + b.width) - Math.max(a.x, b.x)
+      const penY = Math.min(a.y + a.height, b.y + b.height) - Math.max(a.y, b.y)
+      if (penX > 1 && penY > 1) return false
+    }
+  }
+  return true
+}
+
 describe('buildLayout', () => {
   it('creates a leaf node', () => {
     const t = makeTopic('1', 'hello')
@@ -96,6 +116,50 @@ describe('computeTreeLayout', () => {
     expect(result.root.children[0].x).toBeLessThan(result.root.x)
     expect(result.root.children[0].y).toBeLessThan(result.root.y)
     expect(result.root.children[1].y).toBeGreaterThan(result.root.y)
+  })
+
+  it('no overlap between sibling subtrees in mindmap', () => {
+    const root = makeTopic('1', 'root', {
+      children: [
+        makeTopic('2', 'a', { children: [makeTopic('4', 'a1'), makeTopic('5', 'a2')] }),
+        makeTopic('3', 'b', { children: [makeTopic('6', 'b1'), makeTopic('7', 'b2')] }),
+      ],
+    })
+    const n = buildLayout(root)
+    const result = computeTreeLayout(n, 'mindmap', new Map())
+    expect(noOverlaps(result.root)).toBe(true)
+  })
+
+  it('no overlap with mixed child directions (one branch grows down)', () => {
+    const root = makeTopic('1', 'root', {
+      children: [
+        makeTopic('2', 'a', {
+          structure_class: 'tree-down',
+          children: [makeTopic('4', 'a1'), makeTopic('5', 'a2'), makeTopic('8', 'a3')],
+        }),
+        makeTopic('3', 'b', { children: [makeTopic('6', 'b1'), makeTopic('7', 'b2')] }),
+      ],
+    })
+    const n = buildLayout(root)
+    const result = computeTreeLayout(n, 'mindmap', new Map())
+    expect(noOverlaps(result.root)).toBe(true)
+  })
+
+  it('per-child child_dir: only the tagged child flips side, others stay', () => {
+    const root = makeTopic('1', 'root', {
+      children: [
+        makeTopic('2', 'a'),                              // default → right
+        makeTopic('3', 'b'),                              // default → right
+        makeTopic('4', 'c', { child_dir: 'left' }),       // explicit → left
+      ],
+    })
+    const n = buildLayout(root)
+    const result = computeTreeLayout(n, 'mindmap', new Map())
+    const byId = (id: string) => result.root.children.find(c => c.topic.id === id)!
+    expect(byId('2').x).toBeGreaterThan(result.root.x) // right
+    expect(byId('3').x).toBeGreaterThan(result.root.x) // right (unchanged)
+    expect(byId('4').x).toBeLessThan(result.root.x)    // left (only this one)
+    expect(noOverlaps(result.root)).toBe(true)
   })
 
   it('collapses children of folded parent to parent position', () => {

@@ -64,6 +64,7 @@ type Topic struct {
 	Position       *Position `json:"position,omitempty"`
 	Structure      string    `json:"structure_class,omitempty"`
 	BranchSide     string    `json:"branch_side,omitempty"`
+	ChildDir       string    `json:"child_dir,omitempty"`
 	EdgeStyle      string    `json:"edge_style,omitempty"`
 	EdgeDash       string    `json:"edge_dash,omitempty"`
 	FontSize       int       `json:"font_size,omitempty"`
@@ -191,6 +192,8 @@ type CreateTopicRequest struct {
 	Index *int `json:"index,omitempty"`
 	// MemoryKind — optional Memory Lab classification for the new node.
 	MemoryKind string `json:"memory_kind,omitempty"`
+	// ChildDir — per-child layout direction (up|down|left|right).
+	ChildDir string `json:"child_dir,omitempty"`
 }
 
 type UpdateTopicRequest struct {
@@ -204,6 +207,7 @@ type UpdateTopicRequest struct {
 	Position       *Position `json:"position,omitempty"`
 	Structure      string    `json:"structure_class,omitempty"`
 	BranchSide     string    `json:"branch_side,omitempty"`
+	ChildDir       string    `json:"child_dir,omitempty"`
 	EdgeStyle      string    `json:"edge_style,omitempty"`
 	EdgeDash       string    `json:"edge_dash,omitempty"`
 	FontSize       int       `json:"font_size,omitempty"`

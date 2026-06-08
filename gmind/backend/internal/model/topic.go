@@ -31,6 +31,7 @@ func (t *Topic) DeepCopy() *Topic {
 		Folded:     t.Folded,
 		Structure:  t.Structure,
 		BranchSide: t.BranchSide,
+		ChildDir:   t.ChildDir,
 		EdgeStyle:  t.EdgeStyle,
 		EdgeDash:   t.EdgeDash,
 		FontSize:   t.FontSize,

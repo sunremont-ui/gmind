@@ -2,6 +2,8 @@
 
 Gmind использует собственный SVG layout engine, вдохновлённый Snowbrush от XMind. Алгоритм вычисляет абсолютные координаты для каждого узла, затем рендерит через SVG `<g transform="translate(x,y)">`.
 
+> **Актуальное (2026-06-01):** раскладка переписана на **паковку по измеренным bbox** (без наложений) + **per-child направление** (`child_dir`) + **глобальный sweep** + **логи**. Полное описание и «как модифицировать» — в [`docs/layout-algorithm.md`](../docs/layout-algorithm.md). Этот файл — обзор; детали ниже синхронизированы.
+
 ## Architecture
 
 ```
@@ -41,11 +43,20 @@ Topic tree → buildLayout() → LayoutNode tree (x=0, y=0, все children вк
 - Рекурсивно коллапсирует всех потомков (`collapseDescendants`) к той же позиции
 - Это обеспечивает плавную анимацию: при сворачивании дети через CSS transition перемещаются с computed-позиции на позицию родителя, при разворачивании — обратно
 
+#### Фаза 1.7: Устранение наложений (resolveOverlaps)
+Глобальная страховка после раскладки: находит пары с реальным наложением AABB и
+двигает **только листья/свёрнутые** узлы (чтобы не рвать связи поддеревьев).
+Основные коллизии уже предотвращены паковкой по bbox; этот проход добивает
+радиал/ёлочку/пограничные случаи. Константы: `OVERLAP_EPSILON=1`,
+`SWEEP_MAX_NODES=300`, `SWEEP_PASSES=4`.
+
 #### Фаза 2: Сбор границ (collectBounds)
 Обходит всё дерево, вычисляет `minX, maxX, minY, maxY`.
 
 #### Фаза 3: Сдвиг (shiftGlobal)
 Сдвигает всё дерево на `(offsetX, offsetY)` так, чтобы верхний левый угол был в (80, 100).
+
+Каждый прогон логируется через `LayoutRun` (`renderer/layoutLog.ts`).
 
 ### 3. Коррекция при перепозиционировании
 Когда layout-алгоритм перемещает дочернюю ноду, все её потомки сдвигаются на ту же дельту через `shiftSubtree(child, dx, dy)`. Это гарантирует, что поддерево не «разваливается» при перепозиционировании родителя.
@@ -64,11 +75,13 @@ Topic tree → buildLayout() → LayoutNode tree (x=0, y=0, все children вк
           [Child C]
 ```
 
-**Расчёт:**
-1. Для каждого ребёнка рекурсивно вычислить высоту поддерева через `subtreeHeight()`
-2. Общая высота = сумма высот детей + отступы между ними
-3. Дети располагаются вертикально от `-totalHeight/2` до `+totalHeight/2`
-4. Все дети на `x = levelGap` от родителя (настраивается, по умолчанию 100px)
+**Расчёт (packVertical):**
+1. Для каждого ребёнка измерить **реальный bbox** уже разложенного поддерева (`measureSubtree`)
+2. Общая высота = сумма высот bbox + отступы; стопка от `-total/2`
+3. Верх каждого поддерева ставится вплотную к низу предыдущего + `siblingGap` → полосы не пересекаются (нет наложений)
+4. Поддерево прижимается к стороне на `levelGap` от родителя через `translate(child, dx, dy)`
+
+> Раньше использовалась эвристика `subtreeHeight()` (сумма высот детей). Она ломалась на смешанных направлениях; заменена на измерение реального bbox.
 
 ### Org-Chart / Tree-Down
 
@@ -137,15 +150,23 @@ Root-эффект справа, причины чередуются по диа�
 
 ### Маппинг алгоритмов
 
-| StructureClass | Функция | Direction | Siblings |
+Древовидные структуры проходят через `packDirectional` (группирует детей по `child_dir`, см. ниже), который вызывает:
+
+| StructureClass | Упаковщик | Direction по умолчанию | Siblings |
 |---|---|---|---|
-| `mindmap` | `layoutMindMap` | right/left(branch_side) | stack |
-| `tree` / `tree-right` | `layoutTreeHorizontal` | right | stack |
-| `tree-left` | `layoutTreeHorizontal` | left | stack |
-| `org-chart` / `tree-down` | `layoutTreeVertical` | down | рядом |
-| `tree-up` | `layoutTreeVertical` | up | рядом |
+| `mindmap` | `packVertical` | right/left (branch_side) | stack |
+| `tree` / `tree-right` | `packVertical` | right | stack |
+| `tree-left` | `packVertical` | left | stack |
+| `org-chart` / `tree-down` | `packHorizontal` | down | рядом |
+| `tree-up` | `packHorizontal` | up | рядом |
 | `radial` | `layoutRadial` | 8dir | polar |
 | `fishbone` | `layoutFishbone` | alternating | diagonal |
+
+### Per-child направление (child_dir)
+
+Поле `topic.child_dir` (`up|down|left|right`) задаёт направление **конкретного ребёнка** относительно родителя. `packDirectional` группирует детей по `child_dir` и пакует каждую группу независимо; дети без `child_dir` идут в направлении по умолчанию (`defaultDir` из таблицы). Это даёт разнонаправленную (в т.ч. балансную лево/право) раскладку: новый ребёнок встаёт в выбранную сторону, остальные не двигаются.
+
+Создаётся кликом/драгом по якорю узла (`EdgeAnchorsLayer` → `AnchorActionMenu`/drag → `MindMap.createChildInDirection`). Персист: backend `model.Topic.ChildDir`.
 
 ## Параметры (дефолтные)
 
@@ -192,7 +213,19 @@ computeTreeLayout(root, structure, structMap, gaps)
 
 ### 3. Размер поддеревьев считался некорректно
 Старая формула `children.length * (NODE_HEIGHT + SIBLING_GAP)` не учитывала вложенность.
-**Фикс:** рекурсивные `subtreeHeight()`/`subtreeWidth()` вычисляют реальную высоту/ширину поддерева.
+**Фикс (этап 1):** рекурсивные `subtreeHeight()`/`subtreeWidth()`.
+**Фикс (этап 2, 2026-06-01):** замена эвристики на `measureSubtree()` — реальный AABB поддерева. Корректен даже при смешанных направлениях вложенных веток → ветки не наезжают.
+
+## Логи раскладки
+
+`renderer/layoutLog.ts` собирает по каждому прогону события `pack/overlap/resolve` + тайминг. Выключены по умолчанию (нулевая стоимость в проде). Управление из консоли браузера:
+
+```js
+gmindLayoutDebug(true)   // вкл/выкл (сохраняется в localStorage 'gmind.layoutDebug')
+gmindLastLayout()        // stats последнего прогона
+```
+
+Сводка в консоли: `[layout] N nodes · M packs · overlaps X/Y · Zms`.
 
 ## Типы
 

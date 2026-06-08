@@ -79,6 +79,7 @@ export interface CreateTopicRequest {
   id?: string
   index?: number
   memory_kind?: string
+  child_dir?: string
 }
 
 export interface CreateWorkbookRequest {
@@ -168,6 +169,9 @@ export interface Topic {
   position?: Position
   structure_class?: string
   branch_side?: string
+  // Направление этого ребёнка относительно родителя (up|down|left|right).
+  // Пусто → раскладка по умолчанию для структуры родителя.
+  child_dir?: string
   edge_style?: string
   edge_dash?: string
   font_size?: number
@@ -217,6 +221,9 @@ export interface UpdateTopicRequest {
   position?: Position
   structure_class?: string
   branch_side?: string
+  // Направление этого ребёнка относительно родителя (up|down|left|right).
+  // Пусто → раскладка по умолчанию для структуры родителя.
+  child_dir?: string
   edge_style?: string
   edge_dash?: string
   font_size?: number

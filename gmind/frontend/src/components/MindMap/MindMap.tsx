@@ -24,10 +24,11 @@ import { RelationshipPanel } from '../RelationshipPanel/RelationshipPanel'
 import { EdgeAnchorsLayer } from './EdgeAnchorsLayer'
 import { FantomLine } from './FantomLine'
 import { ConnectionPopover } from './ConnectionPopover'
+import { AnchorActionMenu } from './AnchorActionMenu'
 import { RelationshipMarkers } from './RelationshipLine'
 import { RelationshipFilter } from './RelationshipFilter'
 import { useGraphDragTracking } from './useGraphDragTracking'
-import { useRelationshipsStore } from '../../store/relationships'
+import { useRelationshipsStore, type AnchorSide } from '../../store/relationships'
 import { KGSyncDialog } from '../MemoryWorkbench/KGSyncDialog'
 
 import { colors, fonts, fontSizes, fontWeights, spacing, radii, shadows, transitions, z } from '../../styles/tokens'
@@ -160,9 +161,10 @@ export function MindMap({ workbookId, onXMindImported }: MindMapProps) {
   // V6.1 — optimistic child/sibling creation: the node (with a client-generated
   // id) appears and enters edit mode immediately, while the server create runs
   // in the background. Offline → queued; online failure → rolled back.
-  const createChildOptimistic = useCallback((parentId: string, index?: number) => {
+  const createChildOptimistic = useCallback((parentId: string, index?: number, childDir?: string) => {
     const id = crypto.randomUUID()
     const newTopic = { id, title: '', folded: false, children: [] } as Topic
+    if (childDir) newTopic.child_dir = childDir
 
     // Memory Lab: type the new node by inheriting the parent's kind (default concept).
     const wb = useMindMapStore.getState().workbook
@@ -182,17 +184,30 @@ export function MindMap({ workbookId, onXMindImported }: MindMapProps) {
       offlineQueue.add({
         type: 'create',
         endpoint: `/workbooks/${workbookId}/topics`,
-        body: { title: '', parent_id: parentId, id, index, memory_kind: memoryKind },
+        body: { title: '', parent_id: parentId, id, index, memory_kind: memoryKind, child_dir: childDir },
       }).catch(() => {})
       return
     }
-    api.createTopic(workbookId, parentId, '', undefined, { id, index, memoryKind })
+    api.createTopic(workbookId, parentId, '', undefined, { id, index, memoryKind, childDir })
       .then(() => wsClient.sendOperation('topic_created', { parent_id: parentId, topic: newTopic }))
       .catch(err => {
         console.error('Failed to create topic:', err)
         removeTopic(id) // rollback optimistic node
       })
   }, [workbookId, addTopic, addTopicAt, setSelectedTopic, removeTopic])
+
+  // Клик/перетаскивание по точке узла → новый дочерний узел в этом направлении.
+  // Направление хранится per-child (child_dir), поэтому остальные дети остаются
+  // там, где были (раскладку родителя не меняем).
+  const createChildInDirection = useCallback((topicId: string, side: AnchorSide) => {
+    const dirBySide: Record<AnchorSide, string> = {
+      top: 'up',
+      right: 'right',
+      bottom: 'down',
+      left: 'left',
+    }
+    createChildOptimistic(topicId, undefined, dirBySide[side])
+  }, [createChildOptimistic])
 
   const undo = useCallback(async () => {
     const stack = undoStack.current
@@ -414,7 +429,7 @@ export function MindMap({ workbookId, onXMindImported }: MindMapProps) {
   }, [selectedTopicId, setHighlight])
 
   // V5.0: track relationship drag globally
-  useGraphDragTracking({ svgRef, clientToWorld: toSvgPoint })
+  useGraphDragTracking({ svgRef, clientToWorld: toSvgPoint, onCreateChildDrag: createChildInDirection })
 
   // V5.0: helper to find LayoutNode by topic id (for EdgeAnchorsLayer)
   const findLayoutNode = useCallback((root: LayoutNode | null, id: string | null): LayoutNode | null => {
@@ -1661,6 +1676,15 @@ export function MindMap({ workbookId, onXMindImported }: MindMapProps) {
           setShowPresence(false)
           setShowHelp(false)
           setCloseToken(t => t + 1)
+          // Клик мимо узла → снять выделение, ничто не активно.
+          // Якоря (точки) не считаем «мимо» — они создают узлы.
+          const el = e.target as Element
+          const onNode = el?.closest?.('[data-topic-id]') || el?.closest?.('[data-anchor-side]')
+          if (!onNode && activeTool === 'pointer') {
+            setSelectedTopic(null)
+            setEditingTopicId(null)
+            try { window.getSelection()?.removeAllRanges() } catch { /* ignore */ }
+          }
           handleCanvasToolClick(e)
         }}
         onContextMenu={(e) => {
@@ -1776,6 +1800,7 @@ export function MindMap({ workbookId, onXMindImported }: MindMapProps) {
 
       {/* V5.0: relationship-related overlays */}
       <ConnectionPopover workbookId={workbookId} />
+      <AnchorActionMenu onCreateChild={createChildInDirection} />
       <RelationshipPanel />
       <RelationshipFilter />
 

@@ -22,6 +22,11 @@
 - Phase 3: Knowledge Graph Canvas (sync MASys entities+relations → Gmind workbook через V5.0 relationships; idempotent; predicate→type mapping)
 - Phase 4: Episode Timeline (chronological lane + filters + day buckets + skill candidates + details modal)
 
+**Layout Engine v2 + Local Models — DONE (2026-06-01).**
+- Раскладка без наложений (паковка по измеренным bbox) + per-child направление `child_dir` + sweep + логи. См. `docs/layout-algorithm.md`, `wiki/05-layout-engine.md`, `skills/layout-collision.md`.
+- Интерактив якорей: крестик при наведении, клик → меню направления, драг → ребёнок в сторону драга.
+- Локальные llama.cpp модели: рекурсивный скан `E:\LlamaCpp\models` → выпадающий список в Local AI Server. См. `skills/model-servers.md`.
+
 **Активный roadmap:** V6.0 Phase 5 (Context Budget) → Phase 7 (Pipeline Trace), см. `skills/memory-visualization.md`.
 
 **Что работает:**

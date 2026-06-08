@@ -1,4 +1,15 @@
 import type { Topic, LayoutNode, StructureClass } from '../types'
+import { LayoutRun } from './layoutLog'
+
+/** Axis-aligned bounding box в мировых координатах. */
+export interface BBox { minX: number; minY: number; maxX: number; maxY: number }
+
+// Зазор устранения наложений: проникновение меньше этого порога (px) считаем
+// касанием, а не наложением, и не трогаем. См. docs/layout-algorithm.md.
+const OVERLAP_EPSILON = 1
+// Глобальный sweep — O(n²); на очень больших картах пропускаем ради скорости.
+const SWEEP_MAX_NODES = 300
+const SWEEP_PASSES = 4
 
 export const DEFAULT_NODE_HEIGHT = 40
 export const DEFAULT_NODE_MIN_WIDTH = 60
@@ -106,6 +117,32 @@ function shiftSubtree(n: LayoutNode, dx: number, dy: number) {
   }
 }
 
+/** Сдвигает узел вместе со всем поддеревом (включая сам узел). */
+function translate(n: LayoutNode, dx: number, dy: number) {
+  if (dx === 0 && dy === 0) return
+  n.x += dx
+  n.y += dy
+  for (const child of ensureArray(n.children)) translate(child, dx, dy)
+}
+
+/**
+ * Реальный bbox поддерева в текущих координатах (узел + все потомки).
+ * Это ключ к упаковке без наложений: вместо эвристической «высоты поддерева»
+ * мы меряем фактический габарит — он корректен даже для смешанных направлений
+ * (например, потомок растёт вниз, а его сосед — вправо).
+ */
+function measureSubtree(n: LayoutNode): BBox {
+  let minX = n.x, minY = n.y, maxX = n.x + n.width, maxY = n.y + n.height
+  for (const child of ensureArray(n.children)) {
+    const b = measureSubtree(child)
+    if (b.minX < minX) minX = b.minX
+    if (b.minY < minY) minY = b.minY
+    if (b.maxX > maxX) maxX = b.maxX
+    if (b.maxY > maxY) maxY = b.maxY
+  }
+  return { minX, minY, maxX, maxY }
+}
+
 function computeLayout(
   root: LayoutNode,
   getStructure: (n: LayoutNode) => StructureClass,
@@ -129,7 +166,11 @@ function computeLayout(
     ensureArray(n.children).forEach(c => shiftGlobal(c, ox, oy))
   }
 
+  const run = new LayoutRun()
+  let nodeCount = 0
+
   const layoutRecursive = (n: LayoutNode, depth: number) => {
+    nodeCount++
     const struct = getStructure(n)
     const children = ensureArray(n.children)
 
@@ -147,129 +188,194 @@ function computeLayout(
       layoutRecursive(children[i], depth + 1)
     }
 
-    switch (struct) {
-      case 'org-chart':
-      case 'tree-down':
-        layoutTreeVertical(n, children, 'down', nsGap, nlGap + childGap)
-        break
-      case 'tree-up':
-        layoutTreeVertical(n, children, 'up', nsGap, nlGap + childGap)
-        break
-      case 'tree':
-      case 'tree-right':
-        layoutTreeHorizontal(n, children, 'right', nsGap, nlGap + childGap)
-        break
-      case 'tree-left':
-        layoutTreeHorizontal(n, children, 'left', nsGap, nlGap + childGap)
-        break
-      case 'radial':
-        layoutRadial(n, children, nlGap + childGap, nsGap)
-        break
-      case 'fishbone':
-        layoutFishbone(n, children, nlGap + childGap, nsGap)
-        break
-      case 'mindmap':
-      default:
-        layoutMindMap(n, children, nlGap + childGap, nsGap)
-        break
+    // Radial / fishbone — особые раскладки, направление per-child не применяем.
+    if (struct === 'radial') {
+      layoutRadial(n, children, nlGap + childGap, nsGap)
+      run.pack(n.topic.id, 'radial', children.length)
+    } else if (struct === 'fishbone') {
+      layoutFishbone(n, children, nlGap + childGap, nsGap)
+      run.pack(n.topic.id, 'fishbone', children.length)
+    } else {
+      // Древовидные структуры: каждый ребёнок может иметь своё направление
+      // (child_dir); кто без него — идёт в направлении по умолчанию для
+      // структуры родителя. Так новый ребёнок встаёт в выбранную сторону, а
+      // остальные остаются там, где были.
+      packDirectional(n, children, nlGap + childGap, nsGap, defaultDir(struct, n.topic?.branch_side), run)
     }
   }
 
   layoutRecursive(root, 0)
   postProcessFolded(root)
+  run.setNodeCount(nodeCount)
+  // Safety net: устранить любые оставшиеся наложения (радиал/ёлочка/смешанные).
+  resolveOverlaps(root, run)
   collectBounds(root)
   const offsetX = -minX + 80
   const offsetY = -minY + 100
   shiftGlobal(root, offsetX, offsetY)
+  run.finish()
 
   return { root, width: maxX - minX + 160, height: Math.max(maxY - minY + 200, 400) }
 }
 
-function layoutMindMap(n: LayoutNode, children: LayoutNode[], levelGap: number, siblingGap: number) {
-  const childHeights: number[] = []
-  let totalHeight = 0
-  const branchSide = n.topic.branch_side || 'auto'
-
-  for (let i = 0; i < children.length; i++) {
-    const child = children[i]
-    const subTreeHeight = subtreeHeight(child, siblingGap)
-    childHeights.push(subTreeHeight)
-    totalHeight += subTreeHeight
+/**
+ * Глобальная проверка наложений после раскладки. Основные коллизии уже
+ * предотвращены упаковкой по измеренным bbox; этот проход — страховка для
+ * радиальной/ёлочной раскладок и пограничных случаев. Двигаем только листья
+ * (или свёрнутые узлы), чтобы не рвать связи поддеревьев.
+ */
+function resolveOverlaps(root: LayoutNode, run: LayoutRun) {
+  const visible: LayoutNode[] = []
+  const collect = (n: LayoutNode) => {
+    visible.push(n)
+    if (n.topic?.folded) return // дети свёрнуты на родителя — не считаем
+    for (const c of ensureArray(n.children)) collect(c)
   }
-  totalHeight += siblingGap * (children.length - 1)
+  collect(root)
 
-  const isLeft = branchSide === 'left'
+  if (visible.length > SWEEP_MAX_NODES) {
+    run.info(`overlap sweep skipped (${visible.length} > ${SWEEP_MAX_NODES} nodes)`)
+    return
+  }
 
-  let currentY = -totalHeight / 2
+  const isMovable = (n: LayoutNode) => n.topic?.folded || ensureArray(n.children).length === 0
+
+  for (let pass = 0; pass < SWEEP_PASSES; pass++) {
+    let moved = 0
+    for (let i = 0; i < visible.length; i++) {
+      for (let j = i + 1; j < visible.length; j++) {
+        const a = visible[i]
+        const b = visible[j]
+        const penX = Math.min(a.x + a.width, b.x + b.width) - Math.max(a.x, b.x)
+        const penY = Math.min(a.y + a.height, b.y + b.height) - Math.max(a.y, b.y)
+        if (penX <= OVERLAP_EPSILON || penY <= OVERLAP_EPSILON) continue // нет наложения
+
+        run.overlap(a.topic.id, b.topic.id, { penX, penY })
+
+        // Двигаем подвижный (лист/свёрнутый). Если оба неподвижны — пропускаем.
+        const target = isMovable(b) ? b : isMovable(a) ? a : null
+        if (!target) continue
+        const other = target === b ? a : b
+
+        // Сдвиг по оси наименьшего проникновения, прочь от центра соседа.
+        let dx = 0, dy = 0
+        if (penX < penY) {
+          const ac = target.x + target.width / 2
+          const oc = other.x + other.width / 2
+          dx = (ac <= oc ? -1 : 1) * (penX + OVERLAP_EPSILON)
+        } else {
+          const ac = target.y + target.height / 2
+          const oc = other.y + other.height / 2
+          dy = (ac <= oc ? -1 : 1) * (penY + OVERLAP_EPSILON)
+        }
+        translate(target, dx, dy)
+        run.resolve(target.topic.id, dx, dy)
+        moved++
+      }
+    }
+    if (moved === 0) break
+  }
+}
+
+// Вертикальная стопка поддеревьев по одну сторону от узла (mindmap, tree
+// влево/вправо). Слоты по высоте = реальные bbox, поэтому соседние поддеревья
+// не накладываются даже при разных направлениях вложенных веток.
+function packVertical(n: LayoutNode, children: LayoutNode[], levelGap: number, siblingGap: number, side: 'left' | 'right') {
+  const bounds = children.map(measureSubtree)
+  const heights = bounds.map(b => b.maxY - b.minY)
+  let totalHeight = siblingGap * (children.length - 1)
+  for (const h of heights) totalHeight += h
+
+  let top = -totalHeight / 2
   for (let i = 0; i < children.length; i++) {
     const child = children[i]
-    const oldX = child.x
-    const oldY = child.y
-    child.y = currentY + childHeights[i] / 2
-    child.x = isLeft
-      ? -(child.width + levelGap)
-      : n.width + levelGap
-    shiftSubtree(child, child.x - oldX, child.y - oldY)
-    currentY += childHeights[i] + siblingGap
+    const b = bounds[i]
+    // По вертикали: верх поддерева → текущий «top».
+    const dy = top - b.minY
+    // По горизонтали: прижать поддерево к нужной стороне на расстоянии levelGap.
+    const dx = side === 'right'
+      ? (n.width + levelGap) - b.minX
+      : -levelGap - b.maxX
+    translate(child, dx, dy)
+    top += heights[i] + siblingGap
   }
   n.x = 0
   n.y = 0
 }
 
-function layoutTreeVertical(n: LayoutNode, children: LayoutNode[], direction: Direction, siblingGap: number, levelGap: number) {
-  const childWidths: number[] = []
-  let totalWidth = 0
+// Горизонтальная стопка поддеревьев сверху/снизу от узла (tree вверх/вниз,
+// org-chart). Слоты по ширине = реальные bbox.
+function packHorizontal(n: LayoutNode, children: LayoutNode[], levelGap: number, siblingGap: number, direction: 'up' | 'down') {
+  const bounds = children.map(measureSubtree)
+  const widths = bounds.map(b => b.maxX - b.minX)
+  let totalWidth = siblingGap * (children.length - 1)
+  for (const w of widths) totalWidth += w
 
-  for (let i = 0; i < children.length; i++) {
-    const w = subtreeWidth(children[i], siblingGap)
-    childWidths.push(w)
-    totalWidth += w
-  }
-  totalWidth += siblingGap * (children.length - 1)
-
-  const isDown = direction === 'down'
-  let currentX = -totalWidth / 2
+  let left = -totalWidth / 2
   for (let i = 0; i < children.length; i++) {
     const child = children[i]
-    const oldX = child.x
-    const oldY = child.y
-    child.x = currentX + childWidths[i] / 2 - child.width / 2
-    child.y = isDown
-      ? n.height + levelGap
-      : -(child.height + levelGap)
-    shiftSubtree(child, child.x - oldX, child.y - oldY)
-    currentX += childWidths[i] + siblingGap
+    const b = bounds[i]
+    const dx = left - b.minX
+    const dy = direction === 'down'
+      ? (n.height + levelGap) - b.minY
+      : -levelGap - b.maxY
+    translate(child, dx, dy)
+    left += widths[i] + siblingGap
   }
   n.x = 0
   n.y = 0
 }
 
-function layoutTreeHorizontal(n: LayoutNode, children: LayoutNode[], direction: Direction, siblingGap: number, levelGap: number) {
-  const childHeights: number[] = []
-  let totalHeight = 0
+type Dir4 = 'up' | 'down' | 'left' | 'right'
 
-  for (let i = 0; i < children.length; i++) {
-    const h = subtreeHeight(children[i], siblingGap)
-    childHeights.push(h)
-    totalHeight += h
+// Направление по умолчанию для детей данной структуры родителя.
+function defaultDir(struct: StructureClass | string, branchSide?: string): Dir4 {
+  switch (struct) {
+    case 'tree-left': return 'left'
+    case 'tree-up': return 'up'
+    case 'tree-down':
+    case 'org-chart': return 'down'
+    case 'tree':
+    case 'tree-right': return 'right'
+    case 'mindmap':
+    default: return branchSide === 'left' ? 'left' : 'right'
   }
-  totalHeight += siblingGap * (children.length - 1)
+}
 
-  const isRight = direction === 'right'
-  let currentY = -totalHeight / 2
-  for (let i = 0; i < children.length; i++) {
-    const child = children[i]
-    const oldX = child.x
-    const oldY = child.y
-    child.y = currentY + childHeights[i] / 2
-    child.x = isRight
-      ? n.width + levelGap
-      : -(child.width + levelGap)
-    shiftSubtree(child, child.x - oldX, child.y - oldY)
-    currentY += childHeights[i] + siblingGap
+function normalizeDir(d: string | undefined): Dir4 | null {
+  return d === 'up' || d === 'down' || d === 'left' || d === 'right' ? d : null
+}
+
+// Раскладывает детей с учётом индивидуального направления (child_dir): дети
+// группируются по сторонам и каждая группа пакуется независимо. Дети без
+// child_dir идут в направлении по умолчанию (dflt). Группы занимают разные
+// полуплоскости/квадранты; редкие угловые наложения добивает глобальный sweep.
+function packDirectional(
+  n: LayoutNode,
+  children: LayoutNode[],
+  levelGap: number,
+  siblingGap: number,
+  dflt: Dir4,
+  run: LayoutRun,
+) {
+  const groups: Record<Dir4, LayoutNode[]> = { up: [], down: [], left: [], right: [] }
+  for (const c of children) {
+    const d = normalizeDir(c.topic?.child_dir) ?? dflt
+    groups[d].push(c)
   }
+
+  if (groups.right.length) packVertical(n, groups.right, levelGap, siblingGap, 'right')
+  if (groups.left.length) packVertical(n, groups.left, levelGap, siblingGap, 'left')
+  if (groups.down.length) packHorizontal(n, groups.down, levelGap, siblingGap, 'down')
+  if (groups.up.length) packHorizontal(n, groups.up, levelGap, siblingGap, 'up')
   n.x = 0
   n.y = 0
+
+  const summary = (['up', 'down', 'left', 'right'] as Dir4[])
+    .filter(d => groups[d].length)
+    .map(d => `${d}:${groups[d].length}`)
+    .join(',')
+  run.pack(n.topic.id, `dir[${summary}]`, children.length)
 }
 
 function layoutRadial(n: LayoutNode, children: LayoutNode[], levelGap: number, siblingGap: number) {

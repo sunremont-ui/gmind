@@ -360,6 +360,7 @@ export const TopicNode = memo(function TopicNode({
             textAlign: customTextAlign as any, lineHeight: 1.3,
             display: 'flex', flexDirection: 'column', alignItems: 'center',
             justifyContent: 'center', gap: 4,
+            userSelect: 'none', WebkitUserSelect: 'none',
           }}>
             {topic.image && (
               <img src={topic.image} alt=""
@@ -395,6 +396,7 @@ export const TopicNode = memo(function TopicNode({
             color: customFontColor, fontWeight: customFontWeight,
             textAlign: customTextAlign as any, lineHeight: 1.3,
             wordBreak: 'break-word', overflowWrap: 'break-word',
+            userSelect: 'none', WebkitUserSelect: 'none',
           }}>
             <div style={{ flexShrink: 0 }}>{renderTitleHTML()}</div>
           </div>

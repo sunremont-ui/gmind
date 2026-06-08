@@ -38,6 +38,13 @@ interface RelationshipsState {
     screenX: number
     screenY: number
   } | null
+  // Anchor click menu — "create child node in this direction"
+  anchorMenu: {
+    topicId: string
+    side: AnchorSide
+    screenX: number
+    screenY: number
+  } | null
 
   // Actions
   setRelationships: (rels: Relationship[]) => void
@@ -56,6 +63,10 @@ interface RelationshipsState {
   // Popover (after drop)
   openPopover: (fromTopicId: string, toTopicId: string, x: number, y: number) => void
   closePopover: () => void
+
+  // Anchor click menu
+  openAnchorMenu: (topicId: string, side: AnchorSide, x: number, y: number) => void
+  closeAnchorMenu: () => void
 
   // Filters
   toggleType: (type: string) => void
@@ -85,6 +96,7 @@ export const useRelationshipsStore = create<RelationshipsState>((set, get) => ({
   highlightTopicId: null,
   drag: initialDrag,
   pendingConnection: null,
+  anchorMenu: null,
 
   setRelationships: (rels) => set({ relationships: rels }),
 
@@ -166,6 +178,12 @@ export const useRelationshipsStore = create<RelationshipsState>((set, get) => ({
   }),
 
   closePopover: () => set({ pendingConnection: null }),
+
+  openAnchorMenu: (topicId, side, x, y) => set({
+    anchorMenu: { topicId, side, screenX: x, screenY: y },
+  }),
+
+  closeAnchorMenu: () => set({ anchorMenu: null }),
 
   toggleType: (type) => {
     const visible = new Set(get().visibleTypes)

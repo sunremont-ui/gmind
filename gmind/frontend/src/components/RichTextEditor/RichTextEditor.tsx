@@ -21,9 +21,9 @@ export function RichTextEditor({ value, onChange, onSave, onCancel, fontSize, fo
       ref.current.focus()
       const sel = window.getSelection()
       if (sel) {
+        // Выделяем весь текст узла (двойной клик → правка всего текста).
         const range = document.createRange()
         range.selectNodeContents(ref.current)
-        range.collapse(false)
         sel.removeAllRanges()
         sel.addRange(range)
       }
@@ -45,9 +45,12 @@ export function RichTextEditor({ value, onChange, onSave, onCancel, fontSize, fo
     else if (e.key === 'Escape') { e.preventDefault(); onCancel() }
   }, [exec, onSave, onCancel, getHtml])
 
+  // Клик вне редактора (по пустому холсту/другому узлу) → коммитим правку.
+  // Кнопки тулбара используют onMouseDown+preventDefault, поэтому blur от них
+  // не срабатывает и преждевременного сохранения нет.
   const handleBlur = useCallback(() => {
-    onChange(getHtml())
-  }, [onChange, getHtml])
+    onSave(getHtml())
+  }, [onSave, getHtml])
 
   const btnStyle: React.CSSProperties = {
     border: 'none', background: 'transparent',
