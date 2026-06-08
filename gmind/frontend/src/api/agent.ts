@@ -1,7 +1,6 @@
 import type { AgentInfo, AgentCreateRequest, AgentTask, ModuleInfo, TaskSubmitRequest, Comment, CreateCommentRequest } from '../types/agent'
 import { ApiError } from './errors'
-
-const API_BASE = '/api/v1'
+import { API_BASE } from './base'
 
 async function agentFetch<T>(url: string, options?: RequestInit): Promise<T> {
   const res = await fetch(`${API_BASE}${url}`, options)

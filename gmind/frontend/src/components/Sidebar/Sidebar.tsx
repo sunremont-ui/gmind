@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { LumenPlus, LumenUpload, LumenMap, LumenInbox, LumenTrash2 } from '../UI/LumenIcon'
 import { api } from '../../api/client'
+import { API_BASE } from '../../api/base'
 import { offlineStorage, offlineSettings } from '../../utils/offline'
 import type { Workbook } from '../../types'
 import { colors, fonts, fontSizes, fontWeights, spacing, radii, shadows, transitions, sizes } from '../../styles/tokens'
@@ -123,7 +124,7 @@ export function Sidebar({ activeWorkbookId, onSelectWorkbook, collapsed = false,
                 try {
                   const formData = new FormData()
                   formData.append('file', file)
-                  const res = await fetch('/api/v1/workbooks/import', { method: 'POST', body: formData })
+                  const res = await fetch(`${API_BASE}/workbooks/import`, { method: 'POST', body: formData })
                   if (!res.ok) {
                     const errText = await res.text().catch(() => '')
                     throw new Error(`Import failed${errText ? `: ${errText}` : ''}`)

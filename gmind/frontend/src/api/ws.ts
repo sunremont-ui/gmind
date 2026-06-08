@@ -1,4 +1,5 @@
 import type { WSMessage } from '../types'
+import { wsUrl } from './base'
 
 type MessageHandler = (msg: WSMessage) => void
 
@@ -23,9 +24,7 @@ export class WSClient {
   }
 
   private doConnect() {
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-    const host = window.location.host
-    this.ws = new WebSocket(`${protocol}//${host}/ws`)
+    this.ws = new WebSocket(wsUrl('/ws'))
 
     this.ws.onopen = () => {
       this.send({

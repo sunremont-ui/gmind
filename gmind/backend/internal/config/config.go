@@ -95,7 +95,8 @@ func Load() *Config {
 			allowedOrigins[i] = strings.TrimSpace(allowedOrigins[i])
 		}
 	} else {
-		allowedOrigins = []string{"http://localhost:1011", "http://localhost:1012", "http://localhost:3000", "tauri://localhost", "https://tauri.localhost"}
+		// tauri://localhost (macOS/Linux) + http/https tauri.localhost (Windows WebView2).
+		allowedOrigins = []string{"http://localhost:1011", "http://localhost:1012", "http://localhost:3000", "tauri://localhost", "http://tauri.localhost", "https://tauri.localhost"}
 	}
 
 	return &Config{

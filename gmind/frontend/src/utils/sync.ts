@@ -1,4 +1,5 @@
 import { offlineQueue, offlineSettings } from './offline'
+import { API_ORIGIN } from '../api/base'
 import type { Workbook } from '../types'
 
 interface SessionState {
@@ -29,7 +30,7 @@ export async function syncPendingOps(): Promise<{ synced: number; failed: number
 
   for (const op of ops) {
     try {
-      const url = `/api/v1${op.endpoint}`
+      const url = `${API_ORIGIN}/api/v1${op.endpoint}`
       const options: RequestInit = {
         method: op.type === 'delete' ? 'DELETE' : op.type === 'move' ? 'POST' : op.type === 'create' ? 'POST' : 'PUT',
         headers: { 'Content-Type': 'application/json' },

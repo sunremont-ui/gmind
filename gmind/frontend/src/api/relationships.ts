@@ -4,8 +4,9 @@ import type {
   CreateRelationshipRequest,
   UpdateRelationshipRequest,
 } from '../types/api'
+import { API_ORIGIN } from './base'
 
-const BASE = ''
+const BASE = API_ORIGIN
 
 async function http<T>(method: string, path: string, body?: unknown): Promise<T> {
   const resp = await fetch(BASE + path, {

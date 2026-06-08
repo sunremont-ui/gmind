@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import type { TaskLogMessage } from '../../types'
+import { API_BASE } from '../../api/base'
 import { colors, fonts, fontSizes, fontWeights, spacing, radii, shadows, transitions, z } from '../../styles/tokens'
 
 interface TaskLogPanelProps {
@@ -30,12 +31,12 @@ export function TaskLogPanel({ taskId, onClose }: TaskLogPanelProps) {
   const endRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    fetch(`/api/v1/agents/tasks/${taskId}/logs`)
+    fetch(`${API_BASE}/agents/tasks/${taskId}/logs`)
       .then(res => res.json())
       .then(data => setLogs(data || []))
       .catch(() => {})
 
-    const es = new EventSource(`/api/v1/agents/tasks/${taskId}/stream`)
+    const es = new EventSource(`${API_BASE}/agents/tasks/${taskId}/stream`)
     eventSourceRef.current = es
 
     es.addEventListener('log', (event) => {

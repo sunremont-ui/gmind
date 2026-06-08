@@ -1,4 +1,4 @@
-const API_BASE = '/api/v1'
+import { API_BASE } from './base'
 
 export interface LlamaModel {
   path: string      // relative path inside models dir (forward slashes)

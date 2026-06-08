@@ -16,8 +16,9 @@ import type {
   KGSyncRequest,
   KGSyncResponse,
 } from '../types/masys'
+import { API_ORIGIN } from './base'
 
-const BASE = '/api/v1/masys'
+const BASE = `${API_ORIGIN}/api/v1/masys`
 
 async function get<T>(path: string): Promise<T> {
   const resp = await fetch(BASE + path)

@@ -1,4 +1,6 @@
-const BASE = '/api/v1/notes'
+import { API_ORIGIN } from './base'
+
+const BASE = `${API_ORIGIN}/api/v1/notes`
 
 export interface Note {
   id: string

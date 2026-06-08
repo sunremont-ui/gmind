@@ -7,8 +7,7 @@ import type {
 } from '../types/api'
 import { ApiError } from './errors'
 import { offlineQueue } from '../utils/offline'
-
-const API_BASE = '/api/v1'
+import { API_BASE } from './base'
 
 async function request<T>(url: string, options?: RequestInit): Promise<T> {
   const res = await fetch(`${API_BASE}${url}`, {
