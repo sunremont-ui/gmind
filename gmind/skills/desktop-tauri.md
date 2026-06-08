@@ -95,14 +95,17 @@ Go бэкенд запускается как sidecar-процесс Tauri v2.
 ## Команды
 
 ```bash
-# Сборка sidecar
-make tauri-sidecar
-# или
-build-sidecar.bat
+# Сборка sidecar (Go → src-tauri/binaries/gmind-server-x86_64-pc-windows-msvc.exe)
+make tauri-sidecar          # или scripts\build-sidecar.bat
+# вручную (PowerShell): $env:CGO_ENABLED='0';$env:GOOS='windows';$env:GOARCH='amd64'; go build -o ...
 
 # Dev запуск (Tauri + React + Go)
 make tauri-dev
 
-# Production build (генерирует .msi)
-make tauri-build
+# Production build → NSIS-инсталлятор (не .msi, хотя bundle называют так)
+make tauri-build            # = build-sidecar + cargo tauri build --target x86_64-pc-windows-msvc
 ```
+
+**Артефакт:** `frontend/src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/Gmind_<ver>_x64-setup.exe`
+(+ портативный `…/release/Gmind.exe`). Версия — из `tauri.conf.json`.
+**Примечание:** `build-sidecar.bat` чинён 2026-06-08 (использовал bash-синтаксис env-переменных — падал в cmd).
