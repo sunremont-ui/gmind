@@ -84,8 +84,17 @@ function measureSubtree(n): BBox   // {minX,minY,maxX,maxY} по узлу + вс
 полуплоскости/квадранты; редкие угловые наложения добивает глобальный sweep.
 
 `child_dir` хранится per-child и персистится (backend `model.Topic.ChildDir`,
-JSON-блоб воркбука). Создаётся при клике/драге по якорю узла:
-`MindMap.createChildInDirection` → `createChildOptimistic(parent, idx, childDir)`.
+JSON-блоб воркбука). Создаётся по якорю узла: **левый клик** по точке → ребёнок в
+её сторону; **правый клик** → меню «Направление»; драг в пустоту → в сторону драга.
+Всё сходится в `MindMap.createChildInDirection`.
+
+> **Рендеринг рёбер/бейджей/fold — не здесь.** Этот файл только про
+> распределение координат (`layout.ts`). Рисование рёбер (точки выхода по стороне
+> ребёнка, толщина = размер поддерева, цвет = `edge_weight`), бейджи числа детей и
+> per-side fold (`folded_sides`, скрытие без переракладки) живут в
+> `renderer.tsx`. Floating-узлы раскладываются как отдельные корни поддерева
+> (`MindMap.floatingLayouts`), используя тот же `computeTreeLayout`. Детали —
+> `wiki/05-layout-engine.md` и `skills/layout-collision.md`.
 
 ---
 

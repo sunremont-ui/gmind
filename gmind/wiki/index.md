@@ -27,6 +27,13 @@
 - Интерактив якорей: крестик при наведении, клик → меню направления, драг → ребёнок в сторону драга.
 - Локальные llama.cpp модели: рекурсивный скан `E:\LlamaCpp\models` → выпадающий список в Local AI Server. См. `skills/model-servers.md`.
 
+**Node Interaction + Edges v2 — DONE (2026-06-08).**
+- Якоря: ЛКМ → ребёнок сразу в сторону точки, ПКМ → меню «Направление», внутри кружка — число детей стороны.
+- Drag тела узла: центр другого узла → поменять местами (swap); край → ребёнок в сторону; пустота → свободный floating-узел **с поддеревом**. Backend `POST /topics/{id}/swap` + `/detach`.
+- Рёбра: точки выхода по стороне ребёнка; толщина = размер поддерева; цвет = вес (`edge_weight`, холодный→горячий).
+- Per-side fold: клик по бейджу сворачивает только эту сторону (`folded_sides`) без переракладки. Floating раскладывается как корень поддерева.
+- Llama Fleet: мульти-инстанс start/stop UI в Local AI Server (`POST /llama/models/{start,stop}`). См. `skills/layout-collision.md`, `wiki/05-layout-engine.md`, `skills/model-servers.md`.
+
 **Активный roadmap:** V6.0 Phase 5 (Context Budget) → Phase 7 (Pipeline Trace), см. `skills/memory-visualization.md`.
 
 **Что работает:**

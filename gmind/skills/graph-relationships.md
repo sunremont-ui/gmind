@@ -328,7 +328,7 @@ Down-миграция: переносит данные обратно в `sheet.
 | `frontend/src/types/api.ts` | RelationshipType / Direction / Style unions; extended Relationship + CreateRelationshipRequest + UpdateRelationshipRequest |
 | `frontend/src/api/relationships.ts` | REST client + visual mappings (colors/labels/styles per type) |
 | `frontend/src/store/relationships.ts` | Zustand: relationships array, drag state, filters (visibleTypes), pending popover, highlight subgraph |
-| `frontend/src/components/MindMap/EdgeAnchorsLayer.tsx` | 4 SVG-кружков по сторонам selected node — кликабельные, стартуют drag |
+| `frontend/src/components/MindMap/EdgeAnchorsLayer.tsx` | 4 SVG-кружка по сторонам selected node — drag → связь; ЛКМ → ребёнок в сторону; ПКМ → меню направления; внутри кружка — число детей |
 | `frontend/src/components/MindMap/FantomLine.tsx` | Bezier from anchor to cursor; зелёная при snap к target |
 | `frontend/src/components/MindMap/ConnectionPopover.tsx` | После drop — type/direction/title input → POST |
 | `frontend/src/components/MindMap/RelationshipLine.tsx` | Rewrite: arrows (forward/bidirectional/undirected), type colors/styles, multi-edge parallel offset (8px fan), self-loop dome arc, hit-area для click, selected state, hover dimming |
@@ -349,6 +349,12 @@ Down-миграция: переносит данные обратно в `sheet.
 7. Click на ребро → RelationshipPanel sidebar для редактирования
 8. Selected node → subgraph highlight (другие связи dimming 18%)
 9. Filter widget справа внизу — toggle visibility по type
+
+> **Якоря узла перегружены (2026-06-08):** те же 4 кружка, кроме старта связи драгом,
+> служат для дерева — ЛКМ создаёт ребёнка в сторону точки, ПКМ открывает меню
+> «Направление», а внутри кружка показывается число детей этой стороны (клик по
+> бейджу у НЕвыбранного узла сворачивает только эту сторону). Подробности — в
+> `skills/layout-collision.md`.
 
 ### Не реализовано (V5.1)
 

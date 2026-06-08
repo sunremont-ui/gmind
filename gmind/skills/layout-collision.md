@@ -30,11 +30,36 @@ per-child направление (`child_dir`), глобальный sweep, ло
 - Frontend: `Topic.child_dir` (types/api.ts), `createTopic(..., {childDir})` (client.ts).
 - Создание: якорь узла → `MindMap.createChildInDirection(topicId, side)` → `createChildOptimistic(parent, idx, childDir)`.
 
-## Интерактив якорей
+## Интерактив якорей (2026-06-08)
 
-`EdgeAnchorsLayer.tsx` (4 точки на выбранном узле, крестик при наведении):
-- драг на узел → связь; клик → меню `AnchorActionMenu.tsx`; драг в пустоту → ребёнок в направлении драга (ghost — `FantomLine.tsx`).
-- Логика клик/драг — `useGraphDragTracking.ts`.
+`EdgeAnchorsLayer.tsx` (4 точки на выбранном узле, увеличиваются при наведении):
+- **левый клик по точке** → сразу создаёт ребёнка в сторону точки (`createChildInDirection`);
+- **правый клик** → меню выбора направления `AnchorActionMenu.tsx` (заголовок «Направление»);
+- драг на узел → связь; драг в пустоту → ребёнок в направлении драга (ghost — `FantomLine.tsx`).
+- Логика клик/драг — `useGraphDragTracking.ts` (`onPointerDown` только ЛКМ; ПКМ → `onContextMenu`).
+- Внутри каждой точки — **число детей** в этом направлении; точка-«полая» = сторона свёрнута.
+
+## Drag тела узла: swap / child / свободный (2026-06-08)
+
+`MindMap.handlePointerMove/Up` + `dropZone` (центр vs край цели):
+- отпустил в **центр** другого узла → поменять местами (`swapTopics`, backend `POST /topics/{id}/swap`);
+- отпустил у **края** (точки) → стать ребёнком в ту сторону (`moveTopic` + `child_dir`); активная точка цели увеличивается;
+- отпустил в **пустоте** → свободный floating-узел **с поддеревом** (`detachToFloating`, backend `POST /topics/{id}/detach`).
+- Оптимистичные хелперы стора: `mindmap.ts` `swapTopics` / `detachToFloating`. Тесты: `mindmap.test.ts`, backend `topic_swap_detach_test.go`.
+
+Floating-узлы теперь раскладываются как самостоятельные корни поддерева (`MindMap.floatingLayouts` → `renderer` через `floatingRoots`), а не как одиночный лист.
+
+## Рёбра дерева (`renderer.tsx`, 2026-06-08)
+
+- **Точки выхода/входа по направлению ребёнка** (`edgeEndpoints` + `axis` в `edgePath`): право/лево/низ/верх, а не всегда «право родителя → лево ребёнка».
+- **Толщина = размер поддерева** (`thicknessForSubtree(sizeMap)`): ствол толще веток.
+- **Цвет = вес ребра** `topic.edge_weight` (`weightToColor`, холодный→горячий, HSL 220°→0°). Без веса — цвет темы. Контрол «Edge Weight» в PropertiesPanel; backend `model.Topic.EdgeWeight`.
+
+## Бейджи числа детей + per-side fold (2026-06-08)
+
+- На **каждом** узле — кружок с числом детей в каждом направлении, где есть дети (`childBadges` в `renderer.tsx`; сторона — `sideOf` по геометрии). У выбранного узла их заменяет `EdgeAnchorsLayer`.
+- **Клик по бейджу сворачивает только эту сторону** (`onToggleChildSide` → `topic.folded_sides: string[]`), БЕЗ переракладки — дети просто скрываются на местах, соседи/кружки не двигаются. Свёрнутая сторона — полый кружок. Backend: `model.Topic.FoldedSides` (Update via `*[]string`).
+- Общий счётчик с узла убран — общее число только в PropertiesPanel («N children»).
 
 ## Логи (`frontend/src/renderer/layoutLog.ts`)
 
