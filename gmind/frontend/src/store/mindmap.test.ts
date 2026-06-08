@@ -210,6 +210,45 @@ describe('moveTopicInTree', () => {
   })
 })
 
+describe('swapTopics', () => {
+  it('swaps two siblings', () => {
+    useMindMapStore.getState().setWorkbook(makeWorkbook([makeTopic('a'), makeTopic('b'), makeTopic('c')]))
+    useMindMapStore.getState().swapTopics('a', 'c')
+    const ids = useMindMapStore.getState().workbook!.sheets[0].root_topic.children!.map(t => t.id)
+    expect(ids).toEqual(['c', 'b', 'a'])
+  })
+
+  it('swaps across different parents, subtrees intact', () => {
+    const a = makeTopic('a', [makeTopic('a1')])
+    const b = makeTopic('b', [makeTopic('b1')])
+    const p = makeTopic('p', [b])
+    useMindMapStore.getState().setWorkbook(makeWorkbook([a, p]))
+    useMindMapStore.getState().swapTopics('a', 'b')
+    const store = useMindMapStore.getState()
+    // a now under p, b now under root; children travel with them
+    expect(store.workbook!.sheets[0].root_topic.children!.map(t => t.id)).toEqual(['b', 'p'])
+    expect(store.getTopic('p')!.children!.map(t => t.id)).toEqual(['a'])
+    expect(store.getTopic('a')!.children!.map(t => t.id)).toEqual(['a1'])
+    expect(store.getTopic('b')!.children!.map(t => t.id)).toEqual(['b1'])
+  })
+})
+
+describe('detachToFloating', () => {
+  it('moves a tree node (with subtree) into floating_topics at a position', () => {
+    const child = makeTopic('child', [makeTopic('gc')])
+    useMindMapStore.getState().setWorkbook(makeWorkbook([makeTopic('a'), child]))
+    useMindMapStore.setState({ activeSheetId: 'sheet1' })
+    useMindMapStore.getState().detachToFloating('child', { x: 500, y: 300 })
+
+    const sheet = useMindMapStore.getState().workbook!.sheets[0]
+    expect(sheet.root_topic.children!.map(t => t.id)).toEqual(['a'])
+    expect(sheet.floating_topics!.map(t => t.id)).toEqual(['child'])
+    const floated = sheet.floating_topics![0]
+    expect(floated.position).toEqual({ x: 500, y: 300 })
+    expect(floated.children!.map(t => t.id)).toEqual(['gc'])
+  })
+})
+
 describe('getTopic', () => {
   it('finds root topic', () => {
     useMindMapStore.getState().setWorkbook(makeWorkbook())

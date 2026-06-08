@@ -98,6 +98,20 @@ export const api = {
       body: JSON.stringify({ new_parent_id: newParentId, index: index ?? 0 } satisfies MoveTopicRequest),
     }),
 
+  // Отвязать узел дерева (с поддеревом) → свободный floating-узел в точке drop.
+  detachTopic: (workbookId: string, topicId: string, position: Position) =>
+    mutatingRequest<void>(`/workbooks/${workbookId}/topics/${topicId}/detach`, {
+      method: 'POST',
+      body: JSON.stringify({ position }),
+    }),
+
+  // Поменять два узла местами в дереве (parent+index обмениваются).
+  swapTopics: (workbookId: string, topicId: string, otherId: string) =>
+    mutatingRequest<void>(`/workbooks/${workbookId}/topics/${topicId}/swap`, {
+      method: 'POST',
+      body: JSON.stringify({ other_id: otherId }),
+    }),
+
   copyTopicToWorkbook: (workbookId: string, topicId: string, targetWorkbookId: string, targetParentId?: string) =>
     mutatingRequest<Topic>(`/workbooks/${workbookId}/topics/${topicId}/copy-to-workbook`, {
       method: 'POST',

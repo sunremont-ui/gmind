@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect, useMemo, useRef, type ReactNode } fro
 import { useMindMapStore } from '../../store/mindmap'
 import { useThemeStore } from '../../store/theme'
 import { useLayoutStore } from '../../store/layout'
-import { buildLayout, computeTreeLayout } from '../../renderer/layout'
+import { buildLayout, computeTreeLayout, translate } from '../../renderer/layout'
 import { MindMapRenderer } from '../../renderer/renderer'
 import { api } from '../../api/client'
 import { wsClient } from '../../api/ws'
@@ -69,6 +69,8 @@ export function MindMap({ workbookId, onXMindImported }: MindMapProps) {
     addTopicAt,
     removeTopic,
     moveTopicInTree,
+    detachToFloating,
+    swapTopics,
     isDescendant,
   } = useMindMapStore()
 
@@ -89,6 +91,9 @@ export function MindMap({ workbookId, onXMindImported }: MindMapProps) {
   const [draggingTopicId, setDraggingTopicId] = useState<string | null>(null)
   const [dragOverTopicId, setDragOverTopicId] = useState<string | null>(null)
   const [reorderTarget, setReorderTarget] = useState<{ parentId: string; insertIndex: number; nodeHeight: number } | null>(null)
+  // Drop zone over a target node: center → swap, edge → new child in that direction.
+  const [dropZone, setDropZone] = useState<{ targetId: string; mode: 'swap' | 'child'; side: AnchorSide } | null>(null)
+  const dropZoneRef = useRef<{ targetId: string; mode: 'swap' | 'child'; side: AnchorSide } | null>(null)
   const dragState = useRef<{ topicId: string; svgX: number; svgY: number; isFloating?: boolean; pointerSvgX?: number; pointerSvgY?: number } | null>(null)
   const dragOverRef = useRef<string | null>(null)
   const [dragLine, setDragLine] = useState<{ x1: number; y1: number; x2: number; y2: number } | null>(null)
@@ -358,25 +363,38 @@ export function MindMap({ workbookId, onXMindImported }: MindMapProps) {
     return result.root
   }, [activeSheet, gaps, maxChars, fontSize])
 
-  // Node position map (SVG coords) from layout result + floating topics
+  // Floating topics are laid out as independent subtree roots anchored at their
+  // stored position, so a node detached onto empty canvas keeps its children
+  // visible (instead of collapsing to a single leaf).
+  const floatingLayouts = useMemo((): LayoutNode[] => {
+    if (!activeSheet?.floating_topics?.length) return []
+    return activeSheet.floating_topics.map(ft => {
+      const root = buildLayout(ft, 0, maxChars, fontSize)
+      const structMap = new Map<string, StructureClass>()
+      const collect = (t: import('../../types').Topic) => {
+        if (t.structure_class) structMap.set(t.id, t.structure_class as StructureClass)
+        t.children?.forEach(collect)
+      }
+      collect(ft)
+      const struct = (ft.structure_class as StructureClass) || 'mindmap'
+      const { root: laid } = computeTreeLayout(root, struct, structMap, gaps)
+      const pos = ft.position || { x: 200, y: 200 }
+      translate(laid, pos.x - laid.x, pos.y - laid.y)
+      return laid
+    })
+  }, [activeSheet, gaps, maxChars, fontSize])
+
+  // Node position map (SVG coords) from layout result + floating subtrees
   const nodePositions = useMemo(() => {
     const map = new Map<string, { x: number; y: number; w: number; h: number; cx: number; cy: number }>()
-    if (layoutResult) {
-      const walk = (n: LayoutNode) => {
-        if (n.topic) map.set(n.topic.id, { x: n.x, y: n.y, w: n.width, h: n.height, cx: n.x + n.width / 2, cy: n.y + n.height / 2 })
-        if (n.children) n.children.forEach(walk)
-      }
-      walk(layoutResult)
+    const walk = (n: LayoutNode) => {
+      if (n.topic) map.set(n.topic.id, { x: n.x, y: n.y, w: n.width, h: n.height, cx: n.x + n.width / 2, cy: n.y + n.height / 2 })
+      if (n.children) n.children.forEach(walk)
     }
-    if (activeSheet?.floating_topics) {
-      for (const ft of activeSheet.floating_topics) {
-        const p = ft.position || { x: 200, y: 200 }
-        const w = Math.max(60, Math.min(200, (ft.title?.length || 1) * 8 + 20))
-        map.set(ft.id, { x: p.x, y: p.y, w, h: 40, cx: p.x + w / 2, cy: p.y + 20 })
-      }
-    }
+    if (layoutResult) walk(layoutResult)
+    for (const fl of floatingLayouts) walk(fl)
     return map
-  }, [layoutResult, activeSheet])
+  }, [layoutResult, floatingLayouts])
 
   // Viewport rect for culling
   const viewportRect = useMemo(() => {
@@ -480,44 +498,33 @@ export function MindMap({ workbookId, onXMindImported }: MindMapProps) {
       setConnectLine(null)
     }
 
-    // Compute sibling reorder target
+    // Compute drop zone over the target: center band → swap, edge band → child
+    // in that direction. Normalized offset from the target's centre decides.
     const sourceId = dragState.current.topicId
     if (targetId && sourceId) {
-      const sourceParentId = parentMap.get(sourceId)
-      const targetParentId = parentMap.get(targetId)
-      if (sourceParentId && sourceParentId === targetParentId) {
-        const getTopic = useMindMapStore.getState().getTopic
-        const parent = getTopic(sourceParentId)
-        if (parent && parent.children) {
-          const siblings = parent.children
-            .map(c => ({ id: c.id, pos: nodePositions.get(c.id) }))
-            .filter((s): s is { id: string; pos: NonNullable<typeof s.pos> } => !!s.pos)
-            .sort((a, b) => a.pos.y - b.pos.y)
-
-          const cursorY = pt.y
-          let idx = siblings.length
-          for (let i = 0; i < siblings.length; i++) {
-            const midY = siblings[i].pos.y + siblings[i].pos.h / 2
-            if (cursorY < midY) { idx = i; break }
-          }
-
-          // Adjust index for removal of source from its current position
-          const sourceIdx = siblings.findIndex(s => s.id === sourceId)
-          if (sourceIdx >= 0 && sourceIdx < idx) idx = Math.max(0, idx - 1)
-
-          const sourcePos = nodePositions.get(sourceId)
-          setReorderTarget(prev => {
-            if (prev?.parentId === sourceParentId && prev?.insertIndex === idx) return prev
-            return { parentId: sourceParentId, insertIndex: idx, nodeHeight: sourcePos?.h || 40 }
-          })
+      const tp = nodePositions.get(targetId)
+      if (tp) {
+        const nx = (pt.x - tp.cx) / (tp.w / 2 || 1)
+        const ny = (pt.y - tp.cy) / (tp.h / 2 || 1)
+        let next: { targetId: string; mode: 'swap' | 'child'; side: AnchorSide }
+        if (Math.max(Math.abs(nx), Math.abs(ny)) < 0.5) {
+          next = { targetId, mode: 'swap', side: 'right' }
+        } else {
+          const side: AnchorSide = Math.abs(nx) >= Math.abs(ny)
+            ? (nx >= 0 ? 'right' : 'left')
+            : (ny >= 0 ? 'bottom' : 'top')
+          next = { targetId, mode: 'child', side }
         }
-      } else {
-        setReorderTarget(null)
+        dropZoneRef.current = next
+        setDropZone(prev =>
+          prev && prev.targetId === next.targetId && prev.mode === next.mode && prev.side === next.side
+            ? prev : next)
       }
     } else {
-      setReorderTarget(null)
+      dropZoneRef.current = null
+      setDropZone(null)
     }
-  }, [toSvgPoint, nodePositions, parentMap])
+  }, [toSvgPoint, nodePositions])
 
   useEffect(() => {
     const svg = svgRef.current
@@ -679,60 +686,83 @@ export function MindMap({ workbookId, onXMindImported }: MindMapProps) {
       setDragOverTopicId(null)
       setDragLine(null)
       setConnectLine(null)
+      setDropZone(null)
+      dropZoneRef.current = null
       return
     }
 
     const targetId = dragOverRef.current
     const sourceId = dragState.current.topicId
     const isFloating = dragState.current.isFloating
+    const zone = dropZoneRef.current
+    const px = dragState.current.pointerSvgX
+    const py = dragState.current.pointerSvgY
+
+    const reconcile = async () => {
+      try {
+        const wb = await api.getWorkbook(workbookId)
+        useMindMapStore.getState().setWorkbook(wb)
+      } catch {}
+    }
 
     if (targetId && targetId !== sourceId) {
-      // Guard: can't reparent a node into its own subtree (mirrors backend).
+      // Guard: can't drop a node onto its own subtree (mirrors backend).
       if (isDescendant(sourceId, targetId)) {
-        console.warn('Move blocked: target is a descendant of the dragged topic')
-      } else {
+        console.warn('Drop blocked: target is a descendant of the dragged topic')
+      } else if (zone?.mode === 'swap') {
+        // Center of target → exchange the two nodes' tree positions.
         pushHistory()
-        // Reorder among siblings keeps its position; a plain reparent inserts at
-        // the front (index 0) to match the backend's default.
-        const pId = parentMap.get(sourceId)
-        const rt = reorderTarget
-        const isReorder = rt && rt.parentId === pId && rt.insertIndex >= 0
-        const index = isReorder ? rt.insertIndex : 0
-        // Optimistic local move — handles both tree and floating sources, and
-        // preserves the topic id (and any relationships referencing it).
-        moveTopicInTree(sourceId, targetId, index)
+        swapTopics(sourceId, targetId)
+        api.swapTopics(workbookId, sourceId, targetId).catch(err => {
+          console.error('Failed to swap topics:', err)
+          reconcile()
+        })
+      } else {
+        // Edge of target → become its child in the chosen direction.
+        const side = zone?.side ?? 'right'
+        const childDir = ({ top: 'up', right: 'right', bottom: 'down', left: 'left' } as Record<AnchorSide, string>)[side]
+        pushHistory()
+        updateTopicInTree(sourceId, { child_dir: childDir })
+        moveTopicInTree(sourceId, targetId, 0)
         wsClient.sendOperation('move', { topic_id: sourceId, new_parent_id: targetId })
-        api.moveTopic(workbookId, sourceId, targetId, index).catch(async err => {
-          console.error('Failed to move topic:', err)
-          // Reconcile with the server on failure.
-          try {
-            const wb = await api.getWorkbook(workbookId)
-            useMindMapStore.getState().setWorkbook(wb)
-          } catch {}
+        Promise.all([
+          api.updateTopic(workbookId, sourceId, { child_dir: childDir }),
+          api.moveTopic(workbookId, sourceId, targetId, 0),
+        ]).catch(err => {
+          console.error('Failed to reparent topic:', err)
+          reconcile()
         })
       }
-    } else if (isFloating && dragState.current?.pointerSvgX != null && dragState.current?.pointerSvgY != null) {
-      const px = dragState.current.pointerSvgX
-      const py = dragState.current.pointerSvgY
+    } else if (!targetId && isFloating && px != null && py != null) {
+      // Floating node dropped on empty canvas → just reposition.
       pushHistory()
-      try {
-        const newPos = { x: px - 30, y: py - 20 }
-        await api.updateFloatingTopic(workbookId, sourceId, { position: newPos })
-        useMindMapStore.getState().updateFloatingTopic(sourceId, { position: newPos })
-        wsClient.sendOperation('floating_updated', { topic_id: sourceId, updates: { position: newPos } })
-      } catch (err) {
-        console.error('Failed to update floating topic position:', err)
-      }
+      const newPos = { x: px - 30, y: py - 20 }
+      useMindMapStore.getState().updateFloatingTopic(sourceId, { position: newPos })
+      api.updateFloatingTopic(workbookId, sourceId, { position: newPos })
+        .then(() => wsClient.sendOperation('floating_updated', { topic_id: sourceId, updates: { position: newPos } }))
+        .catch(err => { console.error('Failed to update floating topic position:', err); reconcile() })
+    } else if (!targetId && !isFloating && px != null && py != null) {
+      // Tree node dropped on empty canvas → detach (with subtree) into a free
+      // floating node at the drop point.
+      pushHistory()
+      const newPos = { x: px - 30, y: py - 20 }
+      detachToFloating(sourceId, newPos)
+      api.detachTopic(workbookId, sourceId, newPos).catch(err => {
+        console.error('Failed to detach topic:', err)
+        reconcile()
+      })
     }
 
     dragState.current = null
     dragOverRef.current = null
+    dropZoneRef.current = null
     setDraggingTopicId(null)
     setDragOverTopicId(null)
     setDragLine(null)
     setConnectLine(null)
     setReorderTarget(null)
-  }, [workbookId, pushHistory, toSvgPoint, parentMap, reorderTarget, isDescendant, moveTopicInTree])
+    setDropZone(null)
+  }, [workbookId, pushHistory, isDescendant, moveTopicInTree, updateTopicInTree, swapTopics, detachToFloating])
 
   // Use refs to avoid stale closures and prevent listener re-attachment during drag
   const handlePointerMoveRef = useRef<(e: PointerEvent) => void>(handlePointerMove)
@@ -748,11 +778,13 @@ export function MindMap({ workbookId, onXMindImported }: MindMapProps) {
     const onCancel = () => {
       dragState.current = null
       dragOverRef.current = null
+      dropZoneRef.current = null
       setDraggingTopicId(null)
       setDragOverTopicId(null)
       setDragLine(null)
       setConnectLine(null)
       setReorderTarget(null)
+      setDropZone(null)
     }
 
     document.body.style.userSelect = 'none'
@@ -882,6 +914,23 @@ export function MindMap({ workbookId, onXMindImported }: MindMapProps) {
       wsClient.sendOperation('topic_updated', { topic_id: topicId, updates: { folded: newFolded } })
     } catch (err) {
       console.error('Failed to toggle fold:', err)
+    }
+  }, [workbookId, updateTopicInTree, pushHistory])
+
+  // Toggle folding of one side's children (top|right|bottom|left). Hides those
+  // children without reflowing, so the other sides and badges stay put.
+  const handleToggleChildSide = useCallback(async (topicId: string, side: string) => {
+    const topic = useMindMapStore.getState().getTopic(topicId)
+    if (!topic) return
+    const cur = topic.folded_sides ?? []
+    const next = cur.includes(side) ? cur.filter(s => s !== side) : [...cur, side]
+    pushHistory()
+    updateTopicInTree(topicId, { folded_sides: next })
+    try {
+      await api.updateTopic(workbookId, topicId, { folded_sides: next })
+      wsClient.sendOperation('topic_updated', { topic_id: topicId, updates: { folded_sides: next } })
+    } catch (err) {
+      console.error('Failed to toggle side fold:', err)
     }
   }, [workbookId, updateTopicInTree, pushHistory])
 
@@ -1731,7 +1780,7 @@ export function MindMap({ workbookId, onXMindImported }: MindMapProps) {
           <MindMapRenderer
             root={layoutResult}
             relationships={activeSheet?.relationships}
-            floatingTopics={activeSheet?.floating_topics}
+            floatingRoots={floatingLayouts}
             selectedTopicId={selectedTopicId}
             selectedTopicIds={selectedTopicIds}
             dragOverTopicId={dragOverTopicId}
@@ -1751,12 +1800,46 @@ export function MindMap({ workbookId, onXMindImported }: MindMapProps) {
             onTopicNotesClick={handleTopicNotesClick}
             onTopicCommentsClick={handleTopicCommentsClick}
             onTopicFoldToggle={handleTopicFoldToggle}
+            onToggleChildSide={handleToggleChildSide}
             onTopicExpandToggle={handleTopicExpandToggle}
             reorderTarget={reorderTarget}
           />
 
           {/* V5.0: edge anchors on selected node */}
           <EdgeAnchorsLayer node={findLayoutNode(layoutResult, selectedTopicId)} />
+
+          {/* Node-drag drop hint over the target: center=swap, edge=child-direction */}
+          {dropZone && draggingTopicId && (() => {
+            const tp = nodePositions.get(dropZone.targetId)
+            if (!tp) return null
+            const anchors = [
+              { side: 'top' as AnchorSide, cx: tp.x + tp.w / 2, cy: tp.y },
+              { side: 'right' as AnchorSide, cx: tp.x + tp.w, cy: tp.y + tp.h / 2 },
+              { side: 'bottom' as AnchorSide, cx: tp.x + tp.w / 2, cy: tp.y + tp.h },
+              { side: 'left' as AnchorSide, cx: tp.x, cy: tp.y + tp.h / 2 },
+            ]
+            return (
+              <g pointerEvents="none">
+                {dropZone.mode === 'swap' ? (
+                  <>
+                    <rect x={tp.x - 3} y={tp.y - 3} width={tp.w + 6} height={tp.h + 6} rx={12}
+                      fill={colors.green + '1f'} stroke={colors.green} strokeWidth={2} strokeDasharray="6,4" />
+                    <text x={tp.cx} y={tp.cy + 6} textAnchor="middle" fontSize={18} fontWeight="bold" fill={colors.green}>⇄</text>
+                  </>
+                ) : (
+                  anchors.map(a => {
+                    const active = a.side === dropZone.side
+                    return (
+                      <circle key={a.side} cx={a.cx} cy={a.cy} r={active ? 11 : 5}
+                        fill={active ? colors.accent : colors.accent + '66'}
+                        stroke="#fff" strokeWidth={1.5}
+                        style={{ transition: 'r 80ms ease' }} />
+                    )
+                  })
+                )}
+              </g>
+            )
+          })()}
 
           {/* V5.0: phantom line during relationship drag */}
           <FantomLine />

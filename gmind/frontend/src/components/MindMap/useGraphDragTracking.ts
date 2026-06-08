@@ -18,7 +18,6 @@ export function useGraphDragTracking({ svgRef, clientToWorld, onCreateChildDrag 
   const updateDrag = useRelationshipsStore(s => s.updateDrag)
   const endDrag = useRelationshipsStore(s => s.endDrag)
   const openPopover = useRelationshipsStore(s => s.openPopover)
-  const openAnchorMenu = useRelationshipsStore(s => s.openAnchorMenu)
   const cancelDrag = useRelationshipsStore(s => s.cancelDrag)
 
   const resolveHover = useCallback((clientX: number, clientY: number): string | null => {
@@ -47,9 +46,10 @@ export function useGraphDragTracking({ svgRef, clientToWorld, onCreateChildDrag 
       if (result && result.from !== result.to) {
         // Dropped on another node → create a relationship.
         openPopover(result.from, result.to, e.clientX, e.clientY)
-      } else if (moved < CLICK_THRESHOLD && fromId && side) {
-        // Click on the anchor (no drag) → offer to create a child in that direction.
-        openAnchorMenu(fromId, side, e.clientX, e.clientY)
+      } else if (moved < CLICK_THRESHOLD && fromId && side && onCreateChildDrag) {
+        // Click on the anchor (no drag) → create a child in that direction immediately.
+        // (Direction picker lives on the anchor's right-click menu instead.)
+        onCreateChildDrag(fromId, side)
       } else if (fromId && onCreateChildDrag) {
         // Dragged into empty space → create a child toward the drag direction.
         const dx = dr.currentX - dr.startX
@@ -73,5 +73,5 @@ export function useGraphDragTracking({ svgRef, clientToWorld, onCreateChildDrag 
       window.removeEventListener('pointerup', onUp)
       window.removeEventListener('keydown', onKey)
     }
-  }, [drag.isDragging, clientToWorld, resolveHover, updateDrag, endDrag, openPopover, openAnchorMenu, onCreateChildDrag, cancelDrag])
+  }, [drag.isDragging, clientToWorld, resolveHover, updateDrag, endDrag, openPopover, onCreateChildDrag, cancelDrag])
 }

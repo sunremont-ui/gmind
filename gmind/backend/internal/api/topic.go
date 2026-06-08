@@ -165,6 +165,9 @@ func (h *Handler) UpdateTopic(w http.ResponseWriter, r *http.Request) {
 			if req.Folded != nil {
 				topic.Folded = *req.Folded
 			}
+			if req.FoldedSides != nil {
+				topic.FoldedSides = *req.FoldedSides
+			}
 			if req.Position != nil {
 				topic.Position = req.Position
 			}
@@ -182,6 +185,9 @@ func (h *Handler) UpdateTopic(w http.ResponseWriter, r *http.Request) {
 			}
 			if req.EdgeDash != "" {
 				topic.EdgeDash = req.EdgeDash
+			}
+			if req.EdgeWeight > 0 {
+				topic.EdgeWeight = req.EdgeWeight
 			}
 			if req.FontSize > 0 {
 				topic.FontSize = req.FontSize
@@ -503,6 +509,155 @@ func (h *Handler) MoveTopic(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, map[string]string{"status": "moved"})
+}
+
+// DetachTopic removes a tree topic (with its whole subtree) and re-adds it as a
+// free-floating topic at the given position. Used when a node is dropped on
+// empty canvas instead of on another node.
+func (h *Handler) DetachTopic(w http.ResponseWriter, r *http.Request) {
+	workbookID := chi.URLParam(r, "workbookID")
+	topicID := chi.URLParam(r, "topicID")
+
+	wb, err := h.store.GetWorkbook(workbookID)
+	if err != nil {
+		internalError(w, err)
+		return
+	}
+	if wb == nil {
+		writeError(w, http.StatusNotFound, "workbook not found")
+		return
+	}
+
+	var req struct {
+		Position model.Position `json:"position"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	for _, sheet := range wb.Sheets {
+		if sheet.RootTopic != nil && sheet.RootTopic.ID == topicID {
+			writeError(w, http.StatusBadRequest, "cannot detach the root topic")
+			return
+		}
+		topic := sheet.FindTopic(topicID)
+		if topic == nil {
+			continue
+		}
+		// Already floating → just reposition (mirrors UpdateFloatingTopic).
+		pos := req.Position
+		topic.Position = &pos
+		if !sheet.RemoveTopic(topicID) {
+			writeError(w, http.StatusConflict, "failed to detach topic")
+			return
+		}
+		sheet.AddFloatingTopic(topic)
+		if err := h.store.UpdateWorkbook(wb); err != nil {
+			internalError(w, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]string{"status": "detached"})
+		return
+	}
+
+	writeError(w, http.StatusNotFound, "topic not found")
+}
+
+// SwapTopics exchanges the tree positions of two topics: each takes the other's
+// parent and sibling index, subtrees intact. Used when a node is dropped on the
+// center of another node.
+func (h *Handler) SwapTopics(w http.ResponseWriter, r *http.Request) {
+	workbookID := chi.URLParam(r, "workbookID")
+	topicID := chi.URLParam(r, "topicID")
+
+	wb, err := h.store.GetWorkbook(workbookID)
+	if err != nil {
+		internalError(w, err)
+		return
+	}
+	if wb == nil {
+		writeError(w, http.StatusNotFound, "workbook not found")
+		return
+	}
+
+	var req struct {
+		OtherID string `json:"other_id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	if req.OtherID == "" || req.OtherID == topicID {
+		writeError(w, http.StatusBadRequest, "other_id must differ from topic")
+		return
+	}
+
+	for _, sheet := range wb.Sheets {
+		a := sheet.FindTopic(topicID)
+		b := sheet.FindTopic(req.OtherID)
+		if a == nil || b == nil {
+			continue
+		}
+		// Neither can be the root (no parent to swap into).
+		if sheet.RootTopic != nil && (sheet.RootTopic.ID == topicID || sheet.RootTopic.ID == req.OtherID) {
+			writeError(w, http.StatusBadRequest, "cannot swap the root topic")
+			return
+		}
+		// A swap between a node and its own ancestor/descendant would corrupt the tree.
+		if isDescendantOf(a, b.ID) || isDescendantOf(b, a.ID) {
+			writeError(w, http.StatusBadRequest, "cannot swap a topic with its own ancestor or descendant")
+			return
+		}
+		parentA := sheet.FindTopicParent(topicID)
+		parentB := sheet.FindTopicParent(req.OtherID)
+		if parentA == nil || parentB == nil {
+			writeError(w, http.StatusBadRequest, "both topics must be tree nodes")
+			return
+		}
+		idxA := indexOfChild(parentA, topicID)
+		idxB := indexOfChild(parentB, req.OtherID)
+
+		// Remove both, then re-insert into the other's slot. When parents differ
+		// the recorded indices stay valid; when equal, removing both first means
+		// we insert back into the same (now shorter) slice at the swapped indices.
+		parentA.RemoveChild(topicID)
+		parentB.RemoveChild(req.OtherID)
+
+		if parentA == parentB {
+			// Same parent: b takes A's slot (idxA), a takes B's slot (idxB).
+			// Insert into the smaller target index first so the second stays valid.
+			if idxA < idxB {
+				parentA.InsertChildAt(idxA, b)
+				parentA.InsertChildAt(idxB, a)
+			} else {
+				parentA.InsertChildAt(idxB, a)
+				parentA.InsertChildAt(idxA, b)
+			}
+		} else {
+			parentB.InsertChildAt(idxB, a)
+			parentA.InsertChildAt(idxA, b)
+		}
+
+		if err := h.store.UpdateWorkbook(wb); err != nil {
+			internalError(w, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]string{"status": "swapped"})
+		return
+	}
+
+	writeError(w, http.StatusNotFound, "topic not found")
+}
+
+// indexOfChild returns the position of childID among parent's children, or -1.
+func indexOfChild(parent *model.Topic, childID string) int {
+	for i, c := range parent.Children {
+		if c.ID == childID {
+			return i
+		}
+	}
+	return -1
 }
 
 func (h *Handler) CreateRelationship(w http.ResponseWriter, r *http.Request) {

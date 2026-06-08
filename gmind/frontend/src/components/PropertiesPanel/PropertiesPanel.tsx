@@ -107,6 +107,7 @@ export function PropertiesPanel({ workbookId, onClose, onCommentsClick }: Proper
   const [branchSide, setBranchSide] = useState<string>('auto')
   const [edgeStyle, setEdgeStyle] = useState<string>('curved')
   const [edgeDash, setEdgeDash] = useState<string>('solid')
+  const [edgeWeight, setEdgeWeight] = useState<number | undefined>(undefined)
   const [fontSize, setFontSize] = useState<number | undefined>(undefined)
   const [fontColor, setFontColor] = useState<string>('')
   const [fontFamily, setFontFamily] = useState('')
@@ -149,6 +150,7 @@ export function PropertiesPanel({ workbookId, onClose, onCommentsClick }: Proper
       setBranchSide(t.branch_side || 'auto')
       setEdgeStyle(t.edge_style || 'curved')
       setEdgeDash(t.edge_dash || 'solid')
+      setEdgeWeight(t.edge_weight || undefined)
       setFontSize(t.font_size)
       setFontColor(t.font_color || '')
       setFontFamily(t.font_family || '')
@@ -206,6 +208,7 @@ export function PropertiesPanel({ workbookId, onClose, onCommentsClick }: Proper
     else if (field === 'branch_side') setBranchSide(value as string)
     else if (field === 'edge_style') setEdgeStyle(value as string)
     else if (field === 'edge_dash') setEdgeDash(value as string)
+    else if (field === 'edge_weight') setEdgeWeight(value as number | undefined)
     else if (field === 'font_size') setFontSize(value as number)
     else if (field === 'font_color') setFontColor(value as string)
     else if (field === 'font_family') setFontFamily(value as string)
@@ -474,6 +477,12 @@ export function PropertiesPanel({ workbookId, onClose, onCommentsClick }: Proper
                 <option value="dashed">Dashed</option>
                 <option value="dotted">Dotted</option>
               </select>
+            ))}
+            {!isFloating && ctrl('Edge Weight', (
+              <input type="number" min={1} max={16} step={0.5}
+                value={edgeWeight ?? ''} placeholder="default"
+                onChange={e => setAndSave('edge_weight', e.target.value ? parseFloat(e.target.value) : undefined)}
+                style={numStyle} />
             ))}
             {ctrl('Shape', (
               <select value={shape} onChange={e => setAndSave('shape', e.target.value)} style={selStyle}>

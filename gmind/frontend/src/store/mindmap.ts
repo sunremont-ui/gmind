@@ -23,6 +23,10 @@ interface MindMapState {
   addTopicAt: (parentId: string, topic: Topic, index?: number) => void
   removeTopic: (topicId: string) => void
   moveTopicInTree: (sourceId: string, newParentId: string, index?: number) => void
+  // Detach a tree topic (with its subtree) into the floating layer at a position.
+  detachToFloating: (topicId: string, position: { x: number; y: number }) => void
+  // Swap two tree topics' positions (parent + index), subtrees intact.
+  swapTopics: (aId: string, bId: string) => void
   isDescendant: (ancestorId: string, maybeDescendantId: string) => boolean
 
   addFloatingTopic: (topic: Topic) => void
@@ -188,6 +192,58 @@ export const useMindMapStore = create<MindMapState>((set, get) => ({
     // source topic is never dropped.
     if (!inserted) return
 
+    set({ workbook: { ...workbook, sheets } })
+  },
+
+  // Remove a tree topic (with subtree) and re-add it as a floating topic at the
+  // given position. Mirrors the backend DetachTopic; applied optimistically.
+  detachToFloating: (topicId, position) => {
+    const { workbook, activeSheetId } = get()
+    if (!workbook) return
+    const source = get().getTopic(topicId)
+    if (!source) return
+
+    const removeRecursive = (t: Topic): Topic => ({
+      ...t,
+      children: (t.children ?? []).filter(c => c.id !== topicId).map(removeRecursive),
+    })
+
+    const detached: Topic = { ...source, position }
+    const sheets = workbook.sheets.map(sheet => {
+      if (sheet.id !== activeSheetId) return sheet
+      return {
+        ...sheet,
+        root_topic: removeRecursive(sheet.root_topic),
+        floating_topics: [
+          ...(sheet.floating_topics ?? []).filter(ft => ft.id !== topicId),
+          detached,
+        ],
+      }
+    })
+    set({ workbook: { ...workbook, sheets } })
+  },
+
+  // Exchange the tree positions of two topics. Backend guards prevent swapping a
+  // node with its own ancestor/descendant, so a single walk never double-swaps.
+  swapTopics: (aId, bId) => {
+    const { workbook } = get()
+    if (!workbook) return
+    const a = get().getTopic(aId)
+    const b = get().getTopic(bId)
+    if (!a || !b || aId === bId) return
+
+    const swap = (t: Topic): Topic => {
+      const children = (t.children ?? []).map(c => {
+        const replaced = c.id === aId ? b : c.id === bId ? a : c
+        return swap(replaced)
+      })
+      return { ...t, children }
+    }
+
+    const sheets = workbook.sheets.map(sheet => ({
+      ...sheet,
+      root_topic: swap(sheet.root_topic),
+    }))
     set({ workbook: { ...workbook, sheets } })
   },
 

@@ -165,6 +165,8 @@ export interface Topic {
   hyperlink?: string
   image?: string
   folded: boolean
+  // Стороны со свёрнутыми детьми (top|right|bottom|left). Дети этих сторон скрыты.
+  folded_sides?: string[]
   children?: Topic[]
   position?: Position
   structure_class?: string
@@ -174,6 +176,8 @@ export interface Topic {
   child_dir?: string
   edge_style?: string
   edge_dash?: string
+  // Толщина ребра к родителю (px). Пусто → толщина из темы.
+  edge_weight?: number
   font_size?: number
   font_color?: string
   font_family?: string
@@ -218,6 +222,7 @@ export interface UpdateTopicRequest {
   hyperlink?: string
   image?: string
   folded?: boolean
+  folded_sides?: string[]
   position?: Position
   structure_class?: string
   branch_side?: string
@@ -226,6 +231,8 @@ export interface UpdateTopicRequest {
   child_dir?: string
   edge_style?: string
   edge_dash?: string
+  // Толщина ребра к родителю (px). Пусто → толщина из темы.
+  edge_weight?: number
   font_size?: number
   font_color?: string
   font_family?: string

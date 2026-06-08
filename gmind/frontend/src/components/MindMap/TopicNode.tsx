@@ -95,8 +95,6 @@ export const TopicNode = memo(function TopicNode({
   onExpandToggle,
 }: TopicNodeProps) {
   const { topic, x, y, width, height } = layout
-  const childCount = topic.children?.length ?? 0
-  const hasChildren = childCount > 0
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const dragStartPos = useRef<{ x: number; y: number } | null>(null)
   const dragFiredRef = useRef(false)
@@ -237,7 +235,6 @@ export const TopicNode = memo(function TopicNode({
   }
 
   const hasNotes = !!topic.notes
-  const showCount = topic.show_child_count !== false && hasChildren
   const [expanded, setExpanded] = useState(false)
   const handleToggleExpanded = useCallback(() => {
     const next = !expanded
@@ -504,16 +501,8 @@ export const TopicNode = memo(function TopicNode({
         </g>
       )}
 
-      {/* Child count badge — clickable for fold/unfold */}
-      {hasChildren && showCount && !isEditing && (
-        <g transform={`translate(${customWidth + 1}, ${customHeight / 2})`} style={{ cursor: 'pointer' }} onClick={(e) => { e.stopPropagation(); onFoldToggle?.(topic.id) }}>
-          <circle cx={0} cy={0} r={8} fill={colors.accent} opacity={0.92} />
-          <circle cx={0} cy={0} r={8} fill="none" stroke={colors.white} strokeWidth={1} opacity={0.4} />
-          <text x={0} y={3} textAnchor="middle" fontSize={8} fontWeight={700} fill={colors.textInverse} style={{ userSelect: 'none', pointerEvents: 'none' }}>
-            {childCount}
-          </text>
-        </g>
-      )}
+      {/* Total child-count badge removed from the node: per-direction badges
+          (renderer) show counts; the total lives in the Properties panel. */}
 
       {/* Markers */}
       {topic.markers && topic.markers.length > 0 && (

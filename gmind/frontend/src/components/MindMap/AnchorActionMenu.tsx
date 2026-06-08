@@ -1,5 +1,5 @@
-// Anchor click menu — клик по якорю узла открывает выбор направления,
-// в котором создать дочерний узел.
+// Anchor context menu — правый клик по якорю узла открывает выбор направления,
+// в котором создать дочерний узел. (Левый клик создаёт узел сразу.)
 import { useState, useEffect } from 'react'
 import { useRelationshipsStore, type AnchorSide } from '../../store/relationships'
 import { colors, fonts, fontSizes, spacing, radii, shadows } from '../../styles/tokens'
@@ -73,10 +73,10 @@ export function AnchorActionMenu({ onCreateChild }: Props) {
         onClick={e => e.stopPropagation()}
       >
         <div style={{ fontSize: fontSizes.subhead, fontWeight: 600, color: colors.text }}>
-          ➕ Создать дочерний узел
+          Направление
         </div>
         <div style={{ fontSize: fontSizes.caption, color: colors.textSecondary }}>
-          Выберите направление
+          Куда создать дочерний узел
         </div>
 
         <div

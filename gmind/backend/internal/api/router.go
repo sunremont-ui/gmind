@@ -131,6 +131,8 @@ func (h *Handler) Router(cfg *config.Config) http.Handler {
 				r.Put("/topics/{topicID}", h.UpdateTopic)
 				r.Delete("/topics/{topicID}", h.DeleteTopic)
 				r.Post("/topics/{topicID}/move", h.MoveTopic)
+				r.Post("/topics/{topicID}/detach", h.DetachTopic)
+				r.Post("/topics/{topicID}/swap", h.SwapTopics)
 				r.Post("/topics/{topicID}/copy-to-workbook", h.CopyTopicToWorkbook)
 				r.Post("/floating-topics", h.CreateFloatingTopic)
 				r.Put("/floating-topics/{topicID}", h.UpdateFloatingTopic)

@@ -118,7 +118,7 @@ function shiftSubtree(n: LayoutNode, dx: number, dy: number) {
 }
 
 /** Сдвигает узел вместе со всем поддеревом (включая сам узел). */
-function translate(n: LayoutNode, dx: number, dy: number) {
+export function translate(n: LayoutNode, dx: number, dy: number) {
   if (dx === 0 && dy === 0) return
   n.x += dx
   n.y += dy

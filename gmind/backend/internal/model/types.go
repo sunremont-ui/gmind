@@ -60,6 +60,7 @@ type Topic struct {
 	Hyperlink      string    `json:"hyperlink,omitempty"`
 	Image          string    `json:"image,omitempty"`
 	Folded         bool      `json:"folded"`
+	FoldedSides    []string  `json:"folded_sides,omitempty"`
 	Children       []*Topic  `json:"children,omitempty"`
 	Position       *Position `json:"position,omitempty"`
 	Structure      string    `json:"structure_class,omitempty"`
@@ -67,6 +68,7 @@ type Topic struct {
 	ChildDir       string    `json:"child_dir,omitempty"`
 	EdgeStyle      string    `json:"edge_style,omitempty"`
 	EdgeDash       string    `json:"edge_dash,omitempty"`
+	EdgeWeight     float64   `json:"edge_weight,omitempty"`
 	FontSize       int       `json:"font_size,omitempty"`
 	FontColor      string    `json:"font_color,omitempty"`
 	FontFamily     string    `json:"font_family,omitempty"`
@@ -204,12 +206,14 @@ type UpdateTopicRequest struct {
 	Hyperlink      string    `json:"hyperlink,omitempty"`
 	Image          string    `json:"image,omitempty"`
 	Folded         *bool     `json:"folded,omitempty"`
+	FoldedSides    *[]string `json:"folded_sides,omitempty"`
 	Position       *Position `json:"position,omitempty"`
 	Structure      string    `json:"structure_class,omitempty"`
 	BranchSide     string    `json:"branch_side,omitempty"`
 	ChildDir       string    `json:"child_dir,omitempty"`
 	EdgeStyle      string    `json:"edge_style,omitempty"`
 	EdgeDash       string    `json:"edge_dash,omitempty"`
+	EdgeWeight     float64   `json:"edge_weight,omitempty"`
 	FontSize       int       `json:"font_size,omitempty"`
 	FontColor      string    `json:"font_color,omitempty"`
 	FontFamily     string    `json:"font_family,omitempty"`
