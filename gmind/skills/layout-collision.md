@@ -69,9 +69,19 @@ gmindLastLayout()        // stats последнего прогона
 ```
 Сводка: `[layout] N nodes · M packs · overlaps X/Y · Zms`. Типы: pack/overlap/resolve.
 
+## Известные ограничения (2026-06-08, accepted)
+
+- **Per-side fold у выбранного узла недоступен** — у selected бейджи скрыты, показаны интерактивные якоря (`EdgeAnchorsLayer`). Свернуть сторону можно у НЕвыбранного узла.
+- **Per-side fold не делает reflow** — by design (требование «не перемещается»): дети свёрнутой стороны прячутся на местах, пустота остаётся.
+- **Drop тела узла на floating-узел** — краевой случай: swap отклоняется бэкендом (400 → refetch); child-reparent на floating расходится фронт/бэк до refetch.
+- **Якоря/бейджи не рисуются у floating-узлов** — `EdgeAnchorsLayer` берёт только основное дерево (`layoutResult`), не `floatingLayouts`.
+
 ## Тесты
 
-`renderer/layout.test.ts` — `noOverlaps()` (нет наложений) + per-child `child_dir` + направления. 14 тестов.
+- `renderer/layout.test.ts` — `noOverlaps()` + per-child `child_dir` + направления (14).
+- `renderer/edgeVisuals.test.ts` — `weightToColor`/`thicknessForSubtree`/`sideOf` (8).
+- `store/mindmap.test.ts` — `swapTopics`/`detachToFloating` (+ остальные).
+- backend `api/topic_swap_detach_test.go` — swap/detach + guard'ы.
 
 ## Как модифицировать
 
