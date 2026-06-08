@@ -707,12 +707,19 @@ export function MindMap({ workbookId, onXMindImported }: MindMapProps) {
       } catch {}
     }
 
-    if (targetId && targetId !== sourceId) {
+    // Floating topics aren't tree nodes — swap/reparent onto them would diverge
+    // from the backend, so a drop on a floating node is a no-op (snaps back).
+    const targetFloating = !!targetId &&
+      !!useMindMapStore.getState().getActiveSheet()?.floating_topics?.some(ft => ft.id === targetId)
+
+    if (targetId && targetId !== sourceId && !targetFloating) {
       // Guard: can't drop a node onto its own subtree (mirrors backend).
       if (isDescendant(sourceId, targetId)) {
         console.warn('Drop blocked: target is a descendant of the dragged topic')
-      } else if (zone?.mode === 'swap') {
+      } else if (zone?.mode === 'swap' && !isFloating) {
         // Center of target → exchange the two nodes' tree positions.
+        // (A floating source isn't in the tree, so it can't swap — falls through
+        // to reparent below.)
         pushHistory()
         swapTopics(sourceId, targetId)
         wsClient.sendOperation('swap', { topic_id: sourceId, other_id: targetId })

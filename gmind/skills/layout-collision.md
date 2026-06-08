@@ -73,8 +73,8 @@ gmindLastLayout()        // stats последнего прогона
 
 - **Per-side fold у выбранного узла недоступен** — у selected бейджи скрыты, показаны интерактивные якоря (`EdgeAnchorsLayer`). Свернуть сторону можно у НЕвыбранного узла.
 - **Per-side fold не делает reflow** — by design (требование «не перемещается»): дети свёрнутой стороны прячутся на местах, пустота остаётся.
-- **Drop тела узла на floating-узел** — краевой случай: swap отклоняется бэкендом (400 → refetch); child-reparent на floating расходится фронт/бэк до refetch.
-- **Якоря/бейджи не рисуются у floating-узлов** — `EdgeAnchorsLayer` берёт только основное дерево (`layoutResult`), не `floatingLayouts`.
+- **Drop тела узла на floating-узел** — теперь явный no-op (snap back), без рассинхрона: `targetFloating`-гард в `handlePointerUpGlobal`. Floating-источник на center другого узла → reparent (swap только для tree-источника).
+- **Интерактивные якоря у floating-узлов не рисуются** — `EdgeAnchorsLayer` берёт только основное дерево (`layoutResult`). Бейджи числа детей у floating-поддеревьев есть (идут через `renderNode`), фолд по ним работает.
 
 ## Тесты
 
