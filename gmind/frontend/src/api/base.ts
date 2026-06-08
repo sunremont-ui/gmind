@@ -7,7 +7,14 @@
 // at http://localhost:1010 (where the bundled sidecar listens).
 
 export function isTauri(): boolean {
-  return typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window
+  if (typeof window === 'undefined') return false
+  // Primary: the Tauri IPC global. Fallback: the webview origin — on Windows
+  // the packaged app is served from http(s)://tauri.localhost, on macOS/Linux
+  // from tauri://localhost. The origin check is robust even if the global isn't
+  // injected yet when this module is first evaluated.
+  if ('__TAURI_INTERNALS__' in window || '__TAURI__' in window) return true
+  const host = window.location.hostname
+  return host === 'tauri.localhost' || window.location.protocol === 'tauri:'
 }
 
 // Empty string in web/dev (relative URLs); absolute sidecar origin in desktop.
