@@ -10,13 +10,13 @@ Write-Host "[Backend] Starting on http://localhost:1010 ..." -ForegroundColor Gr
 $backJob = Start-Process -PassThru -NoNewWindow -FilePath "go" -ArgumentList "run", "./cmd/server" -WorkingDirectory "$root\backend"
 
 # Start frontend
-Write-Host "[Frontend] Starting on http://localhost:5173 ..." -ForegroundColor Green
+Write-Host "[Frontend] Starting on http://localhost:1011 ..." -ForegroundColor Green
 $frontProcess = Start-Process -PassThru -NoNewWindow -FilePath "npm" -ArgumentList "run", "dev" -WorkingDirectory "$root\frontend"
 
 Write-Host ""
 Write-Host "═════════════════════════════════════════════════" -ForegroundColor Cyan
 Write-Host "  Backend:  http://localhost:1010" -ForegroundColor Cyan
-Write-Host "  Frontend: http://localhost:5173" -ForegroundColor Cyan
+Write-Host "  Frontend: http://localhost:1011" -ForegroundColor Cyan
 Write-Host "═════════════════════════════════════════════════" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "Press Ctrl+C to stop" -ForegroundColor Yellow
