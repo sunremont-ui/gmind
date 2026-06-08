@@ -69,7 +69,7 @@
 - ✅ Import Markdown (.md), FreeMind (.mm), JSON
 - ✅ Export SVG/PNG/PDF (выпадающее меню)
 - ✅ PWA / Offline-first (Service Worker, IndexedDB, offline queue, install prompt)
-- ✅ Command Palette (Ctrl+Alt+Space / ⌘K)
+- ✅ Command Palette (Ctrl+K / ⌘K); Quick Capture — Ctrl+Alt+Space
 - ✅ Quick Capture v2 (мини-окно, теги, авто-вставка, офлайн)
 - ✅ Web Share Target (PWA принимает текст из системного Share)
 - ✅ Access Mode (Public / Collaborators / Agents / Private)

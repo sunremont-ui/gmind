@@ -6,7 +6,7 @@
 ## Архитектура
 
 ```
-Hotkey (Ctrl+Shift+I) / Share Target
+Hotkey (Ctrl+Alt+Space, alias Ctrl+Shift+I) / Share Target
         │
         ▼
   QuickCapture.tsx
@@ -35,9 +35,12 @@ Hotkey (Ctrl+Shift+I) / Share Target
 
 | Комбинация | Действие |
 |---|---|
-| Ctrl+Shift+I | Открыть/закрыть Quick Capture |
+| **Ctrl+Alt+Space** | Открыть/закрыть Quick Capture (основной) |
+| Ctrl+Shift+I | То же (alias) |
 | ⌘+Enter | Сохранить |
 | Esc | Закрыть |
+
+> Command Palette переехала на **Ctrl+K / ⌘K** (раньше занимала Ctrl+Alt+Space).
 
 ## Web Share Target
 

@@ -208,11 +208,19 @@ export function App() {
   // Global keyboard shortcuts
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
+      // Quick capture (быстрые заметки) — Ctrl+Alt+Space
       if ((e.ctrlKey || e.metaKey) && e.altKey && e.code === 'Space') {
+        e.preventDefault()
+        setShowQuickCapture(s => !s)
+        return
+      }
+      // Command palette — Ctrl+K / ⌘K
+      if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && (e.key === 'k' || e.key === 'K')) {
         e.preventDefault()
         setShowCommandPalette(s => !s)
         return
       }
+      // Quick capture alias — Ctrl+Shift+I
       if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'i' || e.key === 'I')) {
         e.preventDefault()
         setShowQuickCapture(s => !s)
@@ -236,7 +244,7 @@ export function App() {
   }
 
   const commands: Command[] = [
-    { id: 'quick-capture', label: 'Quick capture', shortcut: 'Ctrl+Shift+I', icon: 'zap', section: 'General', action: () => setShowQuickCapture(true) },
+    { id: 'quick-capture', label: 'Quick capture', shortcut: 'Ctrl+Alt+Space', icon: 'zap', section: 'General', action: () => setShowQuickCapture(true) },
     { id: 'new-workbook', label: 'New workbook', shortcut: '', icon: 'plus', section: 'Workbook', action: async () => {
       const title = prompt('Workbook title:') || 'Untitled'
       try {
@@ -379,10 +387,10 @@ export function App() {
           )}
         </div>
         <div style={{ display: 'flex', gap: spacing.xs, alignItems: 'center' }}>
-          <Button variant="ghost" size="sm" icon onClick={() => setShowCommandPalette(true)} title="Commands (Ctrl+Alt+Space)">
+          <Button variant="ghost" size="sm" icon onClick={() => setShowCommandPalette(true)} title="Commands (Ctrl+K)">
             <LumenCommand size={15} strokeWidth={1.8} />
           </Button>
-          <Button variant="ghost" size="sm" icon onClick={() => setShowQuickCapture(true)} title="Quick capture (Ctrl+Shift+I)">
+          <Button variant="ghost" size="sm" icon onClick={() => setShowQuickCapture(true)} title="Quick capture (Ctrl+Alt+Space)">
             <LumenZap size={15} strokeWidth={1.8} />
           </Button>
         </div>

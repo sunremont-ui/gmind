@@ -73,7 +73,7 @@
 - [x] **Web Share Target** — PWA принимает текст из системного Share → Quick Capture
 - [x] **PWA / Offline-first** — Service Worker, IndexedDB кэш, offline queue, install prompt, offline banner
 - [x] **Workbook delete button** — × кнопка в Sidebar, hover-показ, confirm перед удалением
-- [x] **Command Palette (Ctrl+Alt+Space / ⌘K)** — поиск и запуск команд
+- [x] **Command Palette (Ctrl+K / ⌘K)** — поиск и запуск команд
 - [x] **Session restore** — восстановление lastWorkbookId/lastSheetId при холодном старте офлайн
 - [x] **Sync on reconnect** — авто-воспроизведение pending_ops при возврате онлайн
 - [x] **Inbox Workbook** — авто-создание при старте, отдельная секция в Sidebar
