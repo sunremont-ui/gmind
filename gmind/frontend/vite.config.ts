@@ -2,10 +2,20 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 
+// In the Tauri desktop build the app is served from tauri.localhost and a
+// service worker only causes harm: it precaches the bundle (with the dev-time
+// relative /api URLs) and keeps serving it after updates, so the packaged app
+// can't reach the sidecar. There we ship a self-destroying SW that unregisters
+// itself and clears caches (also evicting any stale SW from older installs).
+// The web/Docker build keeps the full offline-first PWA.
+const isTauriBuild = !!process.env.TAURI_ENV_PLATFORM
+
 export default defineConfig({
   plugins: [
     react(),
-    VitePWA({
+    isTauriBuild
+      ? VitePWA({ selfDestroying: true, registerType: 'autoUpdate' })
+      : VitePWA({
       registerType: 'autoUpdate',
       includeAssets: ['icons/*.png'],
       devOptions: { enabled: true },
