@@ -1,0 +1,39 @@
+# Normalize line endings: store as LF in the repo, let Git handle checkout.
+# Makes diffs deterministic regardless of each dev's core.autocrlf setting.
+* text=auto
+
+# Explicit text types (LF in repo)
+*.go    text
+*.ts    text
+*.tsx   text
+*.js    text
+*.jsx   text
+*.json  text
+*.css   text
+*.html  text
+*.md    text
+*.sql   text
+*.yml   text
+*.yaml  text
+*.toml  text
+*.sh    text eol=lf
+
+# Windows-only scripts keep CRLF
+*.bat   text eol=crlf
+*.cmd   text eol=crlf
+*.ps1   text eol=crlf
+
+# Binary assets — never touch
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.gif   binary
+*.ico   binary
+*.webp  binary
+*.gguf  binary
+*.bin   binary
+*.safetensors binary
+*.woff  binary
+*.woff2 binary
+*.ttf   binary
+*.otf   binary
