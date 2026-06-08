@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { api } from '../../api/client'
 import { secrets } from '../../api/secrets'
 import { getModelServers, saveModelServers, type ModelServer, type ModelServersConfig } from '../../api/modelServers'
+import { listLlamaModels, startLlamaModel, stopLlamaModel, type LlamaModel, type LlamaInstance } from '../../api/llamaFleet'
 import { LumenX, LumenPlay, LumenSquare, LumenCloud, LumenGlobe, LumenZap } from '../UI/LumenIcon'
 import { colors, fonts, fontSizes, fontWeights, spacing, radii, shadows, transitions, z } from '../../styles/tokens'
 
@@ -78,6 +79,13 @@ export function AIServerPanel({ onClose }: AIServerPanelProps) {
   const [ollama, setOllama] = useState<OllamaState>({ detected: false, models: [], baseUrl: '' })
   const [ollamaStatus, setOllamaStatus] = useState<'idle' | 'loading' | 'ok'>('idle')
   const [modelServers, setModelServers] = useState<ModelServersConfig>({ servers: [] })
+  const [models, setModels] = useState<LlamaModel[]>([])
+  const [modelsDir, setModelsDir] = useState('')
+  // Multi-instance fleet — несколько моделей одновременно на разных портах
+  const [fleet, setFleet] = useState<LlamaInstance[]>([])
+  const [fleetModel, setFleetModel] = useState('')
+  const [fleetPort, setFleetPort] = useState(1101)
+  const [fleetBusy, setFleetBusy] = useState(false)
   const [editingServer, setEditingServer] = useState<ModelServer | null>(null)
   const [addingServer, setAddingServer] = useState(false)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
@@ -102,10 +110,17 @@ export function AIServerPanel({ onClose }: AIServerPanelProps) {
     }
   }, [])
 
+  const refreshFleet = useCallback(() => {
+    listLlamaModels()
+      .then(s => { setModels(s.models); setModelsDir(s.models_dir); setFleet(s.running) })
+      .catch(() => {})
+  }, [])
+
   useEffect(() => {
     fetchStatus()
     fetchOllamaStatus()
     getModelServers().then(setModelServers).catch(() => {})
+    refreshFleet()
     // Load persisted secrets from Stronghold (Tauri only)
     secrets.loadYandexConfig().then(cfg => {
       if (cfg) setYandexConfig(cfg)
@@ -116,9 +131,10 @@ export function AIServerPanel({ onClose }: AIServerPanelProps) {
     pollRef.current = setInterval(() => {
       fetchStatus()
       fetchOllamaStatus()
+      refreshFleet()
     }, 5000)
     return () => { if (pollRef.current) clearInterval(pollRef.current) }
-  }, [fetchStatus, fetchOllamaStatus])
+  }, [fetchStatus, fetchOllamaStatus, refreshFleet])
 
   const handleStart = async () => {
     setLoading(true)
@@ -147,6 +163,34 @@ export function AIServerPanel({ onClose }: AIServerPanelProps) {
       setError(err instanceof Error ? err.message : 'Failed to stop server')
     }
     setLoading(false)
+  }
+
+  // Fleet — запуск выбранной модели на отдельном порту (не трогает основной сервер)
+  const handleFleetStart = async () => {
+    if (!fleetModel) { setError('Выберите модель для запуска'); return }
+    setFleetBusy(true)
+    setError('')
+    try {
+      await startLlamaModel({ path: fleetModel, port: fleetPort })
+      setFleetModel('')
+      setFleetPort(p => p + 1)
+      refreshFleet()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to start model')
+    }
+    setFleetBusy(false)
+  }
+
+  const handleFleetStop = async (path: string) => {
+    setFleetBusy(true)
+    setError('')
+    try {
+      await stopLlamaModel(path)
+      refreshFleet()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to stop model')
+    }
+    setFleetBusy(false)
   }
 
   const handleYandexApply = async () => {
@@ -313,13 +357,31 @@ export function AIServerPanel({ onClose }: AIServerPanelProps) {
             />
           </Field>
 
-          <Field label="Model Path">
-            <input value={config.model_path} onChange={e => update('model_path', e.target.value)}
-              placeholder="E:\LlamaCpp\models\qwen2.5-coder-7b-instruct-q4_k_m.gguf"
-              style={inputStyle} disabled={running}
-              onFocus={e => { e.currentTarget.style.boxShadow = `${shadows.neuInsetSm}, 0 0 0 3px ${colors.accentLight}` }}
-              onBlur={e => { e.currentTarget.style.boxShadow = shadows.neuInsetSm }}
-            />
+          <Field label="Model">
+            <select
+              value={config.model_path}
+              disabled={running}
+              onChange={e => update('model_path', e.target.value)}
+              style={{ ...inputStyle, cursor: running ? 'not-allowed' : 'pointer' }}
+            >
+              <option value="">— выберите модель ({models.length}) —</option>
+              {Array.from(new Set(models.map(m => m.category))).sort().map(cat => (
+                <optgroup key={cat} label={cat}>
+                  {models.filter(m => m.category === cat).map(m => {
+                    const full = `${modelsDir}\\${m.path.replace(/\//g, '\\')}`
+                    return (
+                      <option key={m.path} value={full}>
+                        {m.name.replace(/\.(gguf|bin|safetensors)$/i, '')}
+                      </option>
+                    )
+                  })}
+                </optgroup>
+              ))}
+              {/* Фолбэк: текущий путь не из списка (ручной ввод ниже) */}
+              {config.model_path && !models.some(m => `${modelsDir}\\${m.path.replace(/\//g, '\\')}` === config.model_path) && (
+                <option value={config.model_path}>{config.model_path}</option>
+              )}
+            </select>
           </Field>
 
           <div style={{ display: 'flex', gap: spacing.lg }}>
@@ -378,6 +440,95 @@ export function AIServerPanel({ onClose }: AIServerPanelProps) {
                 {p.label}
               </button>
             ))}
+          </div>
+
+          {/* Divider */}
+          <div style={{ height: 1, background: colors.separator, margin: `0 ${-spacing.xxl}px` }} />
+
+          {/* Fleet — параллельные инстансы на разных портах */}
+          <div>
+            <div style={{
+              fontSize: fontSizes.body, fontWeight: fontWeights.semibold,
+              color: colors.text, marginBottom: spacing.md,
+            }}>
+              Параллельные инстансы
+              <span style={{ color: colors.textTertiary, fontWeight: fontWeights.regular, marginLeft: spacing.xs }}>
+                ({fleet.length} запущено)
+              </span>
+            </div>
+
+            {/* Список запущенных инстансов */}
+            {fleet.length > 0 && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.xs, marginBottom: spacing.md }}>
+                {fleet.map(inst => (
+                  <div key={inst.model} style={{
+                    display: 'flex', alignItems: 'center', gap: spacing.md,
+                    padding: `${spacing.xs}px ${spacing.md}px`,
+                    background: colors.bg, border: `1px solid ${colors.separator}`,
+                    borderRadius: radii.sm, fontSize: fontSizes.caption,
+                  }}>
+                    <LumenPlay size={10} fill={colors.green} />
+                    <span style={{ flex: 1, color: colors.text, fontFamily: fonts.mono, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {inst.model}
+                    </span>
+                    <span style={{ color: colors.textTertiary }}>:{inst.port}</span>
+                    <span style={{ color: colors.textQuaternary }}>ctx {inst.context} · gpu {inst.gpu_layers}</span>
+                    <button onClick={() => handleFleetStop(inst.model)} disabled={fleetBusy}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: spacing.xxs,
+                        padding: `${spacing.xxs}px ${spacing.sm}px`, border: `1px solid ${colors.red}40`,
+                        borderRadius: radii.sm, background: colors.red + '12', color: colors.red,
+                        cursor: fleetBusy ? 'not-allowed' : 'pointer', fontSize: fontSizes.caption,
+                        fontFamily: fonts.ui,
+                      }}
+                    >
+                      <LumenSquare size={9} /> Stop
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Запуск новой модели */}
+            <div style={{ display: 'flex', gap: spacing.sm, alignItems: 'flex-end' }}>
+              <Field label="Модель" style={{ flex: 1 }}>
+                <select
+                  value={fleetModel}
+                  onChange={e => setFleetModel(e.target.value)}
+                  style={{ ...inputStyle, cursor: 'pointer' }}
+                >
+                  <option value="">— модель для отдельного порта —</option>
+                  {Array.from(new Set(models.map(m => m.category))).sort().map(cat => (
+                    <optgroup key={cat} label={cat}>
+                      {models.filter(m => m.category === cat).map(m => (
+                        <option key={m.path} value={m.path} disabled={m.running}>
+                          {m.name.replace(/\.(gguf|bin|safetensors)$/i, '')}{m.running ? ` (:${m.port})` : ''}
+                        </option>
+                      ))}
+                    </optgroup>
+                  ))}
+                </select>
+              </Field>
+              <Field label="Порт" style={{ width: 90 }}>
+                <input type="number" value={fleetPort}
+                  onChange={e => setFleetPort(parseInt(e.target.value) || 1101)}
+                  style={inputStyle}
+                />
+              </Field>
+              <button onClick={handleFleetStart} disabled={fleetBusy || !fleetModel}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: spacing.xs,
+                  padding: `${spacing.sm}px ${spacing.lg}px`, height: 38,
+                  border: 'none', borderRadius: radii.md,
+                  background: fleetBusy || !fleetModel ? colors.separator : colors.accent,
+                  color: '#fff', cursor: fleetBusy || !fleetModel ? 'not-allowed' : 'pointer',
+                  fontSize: fontSizes.body, fontWeight: fontWeights.medium, fontFamily: fonts.ui,
+                  transition: `all ${transitions.fast}`,
+                }}
+              >
+                <LumenPlay size={11} fill="#fff" /> {fleetBusy ? '...' : 'Start'}
+              </button>
+            </div>
           </div>
 
           {/* Divider */}

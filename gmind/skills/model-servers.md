@@ -119,3 +119,43 @@ saveModelServers(cfg: ModelServersConfig): Promise<ModelServersConfig>
 | `backend/internal/config/config.go` | `ModelServersConfigPath` + `MODEL_SERVERS_CONFIG` env |
 | `frontend/src/api/modelServers.ts` | API клиент |
 | `frontend/src/components/AIServerPanel/AIServerPanel.tsx` | UI таблица |
+
+---
+
+## Локальные llama.cpp модели (2026-06-01)
+
+Выбор локальной модели для запуска — **выпадающим списком** в секции llama.cpp той же панели Local AI Server. Модели сканируются рекурсивно из `E:\LlamaCpp\models` (подпапки llm/code/vision/stt/tts + корень).
+
+### Backend — multi-instance менеджер
+
+```
+backend/internal/llama/manager.go   — Manager: List/Start/Stop/StopAll
+backend/internal/api/llama.go       — LlamaFleetHandler
+```
+
+- `List()` — рекурсивный скан (.gguf/.bin/.safetensors), категория = подпапка.
+- `Start(req)` — запуск модели на порту (несколько инстансов одновременно, защита от коллизий портов).
+- Бинарь авто-детект: `E:\LlamaCpp\llama-bin\llama-server.exe` → fallback build-путь.
+- `StopAll()` на graceful shutdown (`main.go` defer).
+- Тесты: `manager_test.go` — скан/категории/сортировка `List`, guard'ы `Start` (пустой путь, порт, missing binary, коллизии модель/порт), `Stop` non-running. Процессы не спавнятся.
+
+### API
+
+```
+GET  /api/v1/llama/models        → { models_dir, models:[{path,name,category,size,running,port}], running:[...] }
+POST /api/v1/llama/models/start  → { path, port, context?, gpu_layers?, threads? }
+POST /api/v1/llama/models/stop   → { path }
+```
+
+(Прежние одиночные `/api/v1/llama/{status,start,stop,config}` остались — их использует Start/Stop сервера в панели.)
+
+### Frontend
+
+- `frontend/src/api/llamaFleet.ts` — `listLlamaModels`, `startLlamaModel`, `stopLlamaModel`.
+- AIServerPanel, две независимые секции:
+  - **Основной сервер**: `<select>` Model (optgroup по категориям) → подставляет полный путь в `config.model_path`; Start/Stop поднимает один сервер (переключает AI-провайдера на `local`). Текстовое поле «Model Path» убрано (дублировало список).
+  - **Параллельные инстансы (fleet)**: список запущенных моделей с портом/ctx/gpu и кнопкой Stop у каждой; снизу — `<select>` модели (relative path, запущенные `disabled`) + порт + Start. Порт авто-инкрементится после старта. Поллинг `refreshFleet()` каждые 5 c обновляет состояние. Это управление **не** трогает основной сервер и не переключает провайдера — чистый supervisor процессов.
+
+### История
+
+Отдельная вкладка/модуль **«Local Models»** в NavRail (`modules/llama-fleet/`, `components/LlamaFleetPanel/`) была удалена — управление перенесено в Local AI Server. Multi-instance start/stop восстановлен inline-секцией «Параллельные инстансы» (2026-06-08). Фичур «создать N агентов от модели» по-прежнему отсутствует (восстанавливать из git при необходимости).

@@ -180,6 +180,7 @@ func main() {
 
 	handler := api.New(db, hub, cfg.LlamaConfigPath, registry, scheduleStore)
 	handler.SetRAG(ragSvc)
+	defer handler.StopLlamaFleet()
 	r := handler.Router(cfg)
 
 	aiClient := ai.New(cfg.AIAPIKey, cfg.AIEndpoint, cfg.AIModel)

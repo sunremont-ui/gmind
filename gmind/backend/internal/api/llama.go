@@ -79,3 +79,60 @@ func (h *LlamaHandler) SaveConfig(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": "saved"})
 }
+
+// LlamaFleetHandler exposes the multi-model manager: list models, start/stop
+// individual model instances on configurable ports.
+type LlamaFleetHandler struct {
+	mgr *llama.Manager
+}
+
+func NewLlamaFleetHandler(mgr *llama.Manager) *LlamaFleetHandler {
+	return &LlamaFleetHandler{mgr: mgr}
+}
+
+// ListModels returns every discovered model plus running state.
+func (h *LlamaFleetHandler) ListModels(w http.ResponseWriter, r *http.Request) {
+	models := h.mgr.List()
+	if models == nil {
+		models = []llama.ModelInfo{}
+	}
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"models_dir": h.mgr.ModelsDir(),
+		"models":     models,
+		"running":    h.mgr.Running(),
+	})
+}
+
+// StartModel launches a model on the requested port.
+func (h *LlamaFleetHandler) StartModel(w http.ResponseWriter, r *http.Request) {
+	var req llama.StartRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	inst, err := h.mgr.Start(req)
+	if err != nil {
+		writeJSON(w, http.StatusConflict, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"status":   "started",
+		"instance": inst,
+	})
+}
+
+// StopModel terminates a running model instance.
+func (h *LlamaFleetHandler) StopModel(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Path string `json:"path"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	if err := h.mgr.Stop(req.Path); err != nil {
+		writeJSON(w, http.StatusConflict, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": "stopped"})
+}

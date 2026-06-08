@@ -27,6 +27,7 @@ type Handler struct {
 	scheduleStore   *store.ScheduledTaskStore
 	hub             *ws.Hub
 	llamaHandler    *LlamaHandler
+	llamaFleet      *LlamaFleetHandler
 	ollamaHandler   *OllamaHandler
 	registry        *core.Registry
 	agentModule     *agent.Module
@@ -48,6 +49,13 @@ func (h *Handler) SetRAG(svc *rag.Service) {
 	h.ragService = svc
 }
 
+// StopLlamaFleet terminates all running model instances on shutdown.
+func (h *Handler) StopLlamaFleet() {
+	if h.llamaFleet != nil && h.llamaFleet.mgr != nil {
+		h.llamaFleet.mgr.StopAll()
+	}
+}
+
 func New(s *store.Store, hub *ws.Hub, cfgPath string, registry *core.Registry, scheduleStore *store.ScheduledTaskStore) *Handler {
 	ollamaDetector := ai.NewOllamaDetector("http://localhost:11434")
 	ollamaDetector.Start(0)
@@ -57,6 +65,7 @@ func New(s *store.Store, hub *ws.Hub, cfgPath string, registry *core.Registry, s
 		scheduleStore: scheduleStore,
 		hub:           hub,
 		llamaHandler:  NewLlamaHandler(llama.New(), cfgPath),
+		llamaFleet:    NewLlamaFleetHandler(llama.NewManager()),
 		ollamaHandler: NewOllamaHandler(ollamaDetector),
 		registry:      registry,
 	}
@@ -247,6 +256,10 @@ func (h *Handler) Router(cfg *config.Config) http.Handler {
 		r.Post("/stop", h.llamaHandler.Stop)
 		r.Put("/config", h.llamaHandler.UpdateConfig)
 		r.Post("/config/save", h.llamaHandler.SaveConfig)
+		// Multi-model fleet (E:\LlamaCpp\models) — list / start / stop per model+port
+		r.Get("/models", h.llamaFleet.ListModels)
+		r.Post("/models/start", h.llamaFleet.StartModel)
+		r.Post("/models/stop", h.llamaFleet.StopModel)
 	})
 
 	r.Get("/api/v1/ollama/status", h.ollamaHandler.Status)
