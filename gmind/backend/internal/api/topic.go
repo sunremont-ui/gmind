@@ -186,8 +186,8 @@ func (h *Handler) UpdateTopic(w http.ResponseWriter, r *http.Request) {
 			if req.EdgeDash != "" {
 				topic.EdgeDash = req.EdgeDash
 			}
-			if req.EdgeWeight > 0 {
-				topic.EdgeWeight = req.EdgeWeight
+			if req.EdgeWeight != nil {
+				topic.EdgeWeight = *req.EdgeWeight // 0 clears back to theme default
 			}
 			if req.FontSize > 0 {
 				topic.FontSize = req.FontSize

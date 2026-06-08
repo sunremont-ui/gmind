@@ -213,7 +213,7 @@ type UpdateTopicRequest struct {
 	ChildDir       string    `json:"child_dir,omitempty"`
 	EdgeStyle      string    `json:"edge_style,omitempty"`
 	EdgeDash       string    `json:"edge_dash,omitempty"`
-	EdgeWeight     float64   `json:"edge_weight,omitempty"`
+	EdgeWeight     *float64  `json:"edge_weight,omitempty"`
 	FontSize       int       `json:"font_size,omitempty"`
 	FontColor      string    `json:"font_color,omitempty"`
 	FontFamily     string    `json:"font_family,omitempty"`

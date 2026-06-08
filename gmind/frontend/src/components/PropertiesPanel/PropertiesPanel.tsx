@@ -478,10 +478,10 @@ export function PropertiesPanel({ workbookId, onClose, onCommentsClick }: Proper
                 <option value="dotted">Dotted</option>
               </select>
             ))}
-            {!isFloating && ctrl('Edge Weight', (
+            {!isFloating && ctrl('Edge Weight (color)', (
               <input type="number" min={1} max={16} step={0.5}
-                value={edgeWeight ?? ''} placeholder="default"
-                onChange={e => setAndSave('edge_weight', e.target.value ? parseFloat(e.target.value) : undefined)}
+                value={edgeWeight && edgeWeight > 0 ? edgeWeight : ''} placeholder="default"
+                onChange={e => setAndSave('edge_weight', e.target.value ? parseFloat(e.target.value) : 0)}
                 style={numStyle} />
             ))}
             {ctrl('Shape', (
