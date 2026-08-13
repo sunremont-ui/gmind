@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "track": "GM",
+  "namespace": "gmind",
+  "serverUrl": "http://localhost:5010",
+  "oracle": {
+    "command": "node",
+    "args": ["scripts/lab-oracle.mjs"]
+  },
+  "exportPath": "wikiAlgoritm/wiki/lab-{track}.md"
+}
