@@ -27,3 +27,6 @@ nul
 backend/gmind.db
 backend/gmind.db-shm
 backend/gmind.db-wal
+
+# отчёты прогонов лаб машинно-локальны: общий доступ даёт база lab-reports
+lab-out/
