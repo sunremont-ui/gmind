@@ -12,7 +12,7 @@
  * собирает и помечает уровнем `independent`.
  */
 import { execFile } from 'node:child_process';
-import { existsSync, readdirSync, statSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 
@@ -101,5 +101,44 @@ facts['audit.wiki-pages'] = String(
 /** Живёт ли память сессии: PLANS.md — журнал активного плана проекта. */
 const PLANS = join(root, 'gmind', 'PLANS.md');
 facts['audit.plans-bytes'] = existsSync(PLANS) ? String(statSync(PLANS).size) : '0';
+
+/**
+ * Сколько расширений бэкенд пускает на структурный разбор — то есть по скольким
+ * форматам файл с диска вообще может стать картой. Величина отвечает на вопрос
+ * «Gmind как визуальный центр»: пока она равна двум написаниям одного формата,
+ * центром он является только для Markdown.
+ *
+ * ⚠️ Область намеренно узкая — файлы, где принимается решение «разбирать ли».
+ * Брать всё, что зовёт `filepath.Ext`, нельзя: тогда в счёт попадают `.gguf` и
+ * `.pt` из менеджера llama-server, к разбору структуры отношения не имеющие, и
+ * ключ начал бы расти от работ над моделями.
+ *
+ * ⚠️ `.xmind` в счёт НЕ попадает, и это не промах: `ImportXMind` расширение не
+ * проверяет вовсе — берёт multipart-файл и пробует распаковать. Он не «формат
+ * по расширению», а попытка разбора, поэтому решения по расширению не выносит.
+ *
+ * Ограничение: разбор нового формата в НОВОМ пакете ключ увидит только после
+ * дописывания пути сюда. Это осознанная плата за точность — счёт по якорю
+ * `filepath.Ext` был бы автоматическим, но неверным.
+ */
+const PARSE_SITES = [
+  join(root, 'gmind', 'backend', 'internal', 'api', 'markdown_files.go'),
+  join(root, 'gmind', 'backend', 'internal', 'api', 'import.go'),
+  join(root, 'gmind', 'backend', 'internal', 'markdown'),
+  join(root, 'gmind', 'backend', 'internal', 'xmind'),
+];
+const structuralExt = new Set();
+for (const site of PARSE_SITES) {
+  if (!existsSync(site)) continue;
+  const files = statSync(site).isDirectory()
+    ? readdirSync(site).filter((n) => n.endsWith('.go')).map((n) => join(site, n))
+    : [site];
+  for (const file of files) {
+    for (const found of readFileSync(file, 'utf8').matchAll(/"(\.[a-zA-Z0-9]{1,9})"/g)) {
+      structuralExt.add(found[1].toLowerCase());
+    }
+  }
+}
+facts['audit.structural-ext'] = String(structuralExt.size);
 
 process.stdout.write(`${JSON.stringify(facts)}\n`);
