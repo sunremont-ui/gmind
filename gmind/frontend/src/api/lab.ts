@@ -4,6 +4,7 @@
 import { API_ORIGIN } from './base'
 import type {
   LabProject, LabTrackState, LabEntry, LabRunSummary, LabRunReport, LabMemoryLayer,
+  LabRunProcess,
 } from '../types/lab'
 
 const BASE = `${API_ORIGIN}/api/v1/lab`
@@ -50,4 +51,21 @@ export const labApi = {
 
   run: (path: string, lab: string) =>
     request<LabRunReport>(`/run?path=${encodeURIComponent(path)}&lab=${encodeURIComponent(lab)}`),
+
+  /**
+   * Запустить замер. Платные ячейки каркас пропускает сам: флага --paid у этого
+   * пути нет, и кнопка потратить деньги не может.
+   */
+  startRun: (path: string, lab: string) =>
+    request<LabRunProcess>('/runs/start', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path, lab }),
+    }),
+
+  stopRun: (id: string) =>
+    request<LabRunProcess>(`/runs/${encodeURIComponent(id)}/stop`, { method: 'POST' }),
+
+  /** Адрес потока вывода — читается через EventSource. */
+  streamUrl: (id: string) => `${BASE}/runs/${encodeURIComponent(id)}/stream`,
 }

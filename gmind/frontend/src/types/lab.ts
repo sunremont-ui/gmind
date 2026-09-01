@@ -154,3 +154,15 @@ export interface LabMemoryLayer {
   capped: boolean
   error?: string
 }
+
+/** Состояние прогона замера, запущенного из панели. */
+export interface LabRunProcess {
+  id: string
+  path: string
+  lab: string
+  started_at: string
+  done: boolean
+  exit_code: number
+  failure?: string
+  lines: number
+}

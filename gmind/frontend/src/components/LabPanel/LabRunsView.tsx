@@ -1,6 +1,6 @@
 // Замеры проекта: список прогонов, а выбранный раскрывается матрицей
 // кейсы×варианты — той самой, в которой замер и получал свои числа.
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { labApi } from '../../api/lab'
 import type { LabProject, LabRunReport, LabRunSummary } from '../../types/lab'
 import { buildMatrix, cellMatched, cellLabel } from './labMatrix'
@@ -14,6 +14,64 @@ export function LabRunsView({ project }: Props) {
   const [report, setReport] = useState<LabRunReport | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
+  const [runningId, setRunningId] = useState<string | null>(null)
+  const [runningLab, setRunningLab] = useState<string | null>(null)
+  const [output, setOutput] = useState<string[]>([])
+  const [runFinished, setRunFinished] = useState<string | null>(null)
+  const sourceRef = useRef<EventSource | null>(null)
+
+  // Поток закрывается вместе с панелью: EventSource, оставшийся жить, держал бы
+  // соединение до перезагрузки окна.
+  useEffect(() => () => { sourceRef.current?.close() }, [])
+
+  const reloadRuns = () => {
+    labApi.runs(project.path).then(setRuns).catch(e => setError(String((e as Error).message ?? e)))
+  }
+
+  const start = async (lab: string) => {
+    setError(null)
+    setOutput([])
+    setRunFinished(null)
+    try {
+      const proc = await labApi.startRun(project.path, lab)
+      setRunningId(proc.id)
+      setRunningLab(lab)
+      sourceRef.current?.close()
+      const es = new EventSource(labApi.streamUrl(proc.id))
+      sourceRef.current = es
+      es.addEventListener('line', (ev) => {
+        setOutput(prev => [...prev, (ev as MessageEvent<string>).data])
+      })
+      es.addEventListener('done', (ev) => {
+        es.close()
+        sourceRef.current = null
+        setRunningId(null)
+        let note = 'прогон завершён'
+        try {
+          const st = JSON.parse((ev as MessageEvent<string>).data) as { exit_code?: number }
+          // Ненулевой код — это результат замера (гейт не сошёлся), а не сбой моста.
+          if (st.exit_code) note = `прогон завершён с кодом ${st.exit_code} — гейт не сошёлся`
+        } catch { /* статус нечитаем — сообщения достаточно */ }
+        setRunFinished(note)
+        reloadRuns()
+        // Отчёт перечитывается, только если открыт именно этот замер.
+        if (selected === lab) labApi.run(project.path, lab).then(setReport).catch(() => {})
+      })
+      es.onerror = () => {
+        es.close()
+        sourceRef.current = null
+        setRunningId(null)
+        setError('поток вывода прервался')
+      }
+    } catch (e) {
+      setError(String((e as Error).message ?? e))
+    }
+  }
+
+  const stop = async () => {
+    if (!runningId) return
+    try { await labApi.stopRun(runningId) } catch (e) { setError(String((e as Error).message ?? e)) }
+  }
 
   useEffect(() => {
     let alive = true
@@ -73,6 +131,22 @@ export function LabRunsView({ project }: Props) {
                   {run.started_at ? new Date(run.started_at).toLocaleDateString('ru-RU') : ''}
                   {run.estimate_rub ? ` · ${run.estimate_rub} ₽` : ''}
                 </span>
+                {run.has_script && (
+                  <button
+                    onClick={(e) => { e.stopPropagation(); void (runningId && runningLab === run.lab ? stop() : start(run.lab)) }}
+                    disabled={!!runningId && runningLab !== run.lab}
+                    title={runningId && runningLab === run.lab ? 'остановить прогон' : 'прогнать замер'}
+                    style={{
+                      padding: `2px ${spacing.sm}px`,
+                      background: colors.bgTertiary, boxShadow: shadows.neuSm,
+                      border: 'none', borderRadius: radii.sm,
+                      color: runningId && runningLab === run.lab ? colors.red : colors.text,
+                      fontSize: fontSizes.caption, fontFamily: fonts.ui,
+                      cursor: !!runningId && runningLab !== run.lab ? 'default' : 'pointer',
+                      opacity: !!runningId && runningLab !== run.lab ? 0.4 : 1,
+                    }}
+                  >{runningId && runningLab === run.lab ? 'Стоп' : 'Прогнать'}</button>
+                )}
               </div>
 
               {run.question && (
@@ -97,6 +171,22 @@ export function LabRunsView({ project }: Props) {
                 </div>
               )}
             </div>
+
+            {runningLab === run.lab && (output.length > 0 || runningId) && (
+              <pre style={{
+                marginTop: spacing.sm, marginBottom: 0, padding: spacing.sm,
+                maxHeight: 220, overflow: 'auto',
+                background: colors.bgTertiary, boxShadow: shadows.neuInsetSm,
+                borderRadius: radii.sm, fontSize: fontSizes.caption,
+                color: colors.textSecondary, whiteSpace: 'pre-wrap', lineHeight: 1.4,
+              }}>{output.join('\n') || 'запуск…'}</pre>
+            )}
+            {runningLab === run.lab && runFinished && (
+              <div style={{
+                marginTop: spacing.xs, fontSize: fontSizes.caption,
+                color: runFinished.includes('кодом') ? colors.orange : colors.green,
+              }}>{runFinished}</div>
+            )}
 
             {open && report && <Matrix report={report} />}
           </div>
