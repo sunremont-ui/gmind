@@ -27,6 +27,10 @@ type Config struct {
 	// MASysConfigPath — файл с выбранным адресом MASys: адрес, заданный
 	// пользователем в UI, переживает перезапуск.
 	MASysConfigPath string
+	// LabRegistryPath — файл со списком каталогов проектов, у которых есть трек
+	// лабы. Хранятся только пути: трек и namespace живут в lab.config.json
+	// самого проекта и второй копии в настройках Gmind иметь не должны.
+	LabRegistryPath string
 	// FilesPath — локальное хранилище вложений, пришедших из внешних систем.
 	// Карта должна открываться сама по себе, поэтому байты лежат рядом с Gmind,
 	// а не отдаются чужим сервером, который может быть выключен.
@@ -107,6 +111,11 @@ func Load() *Config {
 		maSysCfgPath = filepath.Join(dataDir, "masys.json")
 	}
 
+	labRegistryPath := os.Getenv("LAB_REGISTRY")
+	if labRegistryPath == "" {
+		labRegistryPath = filepath.Join(dataDir, "lab-projects.json")
+	}
+
 	modelServersCfg := os.Getenv("MODEL_SERVERS_CONFIG")
 	if modelServersCfg == "" {
 		modelServersCfg = filepath.Join(dataDir, "model-servers.json")
@@ -141,6 +150,7 @@ func Load() *Config {
 		ModelServersConfigPath: modelServersCfg,
 		MarkdownPath:           markdownPath,
 		MASysConfigPath:        maSysCfgPath,
+		LabRegistryPath:        labRegistryPath,
 		FilesPath:              filesPath,
 	}
 }

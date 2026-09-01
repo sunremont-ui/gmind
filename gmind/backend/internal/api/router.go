@@ -45,6 +45,7 @@ type Handler struct {
 	filesPath      string
 	webhooks       *webhook.Store
 	relationships  *store.RelationshipStore
+	labRegistry    *labRegistry
 }
 
 // SetRAG wires a RAG service for semantic search endpoints and agent tools.
@@ -104,6 +105,7 @@ func (h *Handler) Router(cfg *config.Config) http.Handler {
 	h.maSysBaseURL = cfg.MASysBaseURL
 	h.markdownPath = cfg.MarkdownPath
 	h.filesPath = cfg.FilesPath
+	h.labRegistry = newLabRegistry(cfg.LabRegistryPath)
 
 	// MASys подключается сам: монитор находит живой адрес среди кандидатов и
 	// прокидывает его в инструменты агентов, чтобы run_masys_pipeline не бил в пустоту.
@@ -296,6 +298,18 @@ func (h *Handler) Router(cfg *config.Config) http.Handler {
 			r.Get("/{runID}/events", h.MASysGetRunEvents)
 			r.Get("/{runID}/stream", h.MASysRunStream)
 		})
+	})
+
+	// Слой лабы: реестр проектов с треком, состояние трека из MASys и отчёты
+	// замеров с диска.
+	r.Route("/api/v1/lab", func(r chi.Router) {
+		r.Get("/projects", h.ListLabProjects)
+		r.Post("/projects", h.AddLabProject)
+		r.Delete("/projects", h.RemoveLabProject)
+		r.Get("/track", h.LabTrackState)
+		r.Get("/runs", h.ListLabRuns)
+		r.Get("/memory", h.LabProjectMemory)
+		r.Get("/run", h.GetLabRun)
 	})
 
 	r.Route("/api/v1/webhooks", func(r chi.Router) {
