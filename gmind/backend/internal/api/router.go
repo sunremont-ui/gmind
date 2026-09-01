@@ -322,6 +322,8 @@ func (h *Handler) Router(cfg *config.Config) http.Handler {
 		// История: архив отчётов, по которому сравниваются два прогона.
 		r.Get("/history", h.ListLabHistory)
 		r.Get("/history/report", h.GetLabHistoryReport)
+		// Портфель на холст: треки и записи узлами, supersedes — связями.
+		r.Post("/canvas", h.BuildLabCanvas)
 	})
 
 	r.Route("/api/v1/webhooks", func(r chi.Router) {

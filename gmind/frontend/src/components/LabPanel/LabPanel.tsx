@@ -4,6 +4,8 @@
 // замеры проекта → матрица одного замера. Реестр правится здесь же.
 import { useCallback, useEffect, useState } from 'react'
 import { labApi } from '../../api/lab'
+import { useMindMapStore } from '../../store/mindmap'
+import { requestWorkbookOpen } from '../../utils/openTopicLink'
 import type { LabProject } from '../../types/lab'
 import type { ModulePanelProps } from '../../modules/types'
 import { LabPortfolio } from './LabPortfolio'
@@ -25,6 +27,26 @@ export function LabPanel({ onClose }: ModulePanelProps) {
   const [newPath, setNewPath] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
+  const [busy, setBusy] = useState(false)
+  const setWorkbook = useMindMapStore(s => s.setWorkbook)
+
+  // Портфель на холст: в виде проекта выкладывается он один, из портфеля — все.
+  const toCanvas = async (path?: string) => {
+    setBusy(true)
+    setError(null)
+    try {
+      const { workbook, stats } = await labApi.canvas(path)
+      if (!requestWorkbookOpen(workbook, 'project-import', path ?? 'lab')) setWorkbook(workbook)
+      setError(null)
+      setNotice(`Карта собрана: ${stats.entries} записей, связей ${stats.relationships ?? 0}`
+        + (stats.truncated ? ` · треков усечено потолком: ${stats.truncated}` : ''))
+    } catch (e) {
+      setError(String((e as Error).message ?? e))
+    } finally {
+      setBusy(false)
+    }
+  }
+  const [notice, setNotice] = useState<string | null>(null)
 
   const reload = useCallback(async () => {
     setLoading(true)
@@ -99,6 +121,16 @@ export function LabPanel({ onClose }: ModulePanelProps) {
           🧪 {title}
         </div>
         <span style={{ flex: 1 }} />
+        <button
+          onClick={() => void toCanvas(view.mode === 'portfolio' ? undefined : view.project.path)}
+          disabled={busy}
+          title={view.mode === 'portfolio' ? 'выложить все треки на холст' : 'выложить этот трек на холст'}
+          style={{
+            background: 'none', border: 'none', cursor: busy ? 'default' : 'pointer',
+            color: colors.textSecondary, fontSize: fontSizes.caption,
+            fontFamily: fonts.ui, opacity: busy ? 0.5 : 1,
+          }}
+        >На холст</button>
         {view.mode === 'portfolio' && (
           <button
             onClick={() => setAdding(v => !v)}
@@ -154,6 +186,13 @@ export function LabPanel({ onClose }: ModulePanelProps) {
           margin: `${spacing.sm}px ${spacing.lg}px 0`,
           fontSize: fontSizes.caption, color: colors.red, fontFamily: fonts.ui,
         }}>{error}</div>
+      )}
+
+      {notice && !error && (
+        <div style={{
+          margin: `${spacing.sm}px ${spacing.lg}px 0`,
+          fontSize: fontSizes.caption, color: colors.green, fontFamily: fonts.ui,
+        }}>{notice}</div>
       )}
 
       <div style={{ flex: 1, overflowY: 'auto' }}>

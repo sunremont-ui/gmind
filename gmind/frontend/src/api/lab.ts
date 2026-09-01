@@ -2,6 +2,7 @@
 // Всё идёт через бэкенд Gmind (/api/v1/lab/*), а не напрямую в MASys: адрес
 // MASys ищет монитор бэкенда, и второй поисковик в браузере разошёлся бы с ним.
 import { API_ORIGIN } from './base'
+import type { Workbook } from '../types'
 import type {
   LabProject, LabTrackState, LabEntry, LabRunSummary, LabRunReport, LabMemoryLayer,
   LabRunProcess, LabHistoryEntry,
@@ -77,6 +78,17 @@ export const labApi = {
       `/history/report?path=${encodeURIComponent(path)}&lab=${encodeURIComponent(lab)}`
       + `&at=${encodeURIComponent(at)}`
     ),
+
+  /**
+   * Выложить трек (или весь портфель, если путь не задан) на холст: узлы по
+   * видам записей, supersedes — типизированными связями.
+   */
+  canvas: (path?: string, title?: string) =>
+    request<{ workbook: Workbook; stats: Record<string, number> }>('/canvas', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path, title }),
+    }),
 
   /** Адрес потока вывода — читается через EventSource. */
   streamUrl: (id: string) => `${BASE}/runs/${encodeURIComponent(id)}/stream`,
