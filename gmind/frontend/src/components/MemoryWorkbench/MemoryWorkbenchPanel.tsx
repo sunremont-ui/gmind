@@ -14,9 +14,11 @@ import { SkillTree } from './SkillTree'
 import { PipelineTrace } from './PipelineTrace'
 import { MaintenancePanel } from './MaintenancePanel'
 import { NamespaceCompare } from './NamespaceCompare'
+import { MemoryPackageTable } from './MemoryPackageTable'
+import { NodeMemoryActions } from './NodeMemoryActions'
 import { colors, fonts, fontSizes, fontWeights, spacing, radii, shadows, transitions } from '../../styles/tokens'
 
-type ViewMode = 'layer-map' | 'timeline' | 'budget' | 'skills' | 'trace' | 'maintain' | 'compare' | 'raw'
+type ViewMode = 'layer-map' | 'timeline' | 'budget' | 'skills' | 'trace' | 'maintain' | 'compare' | 'packages' | 'node' | 'raw'
 
 interface LayerStat {
   key: string
@@ -26,7 +28,7 @@ interface LayerStat {
   loading?: boolean
 }
 
-export function MemoryWorkbenchPanel({ onClose }: ModulePanelProps) {
+export function MemoryWorkbenchPanel({ workbookId, onClose }: ModulePanelProps) {
   const {
     health, health_error, namespaces, activeNamespace,
     episodes, entities, skills, conversations, wiki, results, decisions, pending,
@@ -186,6 +188,8 @@ export function MemoryWorkbenchPanel({ onClose }: ModulePanelProps) {
         <TabBtn active={view === 'trace'} onClick={() => setView('trace')}>🔀 Trace</TabBtn>
         <TabBtn active={view === 'maintain'} onClick={() => setView('maintain')}>🛠 Maintain</TabBtn>
         <TabBtn active={view === 'compare'} onClick={() => setView('compare')}>🌐 Compare</TabBtn>
+        <TabBtn active={view === 'node'} onClick={() => setView('node')}>🔗 Узел</TabBtn>
+        <TabBtn active={view === 'packages'} onClick={() => setView('packages')}>📦 Корпуса</TabBtn>
         <TabBtn active={view === 'raw'} onClick={() => setView('raw')}>🗂 Raw</TabBtn>
       </div>
 
@@ -206,6 +210,12 @@ export function MemoryWorkbenchPanel({ onClose }: ModulePanelProps) {
         {view === 'maintain' && <MaintenancePanel />}
 
         {view === 'compare' && <NamespaceCompare />}
+
+        {/* Двусторонняя работа с памятью: узел холста ↔ записи MASys. */}
+        {view === 'node' && <NodeMemoryActions workbookId={workbookId} />}
+
+        {/* Справочник корпусов не зависит от связи с MASys — это визуальный язык Gmind. */}
+        {view === 'packages' && <MemoryPackageTable workbookId={workbookId} />}
 
         {view === 'raw' && (
           <div style={{

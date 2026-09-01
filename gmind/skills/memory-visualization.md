@@ -71,7 +71,7 @@
 **API hooks для UI:**
 - tRPC: `memory.recall/remember/consolidate/search`
 - tRPC: `runs.get/list/cancel/abort`
-- WS: `ws://localhost:3001/ws?runId=<id>` — live pipeline events
+- WS: `ws://localhost:5010/ws?runId=<id>` — live pipeline events
 - REST: `POST /webhooks/:webhookId`
 - gmindAgents router — bridge к Gmind
 
@@ -121,7 +121,7 @@
 └────────────────────────────────────────────────────────────────┘
                               ↑↓ HTTP/WS
 ┌────────────────────────────────────────────────────────────────┐
-│                    MASys Backend (:3000/3001)                   │
+│                    MASys Backend (:5010)                   │
 │  tRPC routers · WebSocket · Memory Controller · 13+ modules    │
 │  Prisma: Pipeline, Run, Episode, MemoryEntity, Skill, ...      │
 └────────────────────────────────────────────────────────────────┘
@@ -458,7 +458,7 @@ frontend/src/components/Charts/               — reusable
 ### Запуск
 
 ```bash
-# 1. Запустить MASys на :3000
+# 1. Запустить MASys на :5010 (E:MASysstart.bat)
 cd E:\MASys && pnpm dev
 
 # 2. Запустить Gmind на :1010/:1011

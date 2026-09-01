@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"github.com/go-chi/chi/v5"
 	"github.com/gmind/backend/internal/store"
+	"github.com/go-chi/chi/v5"
 )
 
 func (h *Handler) noteStore() *store.NoteStore {

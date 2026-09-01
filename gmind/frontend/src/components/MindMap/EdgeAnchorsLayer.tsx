@@ -11,11 +11,22 @@ import type { LayoutNode } from '../../types'
 import { useRelationshipsStore } from '../../store/relationships'
 import type { AnchorSide } from '../../store/relationships'
 import { colors } from '../../styles/tokens'
+import {
+  DIRECTION_VECTORS,
+  directionLabel,
+  isNodeSide,
+  type ChildDirection,
+} from './nodeDirections'
 
 interface Props {
   node: LayoutNode | null
   // Свернуть/развернуть детей одной стороны выбранного узла.
   onToggleSide?: (topicId: string, side: AnchorSide) => void
+  // Переопределение размеров узла (режим правки): узел расширяется под текст,
+  // поэтому якоря должны лечь на грани увеличенного прямоугольника.
+  sizeOverride?: { width: number; height: number } | null
+  // Мгновенное создание из трёхлучевого веера выбранной стороны.
+  onCreateChild?: (topicId: string, direction: ChildDirection, sourceSide: AnchorSide) => void
 }
 
 const FOLD_OFFSET = 20 // насколько кнопка fold вынесена наружу за якорь
@@ -24,8 +35,17 @@ const ANCHOR_RADIUS = 7
 const ANCHOR_HOVER_RADIUS = 11
 const ANCHOR_FILL = colors.accent
 const ANCHOR_STROKE = '#fff'
+const FAN_DISTANCE = 36
+const FAN_RADIUS = 8
 
-export function EdgeAnchorsLayer({ node, onToggleSide }: Props) {
+const SIDE_FANS: Record<AnchorSide, ChildDirection[]> = {
+  top: ['up-left', 'up', 'up-right'],
+  right: ['up-right', 'right', 'down-right'],
+  bottom: ['down-right', 'down', 'down-left'],
+  left: ['down-left', 'left', 'up-left'],
+}
+
+export function EdgeAnchorsLayer({ node, onToggleSide, sizeOverride, onCreateChild }: Props) {
   const beginDrag = useRelationshipsStore(s => s.beginDrag)
   const openAnchorMenu = useRelationshipsStore(s => s.openAnchorMenu)
   const isDragging = useRelationshipsStore(s => s.drag.isDragging)
@@ -35,7 +55,10 @@ export function EdgeAnchorsLayer({ node, onToggleSide }: Props) {
   // Hide during drag to avoid blocking pointer events on target nodes.
   if (isDragging) return null
 
-  const { x, y, width, height } = node
+  const { x, y } = node
+  // В режиме правки берём фактический размер расширенного узла, иначе layout-размер.
+  const width = sizeOverride?.width ?? node.width
+  const height = sizeOverride?.height ?? node.height
   const topicId = node.topic.id
   const foldedSides = new Set(node.topic.folded_sides ?? [])
 
@@ -44,6 +67,10 @@ export function EdgeAnchorsLayer({ node, onToggleSide }: Props) {
   const counts: Record<AnchorSide, number> = { top: 0, right: 0, bottom: 0, left: 0 }
   const ncx = x + width / 2, ncy = y + height / 2
   for (const ch of node.children ?? []) {
+    if (isNodeSide(ch.topic?.parent_anchor)) {
+      counts[ch.topic.parent_anchor]++
+      continue
+    }
     const dx = (ch.x + ch.width / 2) - ncx
     const dy = (ch.y + ch.height / 2) - ncy
     if (Math.abs(dx) >= Math.abs(dy)) counts[dx >= 0 ? 'right' : 'left']++
@@ -66,6 +93,7 @@ export function EdgeAnchorsLayer({ node, onToggleSide }: Props) {
         const baseR = count > 0 ? 9 : ANCHOR_RADIUS
         const r = isHover ? ANCHOR_HOVER_RADIUS : baseR
         const tick = r * 0.5
+        const fan = SIDE_FANS[a.side]
         return (
           <g
             key={a.side}
@@ -87,6 +115,12 @@ export function EdgeAnchorsLayer({ node, onToggleSide }: Props) {
             data-anchor-side={a.side}
             style={{ cursor: 'crosshair' }}
           >
+            {/* Невидимая зона удерживает hover при переходе от центрального
+                якоря к одному из трёх лучей. */}
+            {isHover && onCreateChild && (
+              <circle cx={a.cx} cy={a.cy} r={FAN_DISTANCE + FAN_RADIUS + 4}
+                fill="transparent" stroke="none" />
+            )}
             <circle
               cx={a.cx}
               cy={a.cy}
@@ -110,6 +144,36 @@ export function EdgeAnchorsLayer({ node, onToggleSide }: Props) {
                 {count}
               </text>
             ) : null}
+
+            {/* На каждой стороне три варианта: прямо и ±45°. Центральный якорь
+                остаётся доступен для drag-связи, лучи создают узел кликом. */}
+            {isHover && onCreateChild && fan.map(direction => {
+              const vector = DIRECTION_VECTORS[direction]
+              const norm = vector.x !== 0 && vector.y !== 0 ? Math.SQRT1_2 : 1
+              const fx = a.cx + vector.x * FAN_DISTANCE * norm
+              const fy = a.cy + vector.y * FAN_DISTANCE * norm
+              return (
+                <g
+                  key={direction}
+                  data-create-direction={direction}
+                  style={{ cursor: 'pointer' }}
+                  onPointerDown={e => e.stopPropagation()}
+                  onClick={e => {
+                    e.stopPropagation()
+                    onCreateChild(topicId, direction, a.side)
+                  }}
+                >
+                  <title>Создать: {directionLabel(direction)}</title>
+                  <line x1={a.cx} y1={a.cy} x2={fx} y2={fy}
+                    stroke={ANCHOR_FILL} strokeWidth={2} opacity={0.65}
+                    pointerEvents="none" />
+                  <circle cx={fx} cy={fy} r={FAN_RADIUS}
+                    fill={colors.bgTertiary} stroke={ANCHOR_FILL} strokeWidth={2}
+                    style={{ filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.18))' }} />
+                  <circle cx={fx} cy={fy} r={2.5} fill={ANCHOR_FILL} pointerEvents="none" />
+                </g>
+              )
+            })}
           </g>
         )
       })}

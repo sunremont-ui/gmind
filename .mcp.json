@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "masys": {
+      "type": "stdio",
+      "command": "node",
+      "args": [
+        "E:/MASys/packages/mcp-server/dist/index.js"
+      ],
+      "env": {
+        "MASYS_URL": "http://localhost:5010"
+      }
+    }
+  }
+}

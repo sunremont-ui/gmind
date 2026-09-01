@@ -21,6 +21,16 @@ type Config struct {
 	WikiPath               string
 	MASysBaseURL           string
 	ModelServersConfigPath string
+	// MarkdownPath — каталог Markdown-хранилища: сюда по умолчанию
+	// сохраняются карты как .md и отсюда же открываются файлы.
+	MarkdownPath string
+	// MASysConfigPath — файл с выбранным адресом MASys: адрес, заданный
+	// пользователем в UI, переживает перезапуск.
+	MASysConfigPath string
+	// FilesPath — локальное хранилище вложений, пришедших из внешних систем.
+	// Карта должна открываться сама по себе, поэтому байты лежат рядом с Gmind,
+	// а не отдаются чужим сервером, который может быть выключен.
+	FilesPath string
 }
 
 func Load() *Config {
@@ -77,9 +87,24 @@ func Load() *Config {
 		wikiPath = filepath.Join(dataDir, "wiki")
 	}
 
+	markdownPath := os.Getenv("MARKDOWN_PATH")
+	if markdownPath == "" {
+		markdownPath = filepath.Join(dataDir, "markdown")
+	}
+
+	filesPath := os.Getenv("FILES_PATH")
+	if filesPath == "" {
+		filesPath = filepath.Join(dataDir, "files")
+	}
+
+	// MASys backend слушает :5010 (web — :5020, супервизор — :5030).
 	maSysBaseURL := os.Getenv("MASYS_BASE_URL")
 	if maSysBaseURL == "" {
-		maSysBaseURL = "http://localhost:3001"
+		maSysBaseURL = "http://localhost:5010"
+	}
+	maSysCfgPath := os.Getenv("MASYS_CONFIG")
+	if maSysCfgPath == "" {
+		maSysCfgPath = filepath.Join(dataDir, "masys.json")
 	}
 
 	modelServersCfg := os.Getenv("MODEL_SERVERS_CONFIG")
@@ -100,19 +125,22 @@ func Load() *Config {
 	}
 
 	return &Config{
-		Port:             port,
-		DBPath:           dbPath,
-		AIEndpoint:       aiEndpoint,
-		AIModel:          aiModel,
-		AIAPIKey:         os.Getenv("AI_API_KEY"),
-		AllowedOrigins:   allowedOrigins,
-		LlamaConfigPath:  llamaCfg,
-		AgentPromptsFile: agentPromptsFile,
-		YandexAPIKey:     os.Getenv("YANDEX_API_KEY"),
-		YandexFolderID:   os.Getenv("YANDEX_FOLDER_ID"),
-		YandexModel:      yandexModel,
+		Port:                   port,
+		DBPath:                 dbPath,
+		AIEndpoint:             aiEndpoint,
+		AIModel:                aiModel,
+		AIAPIKey:               os.Getenv("AI_API_KEY"),
+		AllowedOrigins:         allowedOrigins,
+		LlamaConfigPath:        llamaCfg,
+		AgentPromptsFile:       agentPromptsFile,
+		YandexAPIKey:           os.Getenv("YANDEX_API_KEY"),
+		YandexFolderID:         os.Getenv("YANDEX_FOLDER_ID"),
+		YandexModel:            yandexModel,
 		WikiPath:               wikiPath,
 		MASysBaseURL:           maSysBaseURL,
 		ModelServersConfigPath: modelServersCfg,
+		MarkdownPath:           markdownPath,
+		MASysConfigPath:        maSysCfgPath,
+		FilesPath:              filesPath,
 	}
 }

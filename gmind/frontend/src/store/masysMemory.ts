@@ -37,7 +37,11 @@ interface MASysMemoryState {
   lastFetched: Partial<Record<string, number>>  // layer name → ms
 
   // Actions
-  checkHealth: () => Promise<void>
+  checkHealth: (refresh?: boolean) => Promise<void>
+  /** Периодический опрос связи с MASys; возвращает функцию остановки. */
+  startHealthWatch: (intervalMs?: number) => () => void
+  /** Ручная смена адреса MASys (сохраняется на бэкенде). */
+  setBaseUrl: (baseUrl: string) => Promise<void>
   setActiveNamespace: (ns: string) => void
   fetchNamespaces: () => Promise<void>
   fetchEpisodes: () => Promise<void>
@@ -77,12 +81,29 @@ export const useMASysMemoryStore = create<MASysMemoryState>((set, get) => ({
   loading: {},
   lastFetched: {},
 
-  async checkHealth() {
+  async checkHealth(refresh = false) {
     try {
-      const h = await masysApi.health()
+      const h = await masysApi.health(refresh)
       set({ health: h, health_error: null })
     } catch (err: any) {
       set({ health: null, health_error: err?.message ?? String(err) })
+    }
+  },
+
+  startHealthWatch(intervalMs = 15000) {
+    // Первый опрос — сразу, чтобы приложение стартовало уже со статусом MASys.
+    void get().checkHealth()
+    const timer = setInterval(() => { void get().checkHealth() }, intervalMs)
+    return () => clearInterval(timer)
+  },
+
+  async setBaseUrl(baseUrl: string) {
+    try {
+      const h = await masysApi.setBaseUrl(baseUrl)
+      set({ health: h, health_error: null })
+      if (h.reachable) await get().fetchNamespaces()
+    } catch (err: any) {
+      set({ health_error: err?.message ?? String(err) })
     }
   },
 

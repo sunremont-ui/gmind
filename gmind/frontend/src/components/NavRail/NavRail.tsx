@@ -3,6 +3,12 @@ import type { AppModule } from '../../modules/types'
 
 const NAV_RAIL_WIDTH = 48
 
+/** Точка состояния на иконке модуля (например, связь с MASys). */
+export interface NavRailStatus {
+  ok: boolean
+  label: string
+}
+
 interface NavRailProps {
   modules: AppModule[]
   activeModuleId: string | null
@@ -10,9 +16,11 @@ interface NavRailProps {
   onOpenSettings: () => void
   sidebarOpen?: boolean
   onToggleSidebar?: () => void
+  /** id модуля → индикатор связи. */
+  statusByModule?: Record<string, NavRailStatus | undefined>
 }
 
-export function NavRail({ modules, activeModuleId, onToggleModule, onOpenSettings, sidebarOpen, onToggleSidebar }: NavRailProps) {
+export function NavRail({ modules, activeModuleId, onToggleModule, onOpenSettings, sidebarOpen, onToggleSidebar, statusByModule }: NavRailProps) {
   // Filter out mindmap module — it's the canvas, not a panel
   const panelModules = modules.filter(m => m.id !== 'mindmap')
 
@@ -29,6 +37,10 @@ export function NavRail({ modules, activeModuleId, onToggleModule, onOpenSetting
       background: colors.bg,
       gap: spacing.xxs,
       zIndex: 10,
+      // Список модулей растёт, высота окна — нет. Без этого нижние кнопки и
+      // «Настройки» уезжали за край рейки и до них было не добраться.
+      overflow: 'hidden',
+      height: '100%',
     }}>
       {/* Sidebar toggle */}
       {onToggleSidebar && (
@@ -55,23 +67,56 @@ export function NavRail({ modules, activeModuleId, onToggleModule, onOpenSetting
         </>
       )}
 
-      {panelModules.map(mod => (
-        <NavRailButton
-          key={mod.id}
-          active={activeModuleId === mod.id}
-          tooltip={mod.tooltip}
-          onClick={() => onToggleModule(mod.id)}
-        >
-          <mod.icon
-            size={18}
-            strokeWidth={1.8}
-            color={activeModuleId === mod.id ? colors.accent : colors.textTertiary}
-          />
-        </NavRailButton>
-      ))}
-
-      {/* Spacer */}
-      <div style={{ flex: 1 }} />
+      {/* Прокручиваемый список модулей: верхняя кнопка и «Настройки» остаются
+          на местах, а не помещающиеся модули доступны прокруткой. */}
+      <div
+        data-testid="nav-rail-modules"
+        style={{
+          flex: 1,
+          minHeight: 0,
+          width: '100%',
+          overflowY: 'auto',
+          overflowX: 'hidden',
+          scrollbarWidth: 'thin',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          gap: spacing.xxs,
+        }}
+      >
+      {panelModules.map(mod => {
+        const status = statusByModule?.[mod.id]
+        return (
+          <NavRailButton
+            key={mod.id}
+            active={activeModuleId === mod.id}
+            tooltip={status ? `${mod.tooltip} — ${status.label}` : mod.tooltip}
+            onClick={() => onToggleModule(mod.id)}
+          >
+            <mod.icon
+              size={18}
+              strokeWidth={1.8}
+              color={activeModuleId === mod.id ? colors.accent : colors.textTertiary}
+            />
+            {status && (
+              <span
+                aria-label={status.label}
+                style={{
+                  position: 'absolute',
+                  right: 5,
+                  bottom: 5,
+                  width: 7,
+                  height: 7,
+                  borderRadius: '50%',
+                  background: status.ok ? colors.green : colors.textTertiary,
+                  border: `1.5px solid ${colors.bg}`,
+                }}
+              />
+            )}
+          </NavRailButton>
+        )
+      })}
+      </div>
 
       {/* Settings */}
       <NavRailButton tooltip="Settings" onClick={onOpenSettings}>
@@ -122,6 +167,7 @@ function NavRailButton({
         fontSize: fontSizes.caption,
         color: active ? colors.accent : colors.textTertiary,
         flexShrink: 0,
+        position: 'relative',
       }}
       onMouseEnter={e => {
         if (!active) e.currentTarget.style.background = colors.fill

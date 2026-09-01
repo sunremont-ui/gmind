@@ -54,6 +54,7 @@ export interface CreateRelationshipRequest {
   notes?: string
   color?: string
   style?: RelationshipStyle
+  metadata?: string
 }
 
 export interface UpdateRelationshipRequest {
@@ -64,6 +65,7 @@ export interface UpdateRelationshipRequest {
   notes?: string
   color?: string
   style?: RelationshipStyle
+  metadata?: string
 }
 
 export interface CreateSheetRequest {
@@ -80,6 +82,7 @@ export interface CreateTopicRequest {
   index?: number
   memory_kind?: string
   child_dir?: string
+  parent_anchor?: string
 }
 
 export interface CreateWorkbookRequest {
@@ -159,6 +162,9 @@ export interface SwitchAIProviderRequest {
 export interface Topic {
   id: string
   title: string
+  // Тело узла: длинный текст под заголовком (модель «голова + тело»).
+  // Plain text с \n; заголовок остаётся в title/rich_text.
+  body?: string
   notes?: string
   markers?: string[]
   labels?: string[]
@@ -171,9 +177,11 @@ export interface Topic {
   position?: Position
   structure_class?: string
   branch_side?: string
-  // Направление этого ребёнка относительно родителя (up|down|left|right).
+  // Направление этого ребёнка относительно родителя. Кроме четырёх сторон
+  // поддерживаются диагонали: up-left|up-right|down-left|down-right.
   // Пусто → раскладка по умолчанию для структуры родителя.
   child_dir?: string
+  parent_anchor?: string
   edge_style?: string
   edge_dash?: string
   // Толщина ребра к родителю (px). Пусто → толщина из темы.
@@ -206,6 +214,13 @@ export interface Topic {
   // V6.1 Memory Lab ontology
   memory_kind?: string
   masys_ref?: MasysRef
+  /**
+   * Как узел записан в связанном .md-файле: 'heading' (## Заголовок) или
+   * 'list' (- пункт). Сохранение карты не переписывает авторские списки.
+   */
+  md_form?: string
+  /** Прогон MASys, поставленный с этого узла: карта помнит поставленную работу. */
+  masys_run_id?: string
 }
 
 export interface MasysRef {
@@ -226,9 +241,11 @@ export interface UpdateTopicRequest {
   position?: Position
   structure_class?: string
   branch_side?: string
-  // Направление этого ребёнка относительно родителя (up|down|left|right).
+  // Направление этого ребёнка относительно родителя. Кроме четырёх сторон
+  // поддерживаются диагонали: up-left|up-right|down-left|down-right.
   // Пусто → раскладка по умолчанию для структуры родителя.
   child_dir?: string
+  parent_anchor?: string
   edge_style?: string
   edge_dash?: string
   // Толщина ребра к родителю (px). Пусто → толщина из темы.
@@ -271,6 +288,9 @@ export interface Workbook {
   updated_at: string
   // "" / "mindmap" = ordinary map; "memory_lab" = typed memory-design canvas.
   kind?: string
+  // Путь связанного .md-файла: карта — представление этого файла.
+  source_path?: string
+  source_synced_at?: string
 }
 
 export interface AddCollaboratorRequest {

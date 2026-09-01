@@ -18,6 +18,9 @@ interface Props {
   selfLoopRadius?: number // when from === to (self-loop)
   nodeWidth?: number
   nodeHeight?: number
+  routedPath?: string
+  labelX?: number
+  labelY?: number
 }
 
 const STROKE_COLOR_BY_TYPE = RELATIONSHIP_TYPE_COLORS
@@ -39,6 +42,9 @@ export function RelationshipLine({
   selfLoopRadius = 36,
   nodeWidth = 0,
   nodeHeight = 0,
+  routedPath,
+  labelX,
+  labelY,
 }: Props) {
   const type = relationshipType(relationship)
   const direction = relationshipDirection(relationship)
@@ -74,7 +80,7 @@ export function RelationshipLine({
     const path = `M ${startX} ${startY}
       C ${startX + r * 1.4} ${startY - r}, ${startX + r * 1.4} ${startY + r}, ${startX} ${startY + 2}`
     return (
-      <g pointerEvents="auto" onClick={(e) => { e.stopPropagation(); selectRel(relationship.id) }}>
+      <g data-relationship-id={relationship.id} pointerEvents="auto" onClick={(e) => { e.stopPropagation(); selectRel(relationship.id) }}>
         <path
           d={path}
           fill="none"
@@ -118,10 +124,11 @@ export function RelationshipLine({
 
   const midX = (sx + ex) / 2
 
-  const path = `M ${sx} ${sy} C ${midX} ${sy}, ${midX} ${ey}, ${ex} ${ey}`
+  const path = routedPath || `M ${sx} ${sy} C ${midX} ${sy}, ${midX} ${ey}, ${ex} ${ey}`
 
   return (
     <g
+      data-relationship-id={relationship.id}
       pointerEvents="auto"
       onClick={(e) => { e.stopPropagation(); selectRel(relationship.id) }}
       style={{ cursor: 'pointer' }}
@@ -134,14 +141,14 @@ export function RelationshipLine({
         stroke={stroke}
         strokeWidth={strokeWidth}
         strokeDasharray={dash}
-        markerStart={direction === 'bidirectional' ? `url(#${markerId}-rev)` : undefined}
+        markerStart={direction === 'bidirectional' ? `url(#${markerId})` : undefined}
         markerEnd={direction === 'undirected' ? undefined : `url(#${markerId})`}
         opacity={opacity}
       />
       {relationship.title && (
         <text
-          x={midX}
-          y={(sy + ey) / 2 - 8}
+          x={labelX ?? midX}
+          y={(labelY ?? (sy + ey) / 2) - 8}
           textAnchor="middle"
           fontSize={fontSizes.caption}
           fill={stroke}
@@ -160,31 +167,25 @@ export function RelationshipMarkers() {
   const types = Object.keys(STROKE_COLOR_BY_TYPE)
   return (
     <defs>
+      {/* auto-start-reverse нужен обоим концам: в начале линии стрелка
+          разворачивается сама. Отдельный «-rev» маркер с orient="auto" этого
+          не делал — у двунаправленной связи обе стрелки смотрели в одну
+          сторону, и она читалась как обычная односторонняя. */}
       {types.map(t => (
-        <g key={t}>
-          <marker
-            id={`rel-arrow-${t}`}
-            viewBox="0 0 10 10"
-            refX="9"
-            refY="5"
-            markerWidth="6"
-            markerHeight="6"
-            orient="auto-start-reverse"
-          >
-            <path d="M 0 0 L 10 5 L 0 10 z" fill={STROKE_COLOR_BY_TYPE[t]} />
-          </marker>
-          <marker
-            id={`rel-arrow-${t}-rev`}
-            viewBox="0 0 10 10"
-            refX="9"
-            refY="5"
-            markerWidth="6"
-            markerHeight="6"
-            orient="auto"
-          >
-            <path d="M 0 0 L 10 5 L 0 10 z" fill={STROKE_COLOR_BY_TYPE[t]} />
-          </marker>
-        </g>
+        <marker
+          key={t}
+          id={`rel-arrow-${t}`}
+          viewBox="0 0 10 10"
+          refX="9"
+          refY="5"
+          markerWidth="6"
+          markerHeight="6"
+          orient="auto-start-reverse"
+        >
+          {/* context-stroke: наконечник берёт цвет самой линии, поэтому связь
+              со своим цветом больше не получает стрелку цвета типа. */}
+          <path d="M 0 0 L 10 5 L 0 10 z" fill="context-stroke" stroke="none" />
+        </marker>
       ))}
     </defs>
   )

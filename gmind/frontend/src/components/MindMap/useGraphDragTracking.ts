@@ -7,7 +7,7 @@ interface Options {
   svgRef: React.RefObject<SVGSVGElement | null>
   clientToWorld: (x: number, y: number) => { x: number; y: number }
   // Перетащили от якоря в пустоту → создать ребёнка в этом направлении.
-  onCreateChildDrag?: (topicId: string, side: AnchorSide) => void
+  onCreateChildDrag?: (topicId: string, direction: AnchorSide, sourceSide?: AnchorSide) => void
 }
 
 // World-space movement below this counts as a click (not a relationship drag).
@@ -45,11 +45,11 @@ export function useGraphDragTracking({ svgRef, clientToWorld, onCreateChildDrag 
       const result = endDrag()
       if (result && result.from !== result.to) {
         // Dropped on another node → create a relationship.
-        openPopover(result.from, result.to, e.clientX, e.clientY)
+        openPopover(result.from, result.to, e.clientX, e.clientY, side)
       } else if (moved < CLICK_THRESHOLD && fromId && side && onCreateChildDrag) {
         // Click on the anchor (no drag) → create a child in that direction immediately.
         // (Direction picker lives on the anchor's right-click menu instead.)
-        onCreateChildDrag(fromId, side)
+        onCreateChildDrag(fromId, side, side)
       } else if (fromId && onCreateChildDrag) {
         // Dragged into empty space → create a child toward the drag direction.
         const dx = dr.currentX - dr.startX
@@ -57,7 +57,7 @@ export function useGraphDragTracking({ svgRef, clientToWorld, onCreateChildDrag 
         const dragSide: AnchorSide = Math.abs(dx) >= Math.abs(dy)
           ? (dx >= 0 ? 'right' : 'left')
           : (dy >= 0 ? 'bottom' : 'top')
-        onCreateChildDrag(fromId, dragSide)
+        onCreateChildDrag(fromId, dragSide, side ?? dragSide)
       }
     }
 

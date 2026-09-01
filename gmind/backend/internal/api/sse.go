@@ -76,9 +76,9 @@ func (b *taskLogBroker) publish(msg TaskLogMessage) {
 }
 
 var (
-	brokerMu       sync.RWMutex
-	taskBrokers    = make(map[string]*taskLogBroker)
-	brokerCleanup  sync.Once
+	brokerMu      sync.RWMutex
+	taskBrokers   = make(map[string]*taskLogBroker)
+	brokerCleanup sync.Once
 )
 
 // startBrokerCleanup runs a background goroutine that evicts brokers with no

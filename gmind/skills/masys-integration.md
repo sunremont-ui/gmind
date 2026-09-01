@@ -1,6 +1,44 @@
 # Skill: MASys Integration — Gmind ↔ MASys
 
-> MASys: `E:\MASys` · Gmind backend: `http://localhost:1010` · MASys server: `http://localhost:3000`
+> MASys: `E:\MASys` · Gmind backend: `http://localhost:1010` · **MASys backend: `http://localhost:5010`**
+> (web — `:5020`, супервизор — `:5030`; см. `E:\MASys\start.bat`)
+
+## Подключение из коробки (2026-07-29)
+
+Адрес MASys больше не настраивается руками. `backend/internal/api/masys_status.go`:
+
+- **Автопоиск.** При старте монитор обходит `MASysCandidates` — настроенный
+  адрес → `:5010` → `127.0.0.1:5010` → `:3000` → `:3001` — и запоминает первый,
+  ответивший на `/health`. Порты `3000/3001` оставлены только для совместимости:
+  до этой правки они были дефолтом, и связь не поднималась вообще.
+- **Кэш.** Статус перепроверяется в фоне каждые 20 с;
+  `GET /api/v1/masys/health` отдаёт снимок мгновенно (`reachable`, `latency_ms`,
+  `checked_at`, `discovered`, `candidates`), `?refresh=1` форсирует опрос.
+  Раньше каждый запрос ждал 3-секундный сетевой таймаут.
+- **Единый адрес для UI и агентов.** Найденный URL прокидывается в
+  `WorkerPool.SetMaSysBaseURL`, поэтому `run_masys_pipeline` бьёт туда же,
+  куда ходит Memory Bridge.
+- **Ручная настройка.** `PUT /api/v1/masys/config {base_url}` — адрес
+  сохраняется в `%APPDATA%\Gmind\masys.json` и переживает перезапуск
+  (приоритетнее переменной окружения `MASYS_BASE_URL`).
+
+Фронтенд: `useMASysMemoryStore.startHealthWatch()` стартует в `App.tsx` после
+готовности бэкенда; точка состояния — на иконках MASys и Memory Workbench в Nav
+Rail; статус, latency и смена адреса — в `MaSysPanel` (`MaSysConnection.tsx`).
+
+### Гоча tRPC: input обязателен
+
+Процедуры MASys объявлены как `z.object({ … })` — сам объект обязателен, даже
+когда все поля внутри необязательные. Поэтому в `callTRPCQuery`:
+
+- непустая карта (в т.ч. **пустой** `map[string]any{}`) уходит как `input={}`;
+- «совсем без input» — это `input == nil` (например `memory.wiki.namespaces`).
+
+До правки `memory.entity.list` без `?namespace=` падал с
+`invalid_type: expected object, received undefined`.
+
+Числа тоже строгие: `limit` объявлен `z.number()` — строку zod не примет,
+приводить через `strconv.Atoi`.
 
 ## Что такое MASys
 
@@ -27,7 +65,7 @@
      ↑ HTTP /api/v1/*                        │ HTTP
      │                                       ↓
 ┌────┴───────────────────────────────────────────┐
-│            MASYS PLATFORM (:3000)               │
+│            MASYS PLATFORM (:5010)               │
 │  Graph Editor (React Flow)                      │
 │  DAG Executor + Event Bus                       │
 │  tRPC: pipelines.list, runs.start, runs.get     │
@@ -173,7 +211,7 @@ pipeline-input(text="Write about AI trends") →
 Реализован в `backend/internal/agent/tools.go` + `executor.go`.
 
 ```
-MASYS_BASE_URL env → default http://localhost:3000
+MASYS_BASE_URL env → default http://localhost:5010 (+ автопоиск, см. верх файла)
 GET /api/v1/masys/pipelines  — proxy к MASys tRPC (для UI)
 ```
 
@@ -188,13 +226,13 @@ MaSysPanel в Gmind UI — список пайплайнов + Run кнопка 
 ```bash
 cd E:\MASys
 pnpm install
-pnpm dev          # запускает server (:3000) + web (:5173) параллельно
+pnpm dev          # запускает server (:5010) + web (:5020) параллельно
 ```
 
 Или только сервер:
 ```bash
 cd E:\MASys/apps/server
-pnpm dev          # Fastify на :3000
+pnpm dev          # Fastify на :5010
 ```
 
 Первый запуск — инициализировать БД:
@@ -210,16 +248,16 @@ npx prisma migrate deploy
 MASys использует tRPC — вызовы через HTTP как:
 
 ```
-GET  http://localhost:3000/trpc/pipelines.list
-GET  http://localhost:3000/trpc/pipelines.get?input={"id":"<id>"}
-POST http://localhost:3000/trpc/runs.start  body: {"json":{"pipelineId":"<id>"}}
-GET  http://localhost:3000/trpc/runs.get?input={"id":"<runId>"}
-WS   ws://localhost:3000/ws?runId=<runId>   events stream
+GET  http://localhost:5010/trpc/pipelines.list
+GET  http://localhost:5010/trpc/pipelines.get?input={"id":"<id>"}
+POST http://localhost:5010/trpc/runs.start  body: {"json":{"pipelineId":"<id>"}}
+GET  http://localhost:5010/trpc/runs.get?input={"id":"<runId>"}
+WS   ws://localhost:5010/ws?runId=<runId>   events stream
 ```
 
 Secrets (AI ключи для LLM Call модуля):
 ```
-POST http://localhost:3000/trpc/secrets.set  body: {"json":{"key":"ANTHROPIC_API_KEY","value":"sk-..."}}
+POST http://localhost:5010/trpc/secrets.set  body: {"json":{"key":"ANTHROPIC_API_KEY","value":"sk-..."}}
 ```
 
 ---

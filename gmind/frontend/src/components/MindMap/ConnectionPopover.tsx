@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useRelationshipsStore } from '../../store/relationships'
 import { RELATIONSHIP_TYPE_LABELS, RELATIONSHIP_TYPE_COLORS } from '../../api/relationships'
 import type { RelationshipType, RelationshipDirection } from '../../types/api'
+import { oppositeNodeSide } from './nodeDirections'
 import { colors, fonts, fontSizes, spacing, radii, shadows } from '../../styles/tokens'
 
 interface Props {
@@ -37,6 +38,9 @@ export function ConnectionPopover({ workbookId }: Props) {
         type,
         direction,
         title: title.trim() || undefined,
+        metadata: pending.fromSide
+          ? JSON.stringify({ from_side: pending.fromSide, to_side: oppositeNodeSide(pending.fromSide) })
+          : undefined,
       })
       // reset
       setType('relates_to')

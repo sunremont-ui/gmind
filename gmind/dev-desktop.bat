@@ -1,5 +1,8 @@
 @echo off
 title Gmind Desktop Dev
+rem Windows dirs are missing from this machine's PATH, so ping/curl/taskkill
+rem resolve to nothing. Put them back for this process only.
+set "PATH=%SystemRoot%\System32;%SystemRoot%;%SystemRoot%\System32\Wbem;%PATH%"
 
 echo [0/2] Killing old processes...
 taskkill /F /IM "gmind-server-x86_64-pc-windows-msvc.exe" /T >nul 2>&1

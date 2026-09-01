@@ -1,10 +1,35 @@
 // V6.0 — TypeScript types for MASys memory engine entities (mirror of Prisma schema + native tables).
 // All types use `unknown` for free-form JSON to stay forward-compatible.
 
+/** Отчёт об отправке узлов холста в граф MASys. */
+export interface MASysPushResult {
+  namespace: string
+  entities_pushed: number
+  relations_pushed: number
+  skipped: number
+  errors?: string[]
+  /** topic_id → имя записи в MASys. */
+  refs: Record<string, string>
+}
+
+/** Ответ на постановку задачи. */
+export interface MASysRunStarted {
+  runId?: string
+  pipelineId?: string
+  status?: string
+  [key: string]: unknown
+}
+
 export interface MASysHealthStatus {
   base_url: string
   reachable: boolean
   error?: string
+  latency_ms?: number
+  checked_at?: string
+  /** Адрес найден автопоиском, а не задан вручную. */
+  discovered?: boolean
+  /** Адреса, которые перебирал бэкенд при поиске MASys. */
+  candidates?: string[]
 }
 
 export interface MASysEpisode {

@@ -76,10 +76,10 @@ export const api = {
     mutatingRequest<void>(`/workbooks/${workbookId}/sheets/${sheetId}`, { method: 'DELETE' }),
 
   // Topics
-  createTopic: (workbookId: string, parentId: string, title: string, position?: Position, opts?: { id?: string; index?: number; memoryKind?: string; childDir?: string }) =>
+  createTopic: (workbookId: string, parentId: string, title: string, position?: Position, opts?: { id?: string; index?: number; memoryKind?: string; childDir?: string; parentAnchor?: string }) =>
     mutatingRequest<Topic>(`/workbooks/${workbookId}/topics`, {
       method: 'POST',
-      body: JSON.stringify({ title, parent_id: parentId, position, id: opts?.id, index: opts?.index, memory_kind: opts?.memoryKind, child_dir: opts?.childDir } satisfies CreateTopicRequest),
+      body: JSON.stringify({ title, parent_id: parentId, position, id: opts?.id, index: opts?.index, memory_kind: opts?.memoryKind, child_dir: opts?.childDir, parent_anchor: opts?.parentAnchor } satisfies CreateTopicRequest),
     }),
 
   updateTopic: (workbookId: string, topicId: string, data: Partial<UpdateTopicRequest>) =>
@@ -239,9 +239,21 @@ export const api = {
       body: JSON.stringify(cfg),
     }),
 
-  // Import topic tree recursively (from markdown/freemind)
-  importTopicTree: async (workbookId: string, parentId: string, tree: { title: string; children: any[] }): Promise<void> => {
+  // Import topic tree recursively (from markdown/freemind).
+  // Тело, заметку и визуальные свойства узла досылаем вторым запросом —
+  // createTopic принимает только заголовок.
+  importTopicTree: async (
+    workbookId: string,
+    parentId: string,
+    tree: { title: string; body?: string; notes?: string; meta?: object; children: any[] },
+  ): Promise<void> => {
     const topic = await api.createTopic(workbookId, parentId, tree.title)
+    const patch: Record<string, unknown> = { ...(tree.meta ?? {}) }
+    if (tree.body) patch.body = tree.body
+    if (tree.notes) patch.notes = tree.notes
+    if (Object.keys(patch).length > 0) {
+      await api.updateTopic(workbookId, topic.id, patch as Partial<UpdateTopicRequest>)
+    }
     for (const child of tree.children || []) {
       await api.importTopicTree(workbookId, topic.id, child)
     }

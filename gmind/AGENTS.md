@@ -28,6 +28,7 @@ gmind/
 │       ├── ws/        # WebSocket hub
 │       ├── ai/        # AI integration (OpenAI, Yandex GPT, llama-server)
 │       ├── xmind/     # .xmind import/export
+│       ├── markdown/  # .md как рабочий формат: Parse/Render (голова+тело+свойства)
 │       ├── wiki/      # Wiki module — файловое .md хранилище, CRUD, поиск
 │       ├── mcp/       # MCP Server — JSON-RPC 2.0 protocol
 │       └── config/    # Env config
@@ -42,13 +43,15 @@ gmind/
 │   │   │   ├── registry.ts       # MODULE_REGISTRY (5 модулей) + getModule()
 │   │   │   ├── mindmap/module.ts # Home module (canvas, не открывает панель)
 │   │   │   ├── notes/module.ts   # Notes module → NotesPanel
+│   │   │   ├── markdown/module.ts # Markdown-файлы → MarkdownPanel
 │   │   │   ├── agent-sandbox/module.ts # Agent Sandbox → AgentPanel
 │   │   │   ├── masys/module.ts   # MaSys → MaSysPanel
 │   │   │   └── ai/module.ts      # AI → AIPanel
 │   │   └── components/
 │   │       ├── NavRail/    # 48px Activity Bar (иконки, tooltip, активный модуль)
 │   │       ├── MindMap/    # MindMap, TopicNode, ErrorBoundary
-│   │       ├── Sidebar/    # Workbook list
+│   │       ├── Sidebar/    # Дерево корня, workbook list, drag-resize 220–560px
+│   │       ├── DocumentContextBar/ # Назад/вперёд, breadcrumb, reveal in tree
 │   │       ├── AIPanel/    # AI chat/generate (workbookId: string | null)
 │   │       ├── AIServerPanel/  # AI сервер (llama-server + Yandex GPT)
 │   │       ├── PropertiesPanel/  # Редактор свойств топика
@@ -57,12 +60,13 @@ gmind/
 │   │       ├── AgentPanel/  # Агенты: список, карточки, Submit Task (только agents/tasks)
 │   │       ├── TaskList/   # Задачи агентов с цепочками
 │   │       ├── NotesPanel/ # Быстрые заметки (Quick Notes module)
-│   │       ├── MaSysPanel/ # MASys пайплайны (выделен из AgentPanel)
+│   │       ├── MarkdownPanel/ # Markdown-хранилище: открыть/сохранить карту как .md
+│   │       ├── MaSysPanel/ # MASys пайплайны + состояние связи (MaSysConnection)
 │   │       └── StylePanel/ # Стилизация нод
 │   └── src-tauri/     # Tauri v2 desktop обёртка (sidecar)
 ├── scripts/           # Dev utilities (start.ps1, build.ps1, clean.ps1, reset.ps1)
 ├── lumen/             # Lumen Design System (токены, UI-кит, превью)
-└── wiki/              # Документация (12 страниц)
+└── wiki/              # Документация (18 тематических страниц + индекс и журнал)
 ```
 
 ## Статус (MVP done, активная разработка)
@@ -80,7 +84,7 @@ gmind/
 - ✅ AI — generate + chat (GPT-4o / локальный llama-server / Yandex GPT)
 - ✅ Dynamic AI provider switching — горячая замена OpenAI ↔ local ↔ Yandex GPT
 - ✅ Export/Import .xmind
-- ✅ 10 тем — Lumen (дефолт), Vivid, Sunset, Ocean, Forest, Midnight, Silicon, Lavender, Peach, Aurora
+- ✅ 10 тем — Midnight (дефолт), Lumen, Vivid, Sunset, Ocean, Forest, Silicon, Lavender, Peach, Aurora
 - ✅ Multiple sheets — вкладки в workbook
 - ✅ Properties panel — редактор свойств топика (auto-save, markers, labels, rich_text)
 - ✅ Multiple selection — Cmd/Ctrl+Click toggle, Delete all selected, Properties показывает count
@@ -89,7 +93,7 @@ gmind/
 - ✅ Copy/Paste — Ctrl+C/V с рекурсивным созданием через API
 - ✅ Auto-layout animation — SVG transition на transform/opacity
 - ✅ Tool Panel — 🖱 ➕ 📄 панель инструментов слева от холста
-- ✅ View History — ◀▶ кнопки, Alt+←→ навигация по выбору топиков
+- ✅ История документов — ◀▶ и Alt+←→ между workbook/sheet; сохраняет корневой контекст проекта
 - ✅ Keyboard shortcuts — Del, Ctrl+Z, Ctrl+F, Ctrl+C/V, Alt+←→, Scroll
 - ✅ ErrorBoundary — защита от краша
 - ✅ Help overlay — подсказка при загрузке
@@ -234,7 +238,7 @@ gmind/
 - ✅ **AI Inline Expand** — ✨ кнопка на ноде, генерирует 3-5 детей через `ExpandTopic`
 - ✅ **AI Summarize** — 📋 кнопка в тулбаре, диалог с суммаризацией mindmap
 - ✅ **AI Image Generation** — 🎨 DALL-E 3, диалог с preview
-- ✅ **Responsive sidebar** — toggle collapsible (≡/←), анимация ширины 260↔48px
+- ✅ **Responsive sidebar** — collapsed 48px; expanded 220–560px drag-resize, keyboard resize и persistence
 - ✅ **Scrollable panels** — AIPanel/AgentPanel/PropertiesPanel скроллятся при переполнении
 - ✅ **Sticky notes / Canvas** — наклейки на холсте (независимо от дерева)
 - ✅ **Mindmap presentation mode** — режим презентации: шаг за шагом по узлам
@@ -284,14 +288,41 @@ gmind/
 ### Архитектура интеграции
 
 ```
-GMIND (:1010)                    MASYS (:3000)
+GMIND (:1010)                    MASYS backend (:5010)
 ──────────────────────────────   ──────────────────────────────────
-Go Backend                       Fastify + tRPC
+Go Backend                       Fastify + tRPC (/trpc, /health)
   └── MCP Server (JSON-RPC)  ←── mcp-server package
   └── REST API /api/v1        ←── gmind-mindmap (create/add-topics/…)
-  └── Agent System            ──→ run_masys_pipeline tool (Фаза 2)
+  └── Agent System            ──→ run_masys_pipeline tool
+  └── /api/v1/masys/*         ──→ Memory Bridge (tRPC proxy + SSE)
                                    └── agent-loop + gmind-mindmap tools
 ```
+
+**Порты MASys:** backend `:5010`, web `:5020`, супервизор `:5030`
+(`E:\MASys\start.bat`). Раньше Gmind по умолчанию стучался на `:3000/:3001` —
+связь не поднималась; теперь дефолт `:5010` + автопоиск.
+
+### Подключение «из коробки» (авто-обнаружение)
+
+`backend/internal/api/masys_status.go` — фоновый монитор:
+
+- при старте обходит кандидатов (`MASysCandidates`: настроенный адрес → `:5010`
+  → `127.0.0.1:5010` → `:3000` → `:3001`) и запоминает первый ответивший `/health`;
+- перепроверяет каждые 20 с; `GET /api/v1/masys/health` отдаёт кэш мгновенно
+  (без сетевого таймаута), `?refresh=1` форсирует опрос;
+- найденный адрес прокидывается в `WorkerPool.SetMaSysBaseURL` — инструменты
+  агентов ходят туда же, куда и UI;
+- `PUT /api/v1/masys/config {base_url}` задаёт адрес вручную; он пишется в
+  `%APPDATA%\Gmind\masys.json` и переживает перезапуск.
+
+Фронтенд: `useMASysMemoryStore.startHealthWatch()` стартует в `App.tsx` после
+готовности бэкенда; точка состояния — на иконках MASys и Memory Workbench в
+Nav Rail, подробности и смена адреса — в `MaSysPanel` (`MaSysConnection.tsx`).
+
+**Гоча tRPC:** процедуры MASys объявлены через `z.object({...})` — сам объект
+обязателен, даже если все поля необязательные. Поэтому `callTRPCQuery` шлёт
+`input={}` для любой непустой карты, а «совсем без input» — это `nil`.
+`limit` объявлен как `z.number()`: строку zod не примет, приводим к int.
 
 ### Production Roadmap (Фазы)
 
@@ -398,6 +429,14 @@ Go Backend                       Fastify + tRPC
 | GET | /api/v1/workbooks/{id}/collaborators | Список collaborator'ов |
 | POST | /api/v1/workbooks/{id}/import-json | Import JSON для AI контекста |
 | DELETE | /api/v1/workbooks/{id}/import-json | Очистить импортированные данные |
+| GET | /api/v1/workbooks/{id}/export/markdown | .md export (голова+тело+заметки+свойства) |
+| POST | /api/v1/workbooks/import/markdown | Создать карту из .md (JSON / multipart / raw) |
+| POST | /api/v1/workbooks/{id}/md/save | Записать карту в связанный .md (или «Сохранить как») |
+| POST | /api/v1/workbooks/{id}/md/reload | Перечитать связанный .md с диска |
+| GET | /api/v1/md/files?dir= | Обзор Markdown-хранилища |
+| POST | /api/v1/md/open | Открыть .md с диска как карту (связывает файл с картой) |
+| GET | /api/v1/masys/health[?refresh=1] | Статус связи с MASys (кэш фонового монитора) |
+| PUT | /api/v1/masys/config | Задать адрес MASys вручную (сохраняется) |
 | — | `api.importTopicTree()` | Client-side: рекурсивный импорт (markdown/freemind) |
 | — | `api.importXMind(file)` | Client-side: FormData upload → Workbook |
 | WS | /ws | WebSocket |
@@ -460,6 +499,212 @@ powershell -ExecutionPolicy Bypass -File scripts/start.ps1
 - `layoutTreeHorizontal(n, children, direction, siblingGap, levelGap)` — right/left
 - `shiftSubtree(child, dx, dy)` — коррекция потомков при перепозиционировании
 - `postProcessFolded()` — коллапс свёрнутых поддеревьев к позиции parent
+- `separateGroups(groups)` — разводит группы разных направлений одного
+  родителя вдоль их же направлений (уступает та, которой нужен меньший сдвиг)
+- `resolveOverlaps(root)` — глобальный проход по равномерной сетке
+  (`SWEEP_CELL`), двигает **целое поддерево**, а не лист; предок не уступает
+  потомку, из независимых веток уступает меньшая; узел, зажатый между двумя
+  соседями, уходит сразу от всех (`escapeAll`). Ограничения по размеру карты
+  нет — 3000 узлов раскладываются за ~15 мс
+
+Инварианты покрыты тестами: `renderer/layoutOverlap.test.ts` (нет наложений при
+любых направлениях, на случайных картах и на картах >300 узлов) и
+`renderer/layoutPerf.test.ts` (бюджеты времени и линейность роста).
+
+## Формы узлов (frontend/src/renderer/shapes.ts)
+
+Единый реестр `NODE_SHAPES` — из него берут рендер, layout и панель свойств,
+поэтому превью в UI не расходится с настоящим узлом.
+
+- Базовый набор: `rounded` (дефолт), `rectangle`, `pill`, `ellipse`, `diamond`,
+  `hexagon`, `parallelogram`, `note`, `cloud`.
+- `shapePath(shape, w, h, r)` → SVG-путь. `TopicNode` рисует **один** `<path>`
+  на любую форму (раньше ромб был повёрнутым `rect`, облако — inline-путём).
+- `shapeGrow(shape)` → коэффициенты роста бокса: ромб/эллипс срезают углы,
+  поэтому под тот же текст узел раздувается (`layout.ts`). Явные `node_width` /
+  `node_height` не трогаются.
+- `shapeTextInset(shape, w, h)` → прямоугольник под голову+тело внутри формы.
+- Неизвестный `shape` (старый файл, чужой импорт) откатывается к `rounded`.
+- UI: `PropertiesPanel/ShapePicker.tsx` — сетка миниатюр + живое превью.
+
+## Работа с памятью MASys: двусторонний мост
+
+До этого шага Gmind только читал память и удалял записи. Теперь работа с холста
+уходит в память, и из узла можно поставить задачу.
+
+| Path | tRPC MASys | Назначение |
+|---|---|---|
+| `POST /api/v1/masys/memory/episodes` | `memory.episode.log` | Записать эпизод |
+| `POST /api/v1/masys/memory/remember` | `memory.controller.remember` | Запомнить (слой выберет контроллер) |
+| `POST /api/v1/masys/memory/entities/upsert` | `memory.entity.upsert` | Сущность графа знаний |
+| `POST /api/v1/masys/memory/relations` | `memory.kg.addRelation` | Связь в графе |
+| `POST /api/v1/masys/push` | оба выше | Узлы и связи холста → граф MASys |
+| `POST /api/v1/masys/runs/start` | `runs.start` / `runs.invoke` | Поставить задачу |
+| `POST /api/v1/masys/runs/{runID}/stop` | `runs.stop` | Остановить прогон |
+
+**Гочи:**
+
+- `runs.start` принимает **только** `pipelineId`. Данные передаются через
+  `runs.invoke` (инжект в узел `pipeline-input`), поэтому прокси сам выбирает
+  метод: есть `inputs`/`wait` → `invoke`, иначе `start`.
+- `entityTypeEnum` MASys узкий (`person|place|org|concept|custom`) — виды памяти
+  Gmind сводятся `normalizeEntityType()`, исходный вид сохраняется в
+  `attributes.gmind_memory_kind`, иначе zod отклоняет запись целиком.
+- **Push идемпотентен по `MasysRef.Key`**, не по заголовку: переименование узла
+  в Gmind не создаёт дубль в MASys. Уходят только узлы с `memory_kind`.
+  Частичная неудача возвращает 200 с отчётом (`errors[]`), а не роняет запрос.
+- `Topic.MasysRunID` — карта помнит, где поставлена работа; неудача записи в
+  карту не роняет ответ (задача уже запущена).
+
+UI: Memory Workbench → таб «🔗 Узел». Подробности: `skills/masys-memory-write.md`.
+
+## Библиотека визуальных компонентов
+
+`frontend/src/renderer/componentLibrary.ts` — каталог заготовок для холста.
+Корпус отвечает «как выглядит вид памяти», компонент — «что я кладу на холст».
+
+- Категории: Память (по слоям karp), Структуры (радиальный хаб, циферблат,
+  дерево решения, линия времени, матрица 2×2), Задачи, Заметки.
+- `ComponentNodeSpec` несёт только оформление и структуру — без id и позиций.
+- Реестр расширяемый как у корпусов: `setCustomComponents()` +
+  `store/componentLibrary.ts` (persist). `componentFromTopic()` сохраняет
+  выделенный узел как компонент вместе с поддеревом.
+- ⚠️ id своих компонентов строится из метки времени **и счётчика**: на одном
+  `Date.now()` два компонента получали один id и один затирал другой.
+- Палитра — модуль «🧩 Компоненты» в Nav Rail; вставка через
+  `api.importTopicTree()` под выделенный узел (или под корень).
+
+Подробности: `skills/component-library.md`.
+
+## Визуальный язык памяти: корпуса узлов
+
+`frontend/src/renderer/memoryPackages.ts` — таблица «корпусов»: каждый вид
+памяти получает узнаваемый силуэт (форма + цвет + тип обводки + насыщенность
+заливки + код-маркировка). Аналогия из электроники: деталь узнают по корпусу.
+
+- Слои karp: WRK `note` (пунктир, прозрачный), EPS `parallelogram`,
+  SEM `rounded`, PRC `hexagon`, ART `rectangle` (плотный), MET `ellipse`
+  (двойная обводка). Типы записей MASys наследуют корпус слоя и различаются
+  кодом: `MET·D decision` — ромб, `PRC·S skill` — шестиугольник, и т. д.
+- **Приоритет:** явная настройка узла → корпус вида памяти → тема
+  (`resolveNodeSkin`). Смена `memory_kind` не затирает ручное оформление.
+- **Реестр расширяемый:** `setCustomPackages()` внедряет пользовательские
+  корпуса из `store/memoryPackages.ts` (Zustand + persist). Свой корпус может
+  переопределить встроенный. Функции реестра остаются чистыми — их зовёт рендер
+  узла и покрывают тесты без React.
+- **Роль узла:** `nodeRole()` → leaf/branch/hub; `NodePins.tsx` рисует выводы на
+  сторонах, куда уходят дети — ветвление отличается от листа силуэтом.
+- **Таблица-редактор:** Memory Workbench → таб «📦 Корпуса» — доки, пикер и
+  добавление своих корпусов.
+
+Подробности и гочи: `skills/memory-visual-language.md`.
+
+## Раскладки вокруг узла (360°)
+
+`frontend/src/renderer/radialLayout.ts` — 5 видов: `radial-even` (равные
+секторы), `radial-packed` (сектор по габариту ветки), `radial-rings` (кольцами),
+`radial-clock` (циферблат), `radial-sector` (веер 180°). `radial` — историческое
+имя, работает как `radial-even`.
+
+**Неперекрытие по построению:** поддерево описывается окружностью
+`r = hypot(w,h)/2`; непересечение таких окружностей гарантирует непересечение
+габаритов при любом угле. Угловой полураствор — `asin((r + gap/2) / R)`, радиус
+подбирается двоичным поиском (`fitRadius`). Старая реализация ставила детей по
+8 фиксированным направлениям и полагалась на `resolveOverlaps` — тот проход
+остался страховкой для остальных раскладок.
+
+Гоча: шаг между кольцами должен покрывать габарит и текущего кольца, и
+крупнейшего среди ещё не размещённых (`ringStep`) — иначе большой узел внешнего
+кольца садится на маленький внутреннего.
+
+## Markdown как рабочий формат
+
+Карта может быть представлением обычного `.md`-файла: открыть → править как
+mindmap → сохранить обратно. Парсер/сериализатор продублированы на обеих
+сторонах и держат паритет: `backend/internal/markdown/markdown.go` и
+`frontend/src/utils/markdown.ts` (+ `markdownExport.ts`).
+
+Соответствие:
+
+| Markdown | Узел |
+|---|---|
+| `## Заголовок` | голова (`title`), `md_form: heading` |
+| `- пункт` (вложенность = 2 пробела) | голова, `md_form: list` |
+| абзацы под узлом | тело (`body`) |
+| `> цитата` | `notes` |
+| `<!-- gmind: {"shape":"hexagon",…} -->` | форма, иконка, цвета, `memory_kind`, `masys_ref`… |
+| ```` ``` ```` фенсы, YAML-преамбула | остаются в теле / отбрасываются |
+
+Инварианты (покрыты тестами с обеих сторон):
+
+- `Render(Parse(x))` стабилен со второго прохода;
+- **авторские списки остаются списками**, заголовки — заголовками (`md_form`);
+  узел, дописанный под пунктом списка, становится вложенным пунктом, а не
+  заголовком посреди списка;
+- строка тела, похожая на `- пункт` / `# заголовок` / `> цитату`, экранируется
+  `\`, иначе при повторном открытии тело распалось бы на узлы;
+- глубже 6 уровня — вложенные списки (заголовков в Markdown больше нет);
+- лишние пустые строки схлопываются.
+
+Хранилище: `%APPDATA%\Gmind\markdown` (`MARKDOWN_PATH`). Карта помнит файл в
+`Workbook.SourcePath`; UI — модуль **Markdown** в Nav Rail
+(`components/MarkdownPanel/`): обзор каталога, открыть, сохранить,
+«Сохранить как», перечитать внешние правки.
+
+## Схема проекта: каталог → карта
+
+Указать папку проекта — получить его схему картой. Форматов ровно два: `.md` и
+`.xmind`; узлы этих файлов несут `hyperlink` на файл и открываются картой.
+
+Бэкенд — `backend/internal/project/scan.go`:
+
+- `Scan(root, Options)` → `*model.Topic` + `Stats` (папки, файлы, .md, .xmind,
+  узлы, признак усечения);
+- `ScanWorkbook(root, title, Options)` → готовая книга;
+- шум (`node_modules`, `.git`, `dist`, `target`, …) отбрасывается, скрытые
+  имена — по флагу `IncludeHidden`;
+- `DocsOnly` оставляет только документы и папки, где они есть;
+- `MaxDepth` (6) и `MaxNodes` (4000) держат карту читаемой; при усечении
+  `Stats.Truncated = true`;
+- порядок обхода детерминирован: сначала папки, потом файлы, по алфавиту.
+
+Эндпоинты:
+
+| Path | Назначение |
+|---|---|
+| `GET/POST /api/v1/projects/scan` | предпросмотр: схема + сводка, ничего не сохраняет |
+| `POST /api/v1/projects/import` | построить карту и сохранить книгой (`SourcePath` = каталог) |
+| `POST /api/v1/projects/open-doc` | открыть `.md`/`.xmind` из схемы как карту (`reuse` не плодит копии) |
+| `POST /api/v1/projects/files` | создать `.md`/`.markdown` в корне или выбранной папке без перезаписи |
+| `DELETE /api/v1/projects/files` | удалить документ внутри корня, пересканировать карту и убрать связанный workbook |
+| `GET /api/v1/projects/dirs` | список подкаталогов для выбора папки кликами |
+
+UI — модуль **Проекты** в Nav Rail (`components/ProjectsPanel/`): путь,
+недавние проекты, навигация по папкам, флаги «только .md и .xmind» и глубина,
+сводка до импорта. Клик по ссылке узла идёт через `utils/openTopicLink.ts`:
+локальный документ открывается картой, внешний адрес — обычной ссылкой.
+
+После открытия документа shell сохраняет `ProjectRootContext`. Над холстом
+`DocumentContextBar` показывает назад/вперёд, breadcrumb и возврат к корню;
+Sidebar продолжает показывать docs-only дерево исходного проекта. Папки дерева
+по умолчанию свёрнуты, доступны «свернуть всё»/«развернуть всё», создание
+Markdown и удаление `.md`/`.markdown`/`.xmind`. Ширина Sidebar регулируется
+правым краем (220–560px), хранится в `gmind_sidebar_width`.
+
+Backend file CRUD канонизирует пути через `Abs` + `EvalSymlinks`, проверяет
+принадлежность корню и workbook, не выходит через symlink и откатывает файловую
+операцию при ошибке пересканирования. Подробности: `wiki/18-project-root-navigation.md`.
+
+Тема карты по умолчанию — `midnight` (`store/theme.ts`, ключ
+`gmind_theme`). Она включает `data-theme=dark`, `color-scheme: dark` и
+`/lumen-logo-dark.svg`; остальные темы используют светлый логотип. Header и
+Sidebar пока остаются на общей светлой палитре Lumen.
+
+**.xmind без потерь.** Экспорт кладёт в каждый узел поле `gmind` — полную копию
+`model.Topic` без детей (тело, оформление, вид памяти, направление ветки), а в
+связь — весь `model.Relationship`. Стандартные поля XMind остаются на местах,
+поэтому чужой XMind читает файл как раньше; наши данные больше не теряются
+(`internal/xmind/xmind_test.go`).
 
 ## Frontend State (Zustand)
 
@@ -469,14 +714,16 @@ powershell -ExecutionPolicy Bypass -File scripts/start.ps1
 - `useLayoutStore` — LayoutGaps (siblingGap, levelGap, childGap), persist в localStorage
 - `useShellStore` — activeModuleId (string | null), toggleModule, closeModule, setActiveModule (v4.0)
 - `useNotesStore` — notes[], loading, searchQuery, fetchNotes, createNote, updateNote, deleteNote (v4.0)
+- `useMASysMemoryStore` — слои памяти MASys + `health`, `checkHealth(refresh?)`, `startHealthWatch()`, `setBaseUrl()`
 
 ## Wiki
 
-- `wiki/` — 15 страниц документации
+- `wiki/` — 18 тематических страниц документации + индекс и журнал
 - `index.md` — обзор, статус, оглавление, структура репозитория, быстрый старт
 - `07-improvements.md` — road-map, известные проблемы, история реализованных фич
 - `09-layout-directions.md` — spec многонаправленной раскладки
 - `15-modular-platform.md` — v4.0 Nav Rail, AppModule interface, ModuleRegistry, Notes, MaSys (v4.0)
+- `18-project-root-navigation.md` — корневой контекст, история документов, дерево файлов, CRUD, resize и Midnight
 
 ## Dev-инструменты
 

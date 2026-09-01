@@ -27,6 +27,13 @@
 - Интерактив якорей: крестик при наведении, клик → меню направления, драг → ребёнок в сторону драга.
 - Локальные llama.cpp модели: рекурсивный скан `E:\LlamaCpp\models` → выпадающий список в Local AI Server. См. `skills/model-servers.md`.
 
+**Корневая навигация по документам — DONE (2026-08-29).**
+- Переход из карты проекта в `.md`/`.markdown`/`.xmind` сохраняет контекст корня; строка над холстом даёт историю назад/вперёд, breadcrumb и возврат к карте корня.
+- Sidebar показывает файловое дерево проекта; папки по умолчанию свёрнуты, доступны команды «свернуть всё» и «развернуть всё».
+- Из дерева можно создавать Markdown-файлы и удалять документы; backend ограничивает операции каноническим путём открытого корня и пересканирует корневую карту.
+- Ширина Sidebar регулируется мышью и клавиатурой (220–560 px) и сохраняется локально.
+- Midnight — тема карты по умолчанию; для неё включаются dark color-scheme и тёмный Lumen-логотип. См. [18 — Корневая навигация и дерево документов](18-project-root-navigation.md).
+
 **Node Interaction + Edges v2 — DONE (2026-06-08).**
 - Якоря: ЛКМ → ребёнок сразу в сторону точки, ПКМ → меню «Направление», внутри кружка — число детей стороны. Рядом с якорем стороны с детьми — кнопка `−/+` (свернуть/развернуть только эту сторону у выбранного узла).
 - Drag тела узла: центр другого узла → поменять местами (swap); край → ребёнок в сторону; пустота → свободный floating-узел **с поддеревом**; на floating-узел → no-op (snap back). Backend `POST /topics/{id}/swap` + `/detach`; изменения broadcast'ятся по WebSocket (peers full-reload).
@@ -49,7 +56,7 @@
 - ✅ Copy/Paste (Ctrl+C/V, копирует топики с поддеревьями)
 - ✅ Multiple selection (Cmd/Ctrl+Click, массовое удаление)
 - ✅ Контекстное меню (правый клик: add/rename/delete/change layout)
-- ✅ 10 тем mindmap: Lumen, Vivid, Sunset, Ocean, Forest, Midnight, Silicon, Lavender, Peach, Aurora
+- ✅ 10 тем mindmap: Midnight (по умолчанию), Lumen, Vivid, Sunset, Ocean, Forest, Silicon, Lavender, Peach, Aurora
 - ✅ Multiple sheets (вкладки)
 - ✅ WebSocket real-time (курсоры с именами, presence, operation sync)
 - ✅ AI генерация и чат (OpenAI GPT-4o + Yandex GPT + локальный llama-server)
@@ -64,7 +71,7 @@
 - ✅ Zoom кнопки (+/-/сброс) в тулбаре
 - ✅ Keyboard shortcuts (Del, Ctrl+Z, Ctrl+F, Ctrl+C/V, Scroll, Alt+←→)
 - ✅ Help overlay (подсказка при загрузке)
-- ✅ View History (◀▶ кнопки, Alt+←→ навигация)
+- ✅ История документов (◀▶, Alt+←→), breadcrumb корня и показ текущего файла в дереве
 - ✅ Tool Panel (🖱 Pointer / ➕ Add Topic / 📄 Floating)
 - ✅ Import Markdown (.md), FreeMind (.mm), JSON
 - ✅ Export SVG/PNG/PDF (выпадающее меню)
@@ -80,7 +87,8 @@
 - ✅ MCP Server (JSON-RPC 2.0, wiki tools)
 - ✅ Wiki Module (файловое хранилище, CRUD, полнотекстовый поиск)
 - ✅ API Typing (авто-генерация TypeScript типов из Go structs)
-- ✅ Responsive layout (toggle sidebar 260↔48px, scrollable panels)
+- ✅ Responsive layout (Sidebar 48 px в свёрнутом виде; 220–560 px с drag-resize в развёрнутом, scrollable panels)
+- ✅ Корневое дерево документов: default-collapsed папки, свернуть/развернуть всё, создать Markdown, удалить документ
 - ✅ Yandex GPT интеграция (API Key, Folder ID, Model)
 - ✅ Apple Design System (SF Pro, frosted glass, macOS-style)
 - ✅ Node customization (node_height, border_color, connection_color, shadow, node_style, fold_icon, child_count_badge)
@@ -125,21 +133,25 @@
 
 | Раздел | Описание |
 |---|---|
-| [01 — Архитектура](01-architecture.md) | Стек, структура, data flow, key decisions |
-| [02 — API Reference](02-api-reference.md) | Все REST endpoints + MCP + Wiki |
-| [03 — WebSocket Protocol](03-websocket.md) | Real-time коллаборация |
-| [04 — XMind Format](04-xmind-format.md) | Экспорт/импорт .xmind |
-| [05 — Layout Engine](05-layout-engine.md) | SVG рендеринг, алгоритмы, баги |
-| [06 — AI Integration](06-ai-integration.md) | OpenAI, Yandex GPT, llama-server |
-| [07 — Улучшения](07-improvements.md) | Реализовано, проблемы, roadmap |
-| [08 — Дизайн-система](08-design-system.md) | Lumen Design System, токены, темы |
-| [09 — Layout Directions](09-layout-directions.md) | Многонаправленная раскладка |
-| [10 — Privacy & Sharing](10-privacy-sharing.md) | Access modes, collaborators, private |
-| [11 — Responsive Layout](11-responsive-layout.md) | Sidebar toggle, scrollable panels |
-| [12 — Improvement Vectors](12-improvement-vectors.md) | Анализ векторов развития, приоритеты |
-| [13 — MASys Integration](13-masys-integration.md) | Gmind ↔ MASys интеграция, gmind-mindmap, agent-loop |
-| [14 — Agent/Node Integration](14-agent-node-integration.md) | Интерфейс агентов и REST API узлов mindmap |
-| [15 — Modular Platform](15-modular-platform.md) | V4.0: Nav Rail, AppModule, Notes, MaSys, Extensible Tools |
+| [[01-architecture|01 — Архитектура]] | Стек, структура, data flow, key decisions |
+| [[02-api-reference|02 — API Reference]] | Все REST endpoints + MCP + Wiki |
+| [[03-websocket|03 — WebSocket Protocol]] | Real-time коллаборация |
+| [[04-xmind-format|04 — XMind Format]] | Экспорт/импорт .xmind |
+| [[05-layout-engine|05 — Layout Engine]] | SVG рендеринг, алгоритмы, баги |
+| [[06-ai-integration|06 — AI Integration]] | OpenAI, Yandex GPT, llama-server |
+| [[07-improvements|07 — Улучшения]] | Реализовано, проблемы, roadmap |
+| [[08-design-system|08 — Дизайн-система]] | Lumen Design System, токены, темы |
+| [[09-layout-directions|09 — Layout Directions]] | Многонаправленная раскладка |
+| [[10-privacy-sharing|10 — Privacy & Sharing]] | Access modes, collaborators, private |
+| [[11-responsive-layout|11 — Responsive Layout]] | Sidebar toggle, drag-resize, project tree и scrollable panels |
+| [[12-improvement-vectors|12 — Improvement Vectors]] | Анализ векторов развития, приоритеты |
+| [[13-masys-integration|13 — MASys Integration]] | Gmind ↔ MASys интеграция, gmind-mindmap, agent-loop |
+| [[14-agent-node-integration|14 — Agent/Node Integration]] | Интерфейс агентов и REST API узлов mindmap |
+| [[15-modular-platform|15 — Modular Platform]] | V4.0: Nav Rail, AppModule, Notes, MaSys, Extensible Tools |
+| [[16-graph-relationships|16 — Graph Relationships]] | V5.0: типизированные связи, traversal, backend и frontend UI |
+| [[17-keyword-tracking|17 — Реестр отслеживаемых слов]] | Постоянный список ключевых фраз, источников и режима сбора |
+| [[18-project-root-navigation|18 — Корневая навигация]] | Контекст проекта, история документов, дерево файлов, CRUD, ширина Sidebar и Midnight |
+| [Журнал wiki](log.md) | История изменений базы знаний |
 
 ## Быстрый старт
 
@@ -214,6 +226,8 @@ npm run dev
 13. [MASys Integration](13-masys-integration.md)
 14. [Agent/Node Integration](14-agent-node-integration.md)
 15. [Modular Platform](15-modular-platform.md)
+17. [Реестр отслеживаемых слов](17-keyword-tracking.md)
+18. [Журнал wiki](log.md)
 
 ## Структура репозитория
 

@@ -49,6 +49,80 @@
 
 ---
 
+## Projects
+
+Проект — каталог на диске, сохранённый как корневой workbook. Все пути в
+операциях изменения файлов проверяются относительно этого корня.
+
+### POST /projects/scan
+
+Построить предпросмотр схемы каталога без сохранения workbook.
+
+### POST /projects/import
+
+Построить схему каталога и сохранить её как корневой workbook.
+
+### POST /projects/open-doc
+
+Открыть `.md`, `.markdown` или `.xmind` как workbook-представление документа.
+
+```json
+{ "path": "D:\\project\\docs\\plan.md", "reuse": true }
+```
+
+### GET /projects/dirs
+
+Получить список подкаталогов для выбора корня в UI.
+
+### POST /projects/files
+
+Создать `.md`/`.markdown` внутри открытого корня. Если расширение не передано,
+сервер добавляет `.md`; существующий файл не перезаписывается.
+
+```json
+{
+  "root": "D:\\project",
+  "workbook_id": "root-workbook-id",
+  "directory": "D:\\project\\docs",
+  "name": "plan.md"
+}
+```
+
+**Response 201:**
+
+```json
+{ "path": "D:\\project\\docs\\plan.md", "workbook": { "id": "..." } }
+```
+
+### DELETE /projects/files
+
+Удалить документ `.md`, `.markdown` или `.xmind` внутри открытого корня. После
+успеха сервер пересканирует корневой workbook и удалит временные workbook,
+которые были связаны с этим файлом.
+
+```json
+{
+  "root": "D:\\project",
+  "workbook_id": "root-workbook-id",
+  "path": "D:\\project\\docs\\plan.md"
+}
+```
+
+**Response 200:**
+
+```json
+{
+  "path": "D:\\project\\docs\\plan.md",
+  "workbook": { "id": "..." },
+  "deleted_workbook_ids": ["document-workbook-id"]
+}
+```
+
+Подробнее о UI и проверке путей:
+[18 — Корневая навигация и дерево документов](18-project-root-navigation.md).
+
+---
+
 ## Sheets
 
 ### POST /workbooks/{id}/sheets

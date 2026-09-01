@@ -58,7 +58,7 @@ type KGSyncRequest struct {
 	Namespace     string `json:"namespace"`
 	WorkbookTitle string `json:"workbook_title,omitempty"` // default: "MASys KG: <ns>"
 	WorkbookID    string `json:"workbook_id,omitempty"`    // reuse existing if set
-	Limit         int    `json:"limit,omitempty"`           // limit nodes to fetch
+	Limit         int    `json:"limit,omitempty"`          // limit nodes to fetch
 }
 
 // KGSyncResponse — created/updated workbook id + counts + entity-to-topic mapping.

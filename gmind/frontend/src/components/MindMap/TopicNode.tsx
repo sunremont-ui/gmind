@@ -1,11 +1,19 @@
 import { useCallback, useRef, useEffect, useState, memo } from 'react'
 import { LumenFileText, LumenZap, LumenStar, LumenHeart, LumenFlag, LumenLightbulb, LumenTarget, LumenCrown, LumenBrain, LumenRocket, LumenCode, LumenBookmark, LumenClock, LumenCheckCircle, LumenCloud, LumenSun, LumenGlobe, LumenLock, LumenKey, LumenMusic, LumenCamera, LumenImage, LumenUser, LumenBot, LumenHome, LumenFlame } from '../UI/LumenIcon'
-import { RichTextEditor } from '../RichTextEditor/RichTextEditor'
+import { RichTextEditor, TOOLBAR_OFFSET } from '../RichTextEditor/RichTextEditor'
 import type { LayoutNode, TopicStyle } from '../../types'
 import { useThemeStore } from '../../store/theme'
 import { useLayoutStore } from '../../store/layout'
-import { colors, fonts, fontSizes, fontWeights as fw, anim } from '../../styles/tokens'
+import { colors, fonts, fontSizes, anim } from '../../styles/tokens'
 import { kindDef } from './memoryKinds'
+import { splitHeadBody, composeEditHtml } from './splitNodeText'
+import { nodePad, BODY_FONT_SCALE, HEAD_LINE_HEIGHT, BODY_LINE_HEIGHT } from '../../renderer/measure'
+import { resolveNodeFont } from '../../renderer/nodeFont'
+import { shapePath, shapeTextInset } from '../../renderer/shapes'
+import { resolveNodeSkin, nodeRole, roleStyle } from '../../renderer/memoryPackages'
+import { childSideCounts } from '../../renderer/edgeVisuals'
+import { NodePins } from './NodePins'
+import { openTopicLink } from '../../utils/openTopicLink'
 
 interface TopicNodeProps {
   layout: LayoutNode
@@ -24,12 +32,15 @@ interface TopicNodeProps {
   onDragStart: (id: string, x: number, y: number) => void
   onDragOver: (id: string) => void
   onDrop: (targetId: string) => void
-  onEditSave: (id: string, title: string, richText?: string) => void
+  onEditSave: (id: string, title: string, richText?: string, body?: string) => void
+  onEditStyleRequest?: (id: string, title: string, richText?: string, body?: string) => void
   onEditCancel: () => void
+  // Сообщает фактический размер узла в режиме правки — чтобы якоря (EdgeAnchorsLayer)
+  // сидели на гранях расширенного узла, а не на исходном layout-прямоугольнике.
+  onEditResize?: (id: string, width: number, height: number) => void
   onNotesClick?: (id: string, notes: string) => void
   onCommentsClick?: (id: string) => void
   onFoldToggle?: (id: string) => void
-  onExpandToggle?: (id: string, expanded: boolean) => void
 }
 
 const NOTE_ICON_SIZE = 14
@@ -45,16 +56,6 @@ const ICON_MAP: Record<string, React.ComponentType<IconProps>> = {
   Image: LumenImage, User: LumenUser, Bot: LumenBot, Home: LumenHome, Flame: LumenFlame,
 }
 
-function getShapePath(shape: string | undefined, w: number, h: number, r: number): { rx: number; ry: number } {
-  switch (shape) {
-    case 'rectangle': return { rx: 0, ry: 0 }
-    case 'pill': return { rx: h / 2, ry: h / 2 }
-    case 'diamond': return { rx: 0, ry: 0 }
-    case 'cloud': return { rx: r, ry: r }
-    default: return { rx: r, ry: r }
-  }
-}
-
 function getShadowFilter(shadowType: string | undefined, isSelected: boolean): string | undefined {
   if (isSelected) return 'url(#topic-shadow)'
   switch (shadowType) {
@@ -66,9 +67,23 @@ function getShadowFilter(shadowType: string | undefined, isSelected: boolean): s
 }
 
 // ─── Animation presets (tweak these) ──────────────────
-const aniExpand = `${anim.dur.short}ms ${anim.ease.decelerated}`
 const aniFold = `${anim.dur.normal}ms ${anim.ease.standard}`
-const aniChevron = `${anim.dur.short}ms ${anim.ease.standard}`
+
+// Комфортный минимум редактора: маленький узел расширяется при входе в правку.
+const MIN_EDIT_WIDTH = 220
+const MIN_EDIT_HEIGHT = 44
+
+// Внешний контур двойной обводки: масштаб от центра узла на ~4px по большей
+// стороне — работает для любой формы, не требуя второго пути.
+function doubleOutlineTransform(w: number, h: number): string {
+  const s = 1 + 4 / Math.max(w, h, 1)
+  const cx = w / 2
+  const cy = h / 2
+  return `translate(${cx} ${cy}) scale(${s.toFixed(4)}) translate(${-cx} ${-cy})`
+}
+
+// Узкому узлу маркировка не влезает — рисуем её только когда есть место.
+const MIN_WIDTH_FOR_CODE = 84
 
 export const TopicNode = memo(function TopicNode({
   layout,
@@ -88,11 +103,12 @@ export const TopicNode = memo(function TopicNode({
   onDragOver,
   onDrop,
   onEditSave,
+  onEditStyleRequest,
   onEditCancel,
+  onEditResize,
   onNotesClick,
   onCommentsClick,
   onFoldToggle,
-  onExpandToggle,
 }: TopicNodeProps) {
   const { topic, x, y, width, height } = layout
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -100,39 +116,58 @@ export const TopicNode = memo(function TopicNode({
   const dragFiredRef = useRef(false)
   const theme = useThemeStore(s => s.theme)
   const [richEditValue, setRichEditValue] = useState('')
-  const richEditInit = useRef(false)
+  const [richEditReady, setRichEditReady] = useState(false)
+  // Фактическая высота текста в редакторе — узел растёт при наборе.
+  const [editContentH, setEditContentH] = useState(0)
 
   useEffect(() => {
-    if (isEditing && !richEditInit.current) {
-      setRichEditValue(topic.rich_text || topic.title)
-      richEditInit.current = true
+    if (isEditing) {
+      setRichEditValue(composeEditHtml(topic))
+      setRichEditReady(true)
+    } else {
+      setRichEditReady(false)
+      setEditContentH(0)
     }
-    if (!isEditing) {
-      richEditInit.current = false
-    }
-  }, [isEditing, topic.rich_text, topic.title])
+  }, [isEditing, topic])
 
   const defNodePadding = useLayoutStore(s => s.nodePadding)
-  const defMaxChars = useLayoutStore(s => s.maxChars)
   const defFontSize = useLayoutStore(s => s.fontSize)
 
   const baseStyle: TopicStyle = isRoot ? theme.rootTopic : theme.topic
-  const customFontSize = topic.font_size || defFontSize || baseStyle.fontSize
+  // Шрифт берём тем же резолвером, что и раскладка: иначе коробка меряется
+  // одним начертанием, а текст рисуется другим и вылезает за корпус.
+  const nodeFont = resolveNodeFont(topic, defFontSize || baseStyle.fontSize)
+  const customFontSize = nodeFont.size
   const customFontColor = topic.font_color || baseStyle.textColor
-  const customFontFamily = topic.font_family || baseStyle.fontFamily || fonts.ui
-  const customFontWeight = topic.font_weight || fw.medium
+  const customFontFamily = nodeFont.family
+  const customFontWeight = nodeFont.weight
   const customTextAlign = topic.text_align || 'center'
-  const customWidth = topic.node_width ? Math.max(60, Math.min(300, topic.node_width)) : width
-  const customHeight = topic.node_height ? Math.max(28, Math.min(120, topic.node_height)) : height
-  const customPadding = topic.padding ?? defNodePadding
-  const multilinePadding = customPadding * 0.98
-  const customBorderWidth = topic.border_width ?? (isRoot ? 2 : 1.5)
+  const { padH, padV } = nodePad(topic.padding ?? defNodePadding)
   const customOpacity = parentFolded ? 0 : (topic.opacity ?? 1)
 
-  const userBorderColor = topic.border_color
+  // Корпус вида памяти + роль узла в дереве. Явные настройки пользователя
+  // всегда важнее корпуса — оформление остаётся свободным.
+  const childCount = layout.children?.length ?? 0
+  const skin = resolveNodeSkin({
+    memoryKind: topic.memory_kind,
+    shape: topic.shape,
+    borderColor: topic.border_color,
+    borderWidth: topic.border_width,
+    nodeStyle: topic.node_style,
+    childCount,
+    isRoot,
+    baseStrokeWidth: isRoot ? 2 : 1.5,
+  })
+  const customBorderWidth = skin.strokeWidth
+  const role = nodeRole(childCount, isRoot)
+  const rStyle = roleStyle(role)
+
+  // Обратная связь взаимодействия (выделение, drop-target) главнее корпуса:
+  // пользователь должен видеть, с чем работает прямо сейчас.
   const fillColor = (() => {
     if (isDragOver) return baseStyle.selectedGradient || baseStyle.selectedFill || colors.accentLight
     if (isSelected) return baseStyle.selectedGradient || baseStyle.selectedFill || colors.fill
+    if (skin.fill) return skin.fill
     const style = topic.node_style || 'gradient'
     if (style === 'glass') return colors.white + '8c'
     if (style === 'outline') return 'transparent'
@@ -140,14 +175,13 @@ export const TopicNode = memo(function TopicNode({
     return baseStyle.gradient || baseStyle.fill
   })()
 
-  const strokeColor = userBorderColor || (isDragOver
+  // Цвет рамки: явный выбор пользователя → обратная связь взаимодействия →
+  // цвет корпуса вида памяти → тема.
+  const strokeColor = topic.border_color || ((isDragOver || isSelected)
     ? (baseStyle.selectedStroke ?? colors.accent)
-    : isSelected
-      ? (baseStyle.selectedStroke ?? colors.accent)
-      : (baseStyle.stroke || colors.separator))
+    : (skin.stroke || baseStyle.stroke || colors.separator))
 
-  const shape = topic.shape || 'rounded'
-  const { rx, ry } = getShapePath(shape, customWidth, customHeight, baseStyle.borderRadius)
+  const shape = skin.shape
 
   const shadowType = topic.shadow_type || 'soft'
   const shadowFilter = getShadowFilter(isSelected ? undefined : shadowType, isSelected)
@@ -191,33 +225,42 @@ export const TopicNode = memo(function TopicNode({
     [topic.id, onContextMenu],
   )
 
-  const stripHtml = (html: string) => html.replace(/<[^>]*>/g, '').trim()
+  // Сохранение: единый поток текста из редактора разбивается на голову
+  // (title/rich_text) и тело (body) — длинный текст уходит в тело узла.
   const handleRichSave = useCallback((html: string) => {
-    const plain = stripHtml(html)
-    onEditSave(topic.id, plain || '(empty)', html)
+    const { title, richText, body } = splitHeadBody(html)
+    onEditSave(topic.id, title, richText, body)
   }, [topic.id, onEditSave])
+  const handleRichStyleRequest = useCallback((html: string) => {
+    const { title, richText, body } = splitHeadBody(html)
+    if (onEditStyleRequest) onEditStyleRequest(topic.id, title, richText, body)
+    else onEditSave(topic.id, title, richText, body)
+  }, [topic.id, onEditSave, onEditStyleRequest])
   const handleRichChange = useCallback((html: string) => {
     setRichEditValue(html)
   }, [])
+  const handleEditorResize = useCallback((h: number) => {
+    setEditContentH(h)
+  }, [])
   const hasRichText = !!(topic.rich_text && topic.rich_text !== topic.title)
   const hasImage = !!topic.image
+  const hasBody = !!topic.body
+  const bodyFontSize = Math.max(10, Math.round(customFontSize * BODY_FONT_SCALE))
 
-  const multilineFontSize = (() => {
-    const len = topic.title.length
-    if (len <= defMaxChars) return customFontSize
-    const estimatedLines = Math.ceil(len / defMaxChars)
-    const scale = Math.pow(0.985, estimatedLines - 1)
-    return Math.max(8, Math.round(customFontSize * scale))
-  })()
+  // Размеры в режиме правки: шрифт не уменьшается — растёт сам узел.
+  const editWidth = Math.max(width, MIN_EDIT_WIDTH)
+  const editHeight = Math.max(MIN_EDIT_HEIGHT, height, editContentH + 8)
 
-  const editPlainLen = stripHtml(richEditValue).length
-  const editEstimatedLines = Math.max(1, Math.ceil(editPlainLen / Math.max(1, defMaxChars)))
-  const editFontSize = (() => {
-    if (editPlainLen <= defMaxChars) return customFontSize
-    const scale = Math.pow(0.985, editEstimatedLines - 1)
-    return Math.max(8, Math.round(customFontSize * scale))
-  })()
-  const editExpandedHeight = Math.min(400, Math.max(customHeight, editEstimatedLines * editFontSize * 1.4 + 28))
+  // Транслируем размер редактируемого узла наверх, чтобы якоря легли на грани.
+  useEffect(() => {
+    if (isEditing) onEditResize?.(topic.id, editWidth, editHeight)
+  }, [isEditing, editWidth, editHeight, topic.id, onEditResize])
+
+  // Контур формы и текстовая врезка: у ромба/эллипса текст живёт в середине.
+  const boxW = isEditing ? editWidth : width
+  const boxH = isEditing ? editHeight : height
+  const shapeOutline = shapePath(shape, boxW, boxH, baseStyle.borderRadius)
+  const textBox = shapeTextInset(shape, width, height)
 
   const renderTitleHTML = () => {
     if (!searchQuery) return topic.title
@@ -235,16 +278,6 @@ export const TopicNode = memo(function TopicNode({
   }
 
   const hasNotes = !!topic.notes
-  const [expanded, setExpanded] = useState(false)
-  const handleToggleExpanded = useCallback(() => {
-    const next = !expanded
-    setExpanded(next)
-    onExpandToggle?.(topic.id, next)
-  }, [expanded, topic.id, onExpandToggle])
-  const textLen = topic.title.length
-  const estimatedTextLines = Math.max(1, Math.ceil(textLen / defMaxChars))
-  const textOverflows = !expanded && estimatedTextLines > 1 && (estimatedTextLines * multilineFontSize * 1.3) > customHeight - customPadding * 2
-  const expandedHeight = expanded ? Math.min(400, Math.max(customHeight, estimatedTextLines * multilineFontSize * 1.3 + customPadding * 2)) : customHeight
 
   return (
     <g
@@ -266,169 +299,156 @@ export const TopicNode = memo(function TopicNode({
       onPointerUpCapture={handlePointerUp}
       onMouseDown={e => e.stopPropagation()}
     >
-      <title>{topic.title}</title>
+      <title>{topic.body ? `${topic.title}\n\n${topic.body}` : topic.title}</title>
 
-      {/* Glass node: additional backdrop rect */}
+      {/* Glass node: additional backdrop layer, same outline as the shape */}
       {topic.node_style === 'glass' && (
-        <rect
-          x={0} y={0}
-          width={customWidth} height={isEditing ? editExpandedHeight : customHeight}
-          rx={rx} ry={ry}
-          fill={colors.white + '26'}
-          style={{ backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)', transition: `height ${aniExpand}` }}
-        />
-      )}
-
-      {/* Diamond shape uses rotated rect */}
-      {shape === 'diamond' ? (
-        <g transform={`translate(${customWidth / 2}, ${customHeight / 2}) rotate(45) translate(${-customWidth / 2}, ${-customHeight / 2})`}>
-          <rect
-            x={0} y={0}
-            width={customWidth} height={customHeight}
-            rx={rx} ry={ry}
-            fill={fillColor}
-            stroke={strokeColor}
-            strokeWidth={customBorderWidth}
-            filter={shadowFilter}
-          />
-        </g>
-      ) : shape === 'cloud' ? (
         <path
-          d={`M${customWidth * 0.2} ${customHeight}
-             C${-customWidth * 0.15} ${customHeight * 0.85}, ${-customWidth * 0.1} ${customHeight * 0.15}, ${customWidth * 0.25} ${customHeight * 0.15}
-             C${customWidth * 0.25} ${-customHeight * 0.2}, ${customWidth * 0.75} ${-customHeight * 0.2}, ${customWidth * 0.8} ${customHeight * 0.15}
-             C${customWidth * 1.15} ${customHeight * 0.1}, ${customWidth * 1.2} ${customHeight * 0.85}, ${customWidth * 0.8} ${customHeight}
-             Z`}
-          fill={fillColor}
-          stroke={strokeColor}
-          strokeWidth={customBorderWidth}
-          filter={shadowFilter}
-        />
-      ) : (
-        <rect
-          x={0} y={0}
-          width={customWidth} height={isEditing ? editExpandedHeight : expanded ? expandedHeight : customHeight}
-          rx={rx} ry={ry}
-          fill={fillColor}
-          stroke={strokeColor}
-          strokeWidth={customBorderWidth}
-          filter={shadowFilter}
-          style={{ transition: `height ${aniExpand}` }}
+          d={shapeOutline}
+          fill={colors.white + '26'}
+          style={{ backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)' }}
         />
       )}
 
-      {/* Memory Lab kind indicator — a small colour dot in the top-left corner. */}
+      {/* Выводы: узел-ветвление отличается от листа силуэтом, а не подписью */}
+      {rStyle.pins && !isEditing && (
+        <NodePins
+          width={width}
+          height={height}
+          counts={childSideCounts(layout)}
+          foldedSides={topic.folded_sides}
+          color={strokeColor}
+          length={rStyle.pinLength}
+          strokeWidth={Math.max(1, customBorderWidth * 0.9)}
+        />
+      )}
+
+      {/* Двойная обводка мета-корпуса — внешний контур, отмасштабированный от центра */}
+      {skin.outline === 'double' && (
+        <path
+          d={shapeOutline}
+          fill="none"
+          stroke={strokeColor}
+          strokeWidth={Math.max(1, customBorderWidth * 0.7)}
+          opacity={0.5}
+          transform={doubleOutlineTransform(boxW, boxH)}
+          pointerEvents="none"
+        />
+      )}
+
+      {/* Форма узла — единый контур из реестра форм */}
+      <path
+        d={shapeOutline}
+        fill={fillColor}
+        stroke={strokeColor}
+        strokeWidth={customBorderWidth}
+        strokeDasharray={skin.dashArray}
+        filter={shadowFilter}
+      />
+
+      {/* Маркировка корпуса: точка вида памяти + короткий код, как на чипе. */}
       {(() => {
         const kd = kindDef(topic.memory_kind)
-        if (!kd) return null
+        if (!kd || isEditing) return null
+        const showCode = !!skin.code && width >= MIN_WIDTH_FOR_CODE
         return (
-          <circle cx={7} cy={7} r={4} fill={kd.color} stroke={colors.white} strokeWidth={1} pointerEvents="none">
-            <title>{kd.icon} {kd.label}</title>
-          </circle>
+          <g pointerEvents="none">
+            <circle cx={7} cy={7} r={4} fill={kd.color} stroke={colors.white} strokeWidth={1}>
+              <title>{kd.icon} {kd.label}</title>
+            </circle>
+            {showCode && (
+              <text
+                x={14} y={10}
+                fontSize={7}
+                fontFamily={fonts.mono}
+                fill={kd.color}
+                opacity={0.75}
+                style={{ userSelect: 'none' }}
+              >
+                {skin.code}
+              </text>
+            )}
+          </g>
         )
       })()}
 
-      {/* Inline editing — auto-grows with text */}
-      {isEditing ? (
-        <foreignObject x={0} y={0} width={customWidth} height={editExpandedHeight} style={{ transition: `height ${aniExpand}` }}>
+      {/* Inline editing — узел растёт под текст, тулбар плавает над узлом */}
+      {isEditing && richEditReady ? (
+        <foreignObject
+          x={0}
+          y={-TOOLBAR_OFFSET}
+          width={editWidth}
+          height={editHeight + TOOLBAR_OFFSET}
+          style={{ overflow: 'visible' }}
+        >
           <RichTextEditor
             value={richEditValue}
             onChange={handleRichChange}
             onSave={handleRichSave}
+            onStyleRequest={handleRichStyleRequest}
             onCancel={onEditCancel}
-            fontSize={editFontSize}
+            onResize={handleEditorResize}
+            fontSize={customFontSize}
             fontFamily={customFontFamily}
             fontColor={customFontColor}
             textAlign={customTextAlign}
+            minHeight={MIN_EDIT_HEIGHT - 8}
           />
         </foreignObject>
-      ) : hasRichText || hasImage ? (
+      ) : (
         <foreignObject
-          x={customPadding}
-          y={customPadding}
-          width={customWidth - customPadding * 2}
-          height={customHeight - customPadding * 2}
-          style={{ transition: `height ${aniExpand}` }}
+          x={textBox.x + padH}
+          y={textBox.y + padV}
+          width={Math.max(1, textBox.w - padH * 2)}
+          height={Math.max(1, textBox.h - padV * 2)}
         >
+          {/* Голова (заголовок) + опциональное тело (длинный текст) */}
           <div style={{
             width: '100%', height: '100%', overflow: 'hidden',
-            fontSize: customFontSize, fontFamily: customFontFamily,
-            color: customFontColor, fontWeight: customFontWeight,
-            textAlign: customTextAlign as any, lineHeight: 1.3,
-            display: 'flex', flexDirection: 'column', alignItems: 'center',
-            justifyContent: 'center', gap: 4,
+            display: 'flex', flexDirection: 'column',
+            justifyContent: hasBody || hasImage ? 'flex-start' : 'center',
             userSelect: 'none', WebkitUserSelect: 'none',
           }}>
             {topic.image && (
               <img src={topic.image} alt=""
                 style={{
-                  maxWidth: '100%', maxHeight: hasRichText ? '60%' : '100%',
+                  maxWidth: '100%', maxHeight: 52,
                   objectFit: 'contain', borderRadius: 4, flexShrink: 0,
-                  display: 'block',
+                  display: 'block', margin: '0 auto 4px',
                 }}
               />
             )}
-            {hasRichText ? (
-              <div dangerouslySetInnerHTML={{ __html: topic.rich_text! }}
-                style={{ flexShrink: 0, lineHeight: 1.3 }} />
-            ) : topic.title ? (
-              <span>{topic.title}</span>
-            ) : null}
+            <div style={{
+              fontSize: customFontSize, fontFamily: customFontFamily,
+              color: customFontColor, fontWeight: customFontWeight,
+              textAlign: customTextAlign as any, lineHeight: HEAD_LINE_HEIGHT,
+              wordBreak: 'break-word', overflowWrap: 'break-word', flexShrink: 0,
+            }}>
+              {hasRichText
+                ? <span dangerouslySetInnerHTML={{ __html: topic.rich_text! }} />
+                : renderTitleHTML()}
+            </div>
+            {hasBody && (
+              <div style={{
+                marginTop: 4, paddingTop: 5,
+                borderTop: `1px solid ${colors.separator}`,
+                fontSize: bodyFontSize, fontFamily: customFontFamily,
+                color: customFontColor, opacity: 0.78, fontWeight: 400,
+                textAlign: 'left', lineHeight: BODY_LINE_HEIGHT,
+                whiteSpace: 'pre-wrap',
+                wordBreak: 'break-word', overflowWrap: 'break-word',
+              }}>
+                {topic.body}
+              </div>
+            )}
           </div>
         </foreignObject>
-      ) : (
-        <foreignObject
-          x={customPadding}
-          y={expanded || textOverflows ? multilinePadding : 0}
-          width={customWidth - customPadding * 2}
-          height={expanded || textOverflows ? expandedHeight - multilinePadding * 2 : customHeight}
-          style={{ transition: `height ${aniExpand}` }}
-        >
-          <div style={{
-            width: '100%', height: expanded ? 'auto' : '100%',
-            overflow: expanded ? 'visible' : 'hidden',
-            display: 'flex', flexDirection: 'column', alignItems: 'center',
-            justifyContent: expanded || textOverflows ? 'flex-start' : 'center',
-            fontSize: multilineFontSize, fontFamily: customFontFamily,
-            color: customFontColor, fontWeight: customFontWeight,
-            textAlign: customTextAlign as any, lineHeight: 1.3,
-            wordBreak: 'break-word', overflowWrap: 'break-word',
-            userSelect: 'none', WebkitUserSelect: 'none',
-          }}>
-            <div style={{ flexShrink: 0 }}>{renderTitleHTML()}</div>
-          </div>
-        </foreignObject>
-      )}
-
-      {/* Expand/collapse chevron — centered below node */}
-      {(textOverflows || expanded) && !isEditing && (
-        <g
-          style={{
-            transform: `translate(${customWidth / 2}px, ${(expanded ? expandedHeight : customHeight) + 6 - customHeight * 0.05}px)`,
-            cursor: 'pointer',
-            transition: `transform ${aniChevron}`,
-          }}
-          onClick={(e) => { e.stopPropagation(); handleToggleExpanded() }}
-          >
-            <rect x={-37} y={-4} width={84} height={24} rx={8} fill="transparent" pointerEvents="all" />
-            <g
-              style={{
-                transform: `rotate(${expanded ? 180 : 0}deg)`,
-                transformOrigin: '5px 7px',
-                transformBox: 'fill-box',
-                transition: `transform ${aniChevron}`,
-              }}
-            >
-              <polyline points="-15,3 5,11 25,3" fill="none" stroke={strokeColor} strokeWidth={1.8}
-                strokeLinecap="round" strokeLinejoin="round" style={{ pointerEvents: 'none' }} />
-          </g>
-        </g>
       )}
 
       {/* Node icon — outside left, styled as interface badge */}
       {topic.icon && ICON_MAP[topic.icon] && !isEditing && (
         <g
-          transform={`translate(${-9}, ${customHeight / 2})`}
+          transform={`translate(${-9}, ${height / 2})`}
           style={{ cursor: 'pointer' }}
         >
           <rect x={-9} y={-9} width={18} height={18} rx={6} ry={6} fill={strokeColor} opacity={0.12} />
@@ -443,7 +463,7 @@ export const TopicNode = memo(function TopicNode({
       {/* Comments indicator — shows only when topic has comments, positioned left of node */}
       {(topic.comment_count ?? 0) > 0 && !isEditing && (
         <g
-          transform={`translate(${-NOTE_ICON_SIZE - 6}, ${customHeight / 2 - NOTE_ICON_SIZE / 2})`}
+          transform={`translate(${-NOTE_ICON_SIZE - 6}, ${height / 2 - NOTE_ICON_SIZE / 2})`}
           style={{ cursor: 'pointer' }}
           onClick={(e) => {
             e.stopPropagation()
@@ -463,7 +483,7 @@ export const TopicNode = memo(function TopicNode({
       {/* Note indicator */}
       {hasNotes && !isEditing && (
         <g
-          transform={`translate(${customWidth - NOTE_ICON_SIZE * 2 - 8}, ${4})`}
+          transform={`translate(${width - NOTE_ICON_SIZE * 2 - 8}, ${4})`}
           style={{ cursor: 'pointer' }}
           onClick={(e) => {
             e.stopPropagation()
@@ -483,11 +503,12 @@ export const TopicNode = memo(function TopicNode({
       {/* Hyperlink indicator */}
       {topic.hyperlink && !isEditing && (
         <g
-          transform={`translate(${customWidth - NOTE_ICON_SIZE - 4}, ${customHeight - NOTE_ICON_SIZE - 4})`}
+          transform={`translate(${width - NOTE_ICON_SIZE - 4}, ${height - NOTE_ICON_SIZE - 4})`}
           style={{ cursor: 'pointer' }}
           onClick={(e) => {
             e.stopPropagation()
-            window.open(topic.hyperlink, '_blank', 'noopener,noreferrer')
+            // Документ проекта открывается картой, внешний адрес — как ссылка.
+            void openTopicLink(topic.hyperlink!)
           }}
         >
           <rect x={-2} y={-2} width={NOTE_ICON_SIZE + 4} height={NOTE_ICON_SIZE + 4} rx={5}
@@ -506,7 +527,7 @@ export const TopicNode = memo(function TopicNode({
 
       {/* Markers */}
       {topic.markers && topic.markers.length > 0 && (
-        <text x={customWidth / 2} y={-6} textAnchor="middle" fontSize={fontSizes.subhead}>
+        <text x={width / 2} y={-6} textAnchor="middle" fontSize={fontSizes.subhead}>
           {topic.markers.join(' ')}
         </text>
       )}
@@ -514,8 +535,8 @@ export const TopicNode = memo(function TopicNode({
       {/* Labels */}
       {topic.labels && topic.labels.length > 0 && (
         <text
-          x={customWidth / 2}
-          y={customHeight + 10}
+          x={width / 2}
+          y={height + 10}
           textAnchor="middle"
           fontSize={9}
           fill={colors.textTertiary}
@@ -528,9 +549,9 @@ export const TopicNode = memo(function TopicNode({
 
       {/* Progress bar */}
       {topic.progress !== undefined && topic.progress > 0 && (
-        <g transform={`translate(2, ${customHeight - 4})`}>
-          <rect x={0} y={0} width={customWidth - 4} height={3} rx={1.5} fill={colors.separator} />
-          <rect x={0} y={0} width={(customWidth - 4) * Math.min(topic.progress / 100, 1)} height={3} rx={1.5} fill={colors.accent} />
+        <g transform={`translate(2, ${height - 4})`}>
+          <rect x={0} y={0} width={width - 4} height={3} rx={1.5} fill={colors.separator} />
+          <rect x={0} y={0} width={(width - 4) * Math.min(topic.progress / 100, 1)} height={3} rx={1.5} fill={colors.accent} />
         </g>
       )}
     </g>
@@ -547,6 +568,5 @@ export const TopicNode = memo(function TopicNode({
     && prev.searchQuery === next.searchQuery
     && prev.shiftY === next.shiftY
     && prev.onFoldToggle === next.onFoldToggle
-    && prev.onExpandToggle === next.onExpandToggle
     && prev.onCommentsClick === next.onCommentsClick
 })

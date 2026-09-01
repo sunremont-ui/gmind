@@ -37,6 +37,9 @@ let mockWsInstance: MockWebSocket | null = null
 vi.stubGlobal('WebSocket', class extends MockWebSocket {
   constructor(url: string) {
     super(url)
+    // Тесту нужен доступ к сокету, который создал сам клиент, — иначе проверить
+    // его состояние неоткуда. Ссылка на this здесь намеренная.
+    // eslint-disable-next-line @typescript-eslint/no-this-alias
     mockWsInstance = this
   }
 })

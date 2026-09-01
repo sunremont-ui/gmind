@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/gmind/backend/internal/markdown"
 	"github.com/gmind/backend/internal/model"
 	"github.com/go-chi/chi/v5"
 )
@@ -337,37 +338,15 @@ func (h *Handler) ExportMarkdown(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var sb strings.Builder
+	var content string
 	if len(wb.Sheets) > 0 {
-		topicToMarkdown(&sb, wb.Sheets[0].RootTopic, 0)
+		content = markdown.Render(wb.Sheets[0].RootTopic)
 	}
 
 	w.Header().Set("Content-Type", "text/markdown; charset=utf-8")
 	w.Header().Set("Content-Disposition", `attachment; filename="`+sanitizeFilename(wb.Title)+`.md"`)
 	w.WriteHeader(http.StatusOK)
-	fmt.Fprint(w, sb.String())
-}
-
-func topicToMarkdown(sb *strings.Builder, t *model.Topic, depth int) {
-	if t == nil {
-		return
-	}
-	switch depth {
-	case 0:
-		fmt.Fprintf(sb, "# %s\n\n", t.Title)
-	case 1:
-		fmt.Fprintf(sb, "## %s\n\n", t.Title)
-	case 2:
-		fmt.Fprintf(sb, "### %s\n\n", t.Title)
-	default:
-		fmt.Fprintf(sb, "%s- %s\n", strings.Repeat("  ", depth-3), t.Title)
-	}
-	if t.Notes != "" {
-		fmt.Fprintf(sb, "> %s\n\n", t.Notes)
-	}
-	for _, child := range t.Children {
-		topicToMarkdown(sb, child, depth+1)
-	}
+	fmt.Fprint(w, content)
 }
 
 func (h *Handler) ExportFreeMind(w http.ResponseWriter, r *http.Request) {

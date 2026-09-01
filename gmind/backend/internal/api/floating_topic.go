@@ -72,6 +72,8 @@ func (h *Handler) UpdateFloatingTopic(w http.ResponseWriter, r *http.Request) {
 
 	var req struct {
 		Title    string          `json:"title,omitempty"`
+		Body     *string         `json:"body,omitempty"`
+		RichText *string         `json:"rich_text,omitempty"`
 		Position *model.Position `json:"position,omitempty"`
 		Icon     string          `json:"icon,omitempty"`
 	}
@@ -86,6 +88,12 @@ func (h *Handler) UpdateFloatingTopic(w http.ResponseWriter, r *http.Request) {
 			if ft.ID == topicID {
 				if req.Title != "" {
 					ft.Title = req.Title
+				}
+				if req.Body != nil {
+					ft.Body = *req.Body // "" очищает тело
+				}
+				if req.RichText != nil {
+					ft.RichText = *req.RichText
 				}
 				if req.Position != nil {
 					ft.Position = req.Position

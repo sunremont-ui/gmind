@@ -4,7 +4,10 @@ import reactHooks from 'eslint-plugin-react-hooks'
 import reactRefresh from 'eslint-plugin-react-refresh'
 
 export default tseslint.config(
-  { ignores: ['dist', 'dev-dist'] },
+  // src-tauri/target — выхлоп сборки Rust: там лежат минифицированные ассеты
+  // tauri-codegen, и без этого правила линт тонет в сотне ошибок из чужого
+  // сгенерированного кода, за которыми не видно своих.
+  { ignores: ['dist', 'dev-dist', 'src-tauri/target'] },
   {
     extends: [js.configs.recommended, ...tseslint.configs.recommended],
     files: ['**/*.{ts,tsx}'],

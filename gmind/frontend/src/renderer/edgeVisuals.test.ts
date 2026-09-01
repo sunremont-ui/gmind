@@ -45,4 +45,9 @@ describe('sideOf', () => {
     // equal offset → right
     expect(sideOf(parent, node(220, 220))).toBe('right')
   })
+  it('uses the persisted physical port instead of diagonal geometry', () => {
+    const child = node(-200, -200)
+    child.topic.parent_anchor = 'top'
+    expect(sideOf(parent, child)).toBe('top')
+  })
 })

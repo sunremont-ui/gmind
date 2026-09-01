@@ -1,15 +1,21 @@
-import React, { useMemo } from 'react'
+import React, { useCallback, useMemo } from 'react'
 import type { LayoutNode, Relationship } from '../types'
 import { TopicNode } from '../components/MindMap/TopicNode'
+import { TreeEdge } from '../components/MindMap/TreeEdge'
+import { DIRECTION_VECTORS, isNodeSide, oppositeNodeSide, type ChildDirection, type NodeSide } from '../components/MindMap/nodeDirections'
 import { RelationshipLine } from '../components/MindMap/RelationshipLine'
 import { useThemeStore } from '../store/theme'
 import { useRelationshipsStore } from '../store/relationships'
 import { DEFAULT_NODE_HEIGHT, DEFAULT_SIBLING_GAP } from './layout'
-import { edgeAttachment } from './edgeAttachment'
 import { colors } from '../styles/tokens'
-import { weightToColor, thicknessForSubtree, sideOf, type Side } from './edgeVisuals'
+import { weightToColor, thicknessForSubtree, sideOf, childSideCounts, type Side } from './edgeVisuals'
+import { pointHalfway, routePortToPort, routeToPath, routeTreeEdge, sidePoint, type NodeObstacle } from './edgeRouting'
 
 const CULL_PADDING = 400
+const EMPTY_NOTE_IDS: ReadonlySet<string> = new Set()
+const NOTE_NODE_WIDTH = 236
+const NOTE_NODE_HEIGHT = 148
+const NOTE_NODE_GAP = 24
 
 interface RendererProps {
   root: LayoutNode | null
@@ -22,6 +28,8 @@ interface RendererProps {
   draggingTopicId: string | null
   editingTopicId: string | null
   searchQuery: string
+  expandedNoteIds?: ReadonlySet<string>
+  selectedNoteId?: string | null
   viewportRect?: { left: number; top: number; right: number; bottom: number } | null
   onTopicSelect: (id: string, e: React.MouseEvent) => void
   onTopicDoubleClick: (id: string) => void
@@ -29,17 +37,19 @@ interface RendererProps {
   onTopicDragStart: (id: string, x: number, y: number) => void
   onTopicDragOver: (id: string) => void
   onTopicDrop: (targetId: string) => void
-  onTopicEditSave: (id: string, title: string) => void
+  onTopicEditSave: (id: string, title: string, richText?: string, body?: string) => void
+  onTopicEditStyleRequest?: (id: string, title: string, richText?: string, body?: string) => void
   onTopicEditCancel: () => void
+  onTopicEditResize?: (id: string, width: number, height: number) => void
   onTopicNotesClick?: (id: string, notes: string) => void
+  onNoteSelect?: (id: string) => void
   onTopicCommentsClick?: (id: string) => void
   onTopicFoldToggle?: (id: string) => void
   // Fold/unfold only the children on one side of a node (top|right|bottom|left).
   onToggleChildSide?: (id: string, side: string) => void
+  onTreeEdgeAnchorChange?: (childId: string, parentSide: NodeSide, childDirection: ChildDirection) => void
   cursors?: Map<string, import('../types').CursorPosition>
   reorderTarget?: { parentId: string; insertIndex: number; nodeHeight?: number } | null
-  expandedTopicIds?: Set<string>
-  onTopicExpandToggle?: (id: string, expanded: boolean) => void
 }
 
 export function MindMapRenderer({
@@ -52,6 +62,8 @@ export function MindMapRenderer({
   draggingTopicId,
   editingTopicId,
   searchQuery,
+  expandedNoteIds = EMPTY_NOTE_IDS,
+  selectedNoteId = null,
   viewportRect,
   onTopicSelect,
   onTopicDoubleClick,
@@ -60,15 +72,17 @@ export function MindMapRenderer({
   onTopicDragOver,
   onTopicDrop,
   onTopicEditSave,
+  onTopicEditStyleRequest,
   onTopicEditCancel,
+  onTopicEditResize,
   onTopicNotesClick,
+  onNoteSelect,
   onTopicCommentsClick,
   onTopicFoldToggle,
   onToggleChildSide,
+  onTreeEdgeAnchorChange,
   cursors,
   reorderTarget,
-  expandedTopicIds,
-  onTopicExpandToggle,
 }: RendererProps) {
   const selSet = useMemo(
     () => new Set(selectedTopicIds || (selectedTopicId ? [selectedTopicId] : [])),
@@ -79,57 +93,24 @@ export function MindMapRenderer({
   const storeRels = useRelationshipsStore(s => s.relationships)
   const effectiveRels = storeRels.length > 0 ? storeRels : relationships
 
-  const isInViewport = (nx: number, ny: number, nw: number, nh: number) => {
+  const isInViewport = useCallback((nx: number, ny: number, nw: number, nh: number) => {
     if (!viewportRect) return true
     return nx + nw > viewportRect.left - CULL_PADDING
       && nx < viewportRect.right + CULL_PADDING
       && ny + nh > viewportRect.top - CULL_PADDING
       && ny < viewportRect.bottom + CULL_PADDING
-  }
+  }, [viewportRect])
 
-  const edgePath = (fromX: number, fromY: number, toX: number, toY: number, edgeStyle?: string, axis: 'h' | 'v' = 'h') => {
-    if (axis === 'v') {
-      // Vertical run: bend along Y so the curve leaves top/bottom cleanly.
-      const midY = (fromY + toY) / 2
-      switch (edgeStyle || 'curved') {
-        case 'straight': return `M ${fromX} ${fromY} L ${toX} ${toY}`
-        case 'angled': return `M ${fromX} ${fromY} L ${fromX} ${midY} L ${toX} ${midY} L ${toX} ${toY}`
-        default: return `M ${fromX} ${fromY} C ${fromX} ${midY}, ${toX} ${midY}, ${toX} ${toY}`
-      }
-    }
-    const midX = (fromX + toX) / 2
-    switch (edgeStyle || 'curved') {
-      case 'straight': return `M ${fromX} ${fromY} L ${toX} ${toY}`
-      case 'angled': return `M ${fromX} ${fromY} L ${midX} ${fromY} L ${midX} ${toY} L ${toX} ${toY}`
-      default: return `M ${fromX} ${fromY} C ${midX} ${fromY}, ${midX} ${toY}, ${toX} ${toY}`
-    }
-  }
-
-  // Pick attachment points based on which side the child sits relative to parent,
-  // so edges leave/enter the correct face instead of always parent-right→child-left.
-  const edgeEndpoints = (p: LayoutNode, c: LayoutNode) => {
-    const pcx = p.x + p.width / 2, pcy = p.y + p.height / 2
-    const ccx = c.x + c.width / 2, ccy = c.y + c.height / 2
-    const dx = ccx - pcx, dy = ccy - pcy
-    if (Math.abs(dx) >= Math.abs(dy)) {
-      return dx >= 0
-        ? { fromX: p.x + p.width, fromY: pcy, toX: c.x, toY: ccy, axis: 'h' as const }
-        : { fromX: p.x, fromY: pcy, toX: c.x + c.width, toY: ccy, axis: 'h' as const }
-    }
-    return dy >= 0
-      ? { fromX: pcx, fromY: p.y + p.height, toX: ccx, toY: c.y, axis: 'v' as const }
-      : { fromX: pcx, fromY: p.y, toX: ccx, toY: c.y + c.height, axis: 'v' as const }
-  }
-
-  const { edgeData, nodeComponents, nodePositions, nodeShiftMap, childBadges } = useMemo(() => {
-    const edges: { path: string; dash: string; key: string; opacity: number; width?: number; color?: string }[] = []
-    const regularNodes: React.ReactNode[] = []
-    const topNodes: React.ReactNode[] = []
+  // Геометрия карты: препятствия, маршруты веток, позиции узлов. Считается
+  // только когда меняется само дерево — панорамирование и зум её не трогают.
+  // Раньше сюда входил viewportRect, и каждый пиксель протяжки перекладывал
+  // маршруты всех рёбер (с A* внутри): карта дёргалась и отставала от курсора.
+  const { edgeData, nodePositions } = useMemo(() => {
+    const edges: {
+      path: string; dash: string; key: string; opacity: number; width?: number; color?: string
+      parentRect: NodeObstacle; childRect: NodeObstacle; fromSide: NodeSide
+    }[] = []
     const positions = new Map<string, { x: number; y: number; w: number; h: number }>()
-    const shiftMap = new Map<string, number>()
-
-    // Per-node child-count badges, one per direction that actually has children.
-    const badges: { key: string; topicId: string; side: Side; folded: boolean; cx: number; cy: number; count: number }[] = []
 
     // Subtree size per topic id (node + all descendants) → edge thickness.
     const sizeMap = new Map<string, number>()
@@ -142,7 +123,6 @@ export function MindMapRenderer({
 
     const collectEdges = (node: LayoutNode) => {
       if (!node || !node.topic) return
-      const nodeHidden = !isInViewport(node.x, node.y, node.width, node.height)
       const foldedSides = node.topic?.folded_sides
       for (const child of (node.children || [])) {
         // Children on a folded side are hidden (no reflow): skip edge + subtree.
@@ -150,44 +130,66 @@ export function MindMapRenderer({
         const es = child.topic?.edge_style || node.topic?.edge_style || 'curved'
         const ed = child.topic?.edge_dash || node.topic?.edge_dash || 'solid'
         const dm: Record<string, string> = { solid: '0', dashed: '6,4', dotted: '2,3' }
-        const { fromX, fromY, toX, toY, axis } = edgeEndpoints(node, child)
         const childFolded = !!child.topic?.folded
-        if (!nodeHidden || isInViewport(child.x, child.y, child.width, child.height)) {
-          const w = child.topic?.edge_weight
-          const size = sizeMap.get(child.topic?.id || '') ?? 1
-          edges.push({
-            path: edgePath(fromX, fromY, toX, toY, es, axis),
-            dash: dm[ed] || '0',
-            key: child.topic?.id || '',
-            opacity: node.topic?.folded ? 0 : 1,
-            // Thickness tracks subtree size; weight (if set) tints cold→hot.
-            width: thicknessForSubtree(size),
-            color: w && w > 0 ? weightToColor(w) : undefined,
-          })
-        }
+        const w = child.topic?.edge_weight
+        const size = sizeMap.get(child.topic?.id || '') ?? 1
+        const width = thicknessForSubtree(size)
+        const endpoints = routeTreeEdge(node, child, width)
+        edges.push({
+          path: routeToPath(endpoints.route, es),
+          dash: dm[ed] || '0',
+          key: child.topic?.id || '',
+          opacity: node.topic?.folded ? 0 : 1,
+          // Thickness tracks subtree size; weight (if set) tints cold→hot.
+          width,
+          color: w && w > 0 ? weightToColor(w) : undefined,
+          parentRect: { id: node.topic.id, x: node.x, y: node.y, width: node.width, height: node.height },
+          childRect: { id: child.topic.id, x: child.x, y: child.y, width: child.width, height: child.height },
+          fromSide: endpoints.fromSide,
+        })
         if (!childFolded) {
           collectEdges(child)
         }
       }
     }
 
+    const collectPositions = (node: LayoutNode) => {
+      if (!node?.topic) return
+      positions.set(node.topic.id, { x: node.x, y: node.y, w: node.width, h: node.height })
+      for (const child of node.children ?? []) collectPositions(child)
+    }
+
+    if (root) measure(root)
+    for (const fRoot of floatingRoots) measure(fRoot)
+    if (root) { collectEdges(root); collectPositions(root) }
+    for (const fRoot of floatingRoots) { collectEdges(fRoot); collectPositions(fRoot) }
+
+    return {
+      edgeData: edges,
+      nodePositions: positions,
+    }
+  }, [root, floatingRoots])
+
+  // Узлы и бейджи: сюда входит отсечение по видимой области, поэтому мемо
+  // пересчитывается при протяжке и зуме. Внутри только сборка React-элементов —
+  // без раскладки и маршрутизации, так что это дёшево.
+  const { nodeComponents, childBadges } = useMemo(() => {
+    const regularNodes: React.ReactNode[] = []
+    const topNodes: React.ReactNode[] = []
+    const shiftMap = new Map<string, number>()
+    // Per-node child-count badges, one per direction that actually has children.
+    const badges: { key: string; topicId: string; side: Side; folded: boolean; cx: number; cy: number; count: number }[] = []
+
     const renderNode = (node: LayoutNode, parentFolded = false) => {
       if (!node || !node.topic) return
-      positions.set(node.topic.id, { x: node.x, y: node.y, w: node.width, h: node.height })
       const hidden = !isInViewport(node.x, node.y, node.width, node.height) || parentFolded
 
       // Child-count badges per direction. Shown for every node with children
       // except the selected one (its interactive anchors carry the counts).
       // Folded nodes keep their badges so they can still be expanded by click.
       if (!hidden && !selSet.has(node.topic.id) && (node.children?.length ?? 0) > 0 && node.topic.show_child_count !== false) {
-        const sc: Record<string, number> = { top: 0, right: 0, bottom: 0, left: 0 }
+        const sc = childSideCounts(node)
         const ncx = node.x + node.width / 2, ncy = node.y + node.height / 2
-        for (const ch of node.children ?? []) {
-          const dx = (ch.x + ch.width / 2) - ncx
-          const dy = (ch.y + ch.height / 2) - ncy
-          if (Math.abs(dx) >= Math.abs(dy)) sc[dx >= 0 ? 'right' : 'left']++
-          else sc[dy >= 0 ? 'bottom' : 'top']++
-        }
         const pts: Record<string, [number, number]> = {
           top: [ncx, node.y], right: [node.x + node.width, ncy],
           bottom: [ncx, node.y + node.height], left: [node.x, ncy],
@@ -224,14 +226,16 @@ export function MindMapRenderer({
           onDragOver={onTopicDragOver}
           onDrop={onTopicDrop}
            onEditSave={onTopicEditSave}
+           onEditStyleRequest={onTopicEditStyleRequest}
            onEditCancel={onTopicEditCancel}
+            onEditResize={onTopicEditResize}
             onNotesClick={onTopicNotesClick}
             onCommentsClick={onTopicCommentsClick}
             onFoldToggle={onTopicFoldToggle}
-            onExpandToggle={onTopicExpandToggle}
         />
       )
-      ;(expandedTopicIds?.has(node.topic.id) || selSet.has(node.topic.id) ? topNodes : regularNodes).push(el)
+      // Редактируемый и выделенные узлы рисуем поверх остальных.
+      ;(node.topic.id === editingTopicId || selSet.has(node.topic.id) ? topNodes : regularNodes).push(el)
       const childFolded = parentFolded || !!node.topic?.folded
       const fSides = node.topic?.folded_sides
       for (const child of (node.children || [])) {
@@ -239,20 +243,6 @@ export function MindMapRenderer({
         const sideHidden = !!fSides && fSides.includes(sideOf(node, child))
         renderNode(child, childFolded || sideHidden)
       }
-    }
-
-    if (root) {
-      measure(root)
-      collectEdges(root)
-      renderNode(root)
-    }
-
-    // Floating subtrees: same edge + node rendering as the main tree, so a
-    // detached node keeps its children (and registers positions for relationships).
-    for (const fRoot of floatingRoots) {
-      measure(fRoot)
-      collectEdges(fRoot)
-      renderNode(fRoot)
     }
 
     // Compute shiftY for sibling reorder preview
@@ -270,26 +260,147 @@ export function MindMapRenderer({
       walkShift(root)
     }
 
-    return { edgeData: edges, nodeComponents: [...regularNodes, ...topNodes], nodePositions: positions, nodeShiftMap: shiftMap, childBadges: badges }
+    if (root) renderNode(root)
+    for (const fRoot of floatingRoots) renderNode(fRoot)
+
+    return {
+      nodeComponents: [...regularNodes, ...topNodes],
+      childBadges: badges,
+    }
   }, [
-    root, selSet, searchQuery, viewportRect, reorderTarget,
+    root, selSet, searchQuery, isInViewport, reorderTarget, onTopicNotesClick,
     dragOverTopicId, draggingTopicId, editingTopicId,
     onTopicSelect, onTopicDoubleClick, onTopicContextMenu,
     onTopicDragStart, onTopicDragOver, onTopicDrop,
-    onTopicEditSave, onTopicEditCancel, onTopicCommentsClick, onTopicFoldToggle,
-    expandedTopicIds, onTopicExpandToggle, floatingRoots,
+    onTopicEditSave, onTopicEditStyleRequest, onTopicEditCancel, onTopicEditResize, onTopicCommentsClick, onTopicFoldToggle,
+    floatingRoots,
   ])
+
+  // Линии связей: маршрутизация тоже не должна повторяться на каждом кадре
+  // протяжки — раньше этот блок был IIFE прямо в JSX и пересчитывал маршрут
+  // каждой связи при любом ре-рендере.
+  const relationshipLines = useMemo(() => {
+    // V5.0: bundle parallel multi-edges per (from,to) pair for offset rendering
+      const groups = new Map<string, Relationship[]>()
+      for (const rel of effectiveRels) {
+        const fid = rel.from_topic_id || rel.end1_id
+        const tid = rel.to_topic_id || rel.end2_id
+        const key = fid < tid ? `${fid}|${tid}` : `${tid}|${fid}`
+        const list = groups.get(key) ?? []
+        list.push(rel)
+        groups.set(key, list)
+      }
+      return effectiveRels.map(rel => {
+        const fid = rel.from_topic_id || rel.end1_id
+        const tid = rel.to_topic_id || rel.end2_id
+        const from = nodePositions.get(fid)
+        const to = nodePositions.get(tid)
+        if (!from || !to) return null
+        const key = fid < tid ? `${fid}|${tid}` : `${tid}|${fid}`
+        const bundle = groups.get(key) ?? [rel]
+        const offsetIndex = bundle.indexOf(rel)
+        // Self-loop: anchor at the node's own rect (RelationshipLine draws a dome).
+        if (fid === tid) {
+          return (
+            <RelationshipLine
+              key={rel.id}
+              relationship={rel}
+              fromX={from.x} fromY={from.y} toX={from.x} toY={from.y}
+              nodeWidth={from.w} nodeHeight={from.h}
+              offsetIndex={offsetIndex} offsetCount={bundle.length}
+            />
+          )
+        }
+        // Persisted drag port wins; legacy/agent edges use the two facing ports.
+        let fromSide: NodeSide | undefined
+        let toSide: NodeSide | undefined
+        if (rel.metadata) {
+          try {
+            const metadata = JSON.parse(rel.metadata) as { from_side?: string; to_side?: string }
+            if (isNodeSide(metadata.from_side)) fromSide = metadata.from_side
+            if (isNodeSide(metadata.to_side)) toSide = metadata.to_side
+          } catch { /* legacy metadata may not be JSON */ }
+        }
+        if (!fromSide) {
+          const dx = to.x + to.w / 2 - (from.x + from.w / 2)
+          const dy = to.y + to.h / 2 - (from.y + from.h / 2)
+          fromSide = Math.abs(dx) >= Math.abs(dy)
+            ? (dx >= 0 ? 'right' : 'left')
+            : (dy >= 0 ? 'bottom' : 'top')
+        }
+        toSide ??= oppositeNodeSide(fromSide)
+        const fromRect = { id: fid, x: from.x, y: from.y, width: from.w, height: from.h }
+        const toRect = { id: tid, x: to.x, y: to.y, width: to.w, height: to.h }
+        const fromPoint = sidePoint(fromRect, fromSide)
+        const toPoint = sidePoint(toRect, toSide)
+        const route = routePortToPort(fromPoint, toPoint, fromSide, toSide, rel.weight ?? 1.5)
+        const label = pointHalfway(route)
+        return (
+          <RelationshipLine
+            key={rel.id}
+            relationship={rel}
+            fromX={fromPoint.x}
+            fromY={fromPoint.y}
+            toX={toPoint.x}
+            toY={toPoint.y}
+            routedPath={routeToPath(route, 'curved')}
+            labelX={label.x}
+            labelY={label.y}
+            offsetIndex={offsetIndex}
+            offsetCount={bundle.length}
+          />
+        )
+    })
+  }, [effectiveRels, nodePositions])
+
+  const noteNodes = useMemo(() => {
+    const result: React.ReactNode[] = []
+
+    const walk = (node: LayoutNode, parentFolded = false) => {
+      if (!node?.topic) return
+      const hidden = parentFolded || !isInViewport(node.x, node.y, node.width, node.height)
+      const notes = node.topic.notes?.trim()
+      if (!hidden && notes && expandedNoteIds.has(node.topic.id)) {
+        result.push(
+          <ExpandedNoteNode
+            key={`note-${node.topic.id}`}
+            node={node}
+            selected={selectedNoteId === node.topic.id}
+            onSelect={() => onNoteSelect?.(node.topic.id)}
+            fill={theme.topic.fill}
+            textColor={theme.topic.textColor}
+          />,
+        )
+      }
+
+      const childrenFolded = parentFolded || !!node.topic.folded
+      const foldedSides = node.topic.folded_sides
+      for (const child of node.children ?? []) {
+        const sideHidden = !!foldedSides && foldedSides.includes(sideOf(node, child))
+        walk(child, childrenFolded || sideHidden)
+      }
+    }
+
+    if (root) walk(root)
+    for (const floatingRoot of floatingRoots) walk(floatingRoot)
+    return result
+  }, [expandedNoteIds, floatingRoots, isInViewport, onNoteSelect, root, selectedNoteId, theme.topic.fill, theme.topic.textColor])
 
   return (
     <g>
-      {edgeData.map(e => (
-        <path key={e.key} d={e.path} fill="none"
+      {/* Отсечение рёбер по видимой области — дешёвая проверка готовых
+          прямоугольников: маршруты уже посчитаны выше и от прокрутки не зависят. */}
+      {edgeData.filter(e => (
+        isInViewport(e.parentRect.x, e.parentRect.y, e.parentRect.width, e.parentRect.height)
+        || isInViewport(e.childRect.x, e.childRect.y, e.childRect.width, e.childRect.height)
+      )).map(e => (
+        <TreeEdge key={e.key} childId={e.key} path={e.path}
+          parentRect={e.parentRect} childRect={e.childRect} fromSide={e.fromSide}
           stroke={e.color ?? theme.connection.stroke}
           strokeWidth={e.width ?? theme.connection.strokeWidth}
           opacity={theme.connection.opacity * e.opacity}
-          strokeLinecap="round"
-          strokeDasharray={e.dash === '0' ? undefined : e.dash}
-          style={{ transition: 'opacity 0.25s ease' }}
+          dash={e.dash === '0' ? undefined : e.dash}
+          onAnchorChange={onTreeEdgeAnchorChange}
         />
       ))}
       {nodeComponents}
@@ -310,55 +421,98 @@ export function MindMapRenderer({
           </text>
         </g>
       ))}
-      {(() => {
-        // V5.0: bundle parallel multi-edges per (from,to) pair for offset rendering
-        const groups = new Map<string, Relationship[]>()
-        for (const rel of effectiveRels) {
-          const fid = rel.from_topic_id || rel.end1_id
-          const tid = rel.to_topic_id || rel.end2_id
-          const key = fid < tid ? `${fid}|${tid}` : `${tid}|${fid}`
-          const list = groups.get(key) ?? []
-          list.push(rel)
-          groups.set(key, list)
-        }
-        return effectiveRels.map(rel => {
-          const fid = rel.from_topic_id || rel.end1_id
-          const tid = rel.to_topic_id || rel.end2_id
-          const from = nodePositions.get(fid)
-          const to = nodePositions.get(tid)
-          if (!from || !to) return null
-          const key = fid < tid ? `${fid}|${tid}` : `${tid}|${fid}`
-          const bundle = groups.get(key) ?? [rel]
-          const offsetIndex = bundle.indexOf(rel)
-          // Self-loop: anchor at the node's own rect (RelationshipLine draws a dome).
-          if (fid === tid) {
-            return (
-              <RelationshipLine
-                key={rel.id}
-                relationship={rel}
-                fromX={from.x} fromY={from.y} toX={from.x} toY={from.y}
-                nodeWidth={from.w} nodeHeight={from.h}
-                offsetIndex={offsetIndex} offsetCount={bundle.length}
-              />
-            )
-          }
-          // Side-aware: attach to the facing borders of the two node rects.
-          const at = edgeAttachment(from, to)
-          return (
-            <RelationshipLine
-              key={rel.id}
-              relationship={rel}
-              fromX={at.fromX}
-              fromY={at.fromY}
-              toX={at.toX}
-              toY={at.toY}
-              offsetIndex={offsetIndex}
-              offsetCount={bundle.length}
-            />
-          )
-        })
-      })()}
+      {relationshipLines}
+      {noteNodes}
       {cursors && renderCursors(cursors)}
+    </g>
+  )
+}
+
+function ExpandedNoteNode({ node, selected, onSelect, fill, textColor }: {
+  node: LayoutNode
+  selected: boolean
+  onSelect: () => void
+  fill: string
+  textColor: string
+}) {
+  const vector = node.placedDir ? DIRECTION_VECTORS[node.placedDir] : DIRECTION_VECTORS.right
+  const x = vector.x < 0
+    ? node.x - NOTE_NODE_WIDTH - NOTE_NODE_GAP
+    : vector.x > 0
+      ? node.x + node.width + NOTE_NODE_GAP
+      : node.x + (node.width - NOTE_NODE_WIDTH) / 2
+  const y = vector.y < 0
+    ? node.y - NOTE_NODE_HEIGHT - NOTE_NODE_GAP
+    : vector.y > 0
+      ? node.y + node.height + NOTE_NODE_GAP
+      : node.y + (node.height - NOTE_NODE_HEIGHT) / 2
+
+  const sourceX = vector.x < 0 ? node.x : vector.x > 0 ? node.x + node.width : node.x + node.width / 2
+  const sourceY = vector.y < 0 ? node.y : vector.y > 0 ? node.y + node.height : node.y + node.height / 2
+  const noteX = vector.x < 0 ? x + NOTE_NODE_WIDTH : vector.x > 0 ? x : x + NOTE_NODE_WIDTH / 2
+  const noteY = vector.y < 0 ? y + NOTE_NODE_HEIGHT : vector.y > 0 ? y : y + NOTE_NODE_HEIGHT / 2
+
+  return (
+    <g
+      data-note-topic-id={node.topic.id}
+      data-selected={selected ? 'true' : 'false'}
+      role="note"
+      aria-label={`Notes for ${node.topic.title}`}
+      style={{ cursor: 'pointer' }}
+      onClick={event => {
+        event.stopPropagation()
+        onSelect()
+      }}
+      onMouseDown={event => event.stopPropagation()}
+    >
+      <line
+        x1={sourceX}
+        y1={sourceY}
+        x2={noteX}
+        y2={noteY}
+        stroke={colors.accent}
+        strokeWidth={1.5}
+        strokeDasharray="5,5"
+        opacity={0.55}
+        pointerEvents="none"
+      />
+      <rect
+        x={x}
+        y={y}
+        width={NOTE_NODE_WIDTH}
+        height={NOTE_NODE_HEIGHT}
+        rx={12}
+        fill={fill}
+        stroke={colors.accent}
+        strokeWidth={selected ? 2.5 : 1.5}
+        strokeDasharray="7,5"
+        filter={selected ? 'url(#topic-shadow)' : 'url(#shadow-soft)'}
+      />
+      <foreignObject x={x + 12} y={y + 10} width={NOTE_NODE_WIDTH - 24} height={NOTE_NODE_HEIGHT - 20}>
+        <div data-note-scroll="true" style={{
+          width: '100%', height: '100%', display: 'flex', flexDirection: 'column',
+          color: textColor, fontFamily: 'Inter, ui-sans-serif, system-ui, sans-serif',
+          overflow: 'hidden', userSelect: 'none', cursor: 'default',
+        }}>
+          <div style={{
+            color: colors.accent, fontSize: 11, fontWeight: 700, letterSpacing: '0.06em',
+            textTransform: 'uppercase', marginBottom: 7, flexShrink: 0,
+            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+          }}>
+            Notes · {node.topic.title}
+          </div>
+          <div style={{
+            fontSize: 12, lineHeight: 1.45, whiteSpace: 'pre-wrap', overflowY: 'auto',
+            overflowX: 'hidden', overflowWrap: 'anywhere', opacity: 0.9,
+            flex: '1 1 auto', minHeight: 0, paddingRight: 5, userSelect: 'none', cursor: 'default',
+          }}>
+            {node.topic.notes}
+          </div>
+          <div style={{ marginTop: 'auto', paddingTop: 6, fontSize: 10, color: colors.textQuaternary, flexShrink: 0 }}>
+            Use the Notes icon to hide
+          </div>
+        </div>
+      </foreignObject>
     </g>
   )
 }

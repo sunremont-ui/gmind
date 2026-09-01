@@ -49,6 +49,8 @@ gmind/
 │       ├── xmind/                # XMind формат
 │       │   ├── export.go         # Экспорт в .xmind
 │       │   └── import.go         # Импорт .xmind
+│       ├── project/              # Скан каталога → карта проекта
+│       │   └── scan.go           # Docs-only дерево, лимиты и статистика
 │       ├── wiki/                 # Wiki module
 │       │   ├── store.go          # Файловое .md хранилище, CRUD, поиск
 │       │   └── module.go         # Wiki module (core.Module)
@@ -89,7 +91,8 @@ gmind/
 │           │   ├── ErrorBoundary.tsx     # Защита от краша
 │           │   ├── HelpOverlay.tsx       # Подсказка с шорткатами
 │           │   └── SearchBar.tsx         # Поисковая строка
-│           ├── Sidebar/           # Список workbook'ов
+│           ├── Sidebar/           # Дерево корня + список workbook'ов + resize
+│           ├── DocumentContextBar/ # История документов и breadcrumb корня
 │           ├── AIPanel/           # AI панель (generate + chat)
 │           ├── AIServerPanel/     # Управление llama-server
 │           ├── PropertiesPanel/   # Панель свойств топика
@@ -159,6 +162,23 @@ Zoom и pan реализованы через трансформацию общ�
 
 ### 5. Undo/Redo через снэпшоты
 История основана на полных снэпшотах workbook (JSON). `pushHistory()` сохраняет копию перед каждым изменением. `pop()`/`forward()` восстанавливает снэпшот на клиенте и отправляет PUT на сервер (full restore). Максимум 50 шагов. Плюсы: простота, минус: память.
+
+### 6. Корень проекта отделён от активного документа
+
+Workbook схемы проекта хранит каталог в `SourcePath`, а workbook открытого
+документа — путь к `.md`, `.markdown` или `.xmind`. Shell сохраняет
+`ProjectRootContext` при переходе между ними, пока документ остаётся внутри
+корневого каталога. Поэтому Sidebar и breadcrumb не исчезают после открытия
+ссылки из карты.
+
+История документов живёт в `App.tsx` и `utils/documentNavigation.ts` отдельно
+от Undo/Redo карты. Каждая запись хранит workbook, sheet, selection и корневой
+контекст; назад/вперёд доступны кнопками и через `Alt+←/→`.
+
+Создание и удаление документов выполняет `/api/v1/projects/files`. Backend
+канонизирует пути, проверяет принадлежность workbook корню, не допускает выход
+через `..`/symlink и после операции пересканирует схему проекта. Подробности:
+[18 — Корневая навигация и дерево документов](18-project-root-navigation.md).
 
 ## Known Gotchas (2026-05-17)
 

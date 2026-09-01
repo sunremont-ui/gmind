@@ -1,3 +1,5 @@
+import type { ChildDirection } from '../components/MindMap/nodeDirections'
+
 // Re-export auto-generated API types (source of truth)
 export type {
   Workbook, Sheet, Topic, Position, Relationship,
@@ -42,8 +44,21 @@ export interface LayoutNode {
   height: number
   children: LayoutNode[]
   parent?: LayoutNode
+  /**
+   * Направление группы, в которую раскладка фактически положила этот узел
+   * относительно родителя. Проставляется в packDirectional и служит источником
+   * правды для выбора порта ветки: определять сторону по геометрии нельзя —
+   * далёкий нижний ребёнок правой колонки читается как «снизу», и линия уходит
+   * в объезд вместо прямой ветки.
+   */
+  placedDir?: ChildDirection
 }
 
-export type StructureClass = 'mindmap' | 'org-chart' | 'fishbone' | 'tree' | 'tree-right' | 'tree-left' | 'tree-down' | 'tree-up' | 'radial'
+export type StructureClass =
+  | 'mindmap' | 'org-chart' | 'fishbone'
+  | 'tree' | 'tree-right' | 'tree-left' | 'tree-down' | 'tree-up'
+  // Радиальное семейство: несколько способов разделить 360° вокруг узла.
+  // 'radial' — историческое имя, ведёт себя как 'radial-even'.
+  | 'radial' | 'radial-even' | 'radial-packed' | 'radial-rings' | 'radial-clock' | 'radial-sector'
 
 export * from './theme'

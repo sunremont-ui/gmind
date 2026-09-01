@@ -97,6 +97,7 @@ func (h *Handler) CreateRelationshipV2(w http.ResponseWriter, r *http.Request) {
 		Color:          req.Color,
 		Style:          req.Style,
 		CreatedBy:      req.CreatedBy,
+		Metadata:       req.Metadata,
 	}
 
 	// Optional strict-mode cycle prevention for depends_on graph
@@ -206,6 +207,9 @@ func (h *Handler) UpdateRelationshipV2(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		patch["style"] = *req.Style
+	}
+	if req.Metadata != nil {
+		patch["metadata"] = *req.Metadata
 	}
 
 	if err := h.relationships.Update(relID, patch); err != nil {
@@ -324,27 +328,27 @@ func (h *Handler) EmbedRelationshipsIntoSheet(wb *model.Workbook) {
 	for _, rec := range rels {
 		// Map to legacy Relationship struct for embedding
 		legacy := &model.Relationship{
-			ID:              rec.ID,
-			Title:           rec.Title,
-			End1ID:          rec.FromTopicID,
-			End2ID:          rec.ToTopicID,
-			WorkbookID:      rec.WorkbookID,
-			FromWorkbookID:  rec.FromWorkbookID,
-			FromSheetID:     rec.FromSheetID,
-			FromTopicID:     rec.FromTopicID,
-			ToWorkbookID:    rec.ToWorkbookID,
-			ToSheetID:       rec.ToSheetID,
-			ToTopicID:       rec.ToTopicID,
-			Type:            rec.Type,
-			Direction:       rec.Direction,
-			Weight:          rec.Weight,
-			Notes:           rec.Notes,
-			Color:           rec.Color,
-			Style:           rec.Style,
-			CreatedBy:       rec.CreatedBy,
-			CreatedAt:       rec.CreatedAt,
-			UpdatedAt:       rec.UpdatedAt,
-			Metadata:        rec.Metadata,
+			ID:             rec.ID,
+			Title:          rec.Title,
+			End1ID:         rec.FromTopicID,
+			End2ID:         rec.ToTopicID,
+			WorkbookID:     rec.WorkbookID,
+			FromWorkbookID: rec.FromWorkbookID,
+			FromSheetID:    rec.FromSheetID,
+			FromTopicID:    rec.FromTopicID,
+			ToWorkbookID:   rec.ToWorkbookID,
+			ToSheetID:      rec.ToSheetID,
+			ToTopicID:      rec.ToTopicID,
+			Type:           rec.Type,
+			Direction:      rec.Direction,
+			Weight:         rec.Weight,
+			Notes:          rec.Notes,
+			Color:          rec.Color,
+			Style:          rec.Style,
+			CreatedBy:      rec.CreatedBy,
+			CreatedAt:      rec.CreatedAt,
+			UpdatedAt:      rec.UpdatedAt,
+			Metadata:       rec.Metadata,
 		}
 		// Find target sheet: explicit FromSheetID, else first one
 		target := wb.Sheets[0]

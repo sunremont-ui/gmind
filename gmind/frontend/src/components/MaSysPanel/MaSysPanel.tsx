@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useAgentStore } from '../../store/agent'
+import { MaSysConnection } from './MaSysConnection'
 import type { AgentInfo } from '../../types/agent'
 import type { ModulePanelProps } from '../../modules/types'
 import { colors, fonts, fontSizes, fontWeights, spacing, radii, shadows, transitions } from '../../styles/tokens'
@@ -91,6 +92,8 @@ export function MaSysPanel({ workbookId, onClose }: ModulePanelProps) {
 
       {/* Content */}
       <div style={{ flex: 1, minHeight: 0, overflow: 'auto', padding: spacing.md, display: 'flex', flexDirection: 'column', gap: spacing.md }}>
+        <MaSysConnection />
+
         {agents.length > 0 && (
           <div>
             <div style={{ fontSize: fontSizes.label, color: colors.textSecondary, marginBottom: spacing.xxs }}>

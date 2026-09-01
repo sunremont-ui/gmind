@@ -168,16 +168,18 @@ transition: `background ${transitions.fast}, transform ${transitions.fast}`
 
 ## Темы mindmap
 
-Список тем в `frontend/src/types/theme.ts`. **Тема по умолчанию — Lumen** (первая в массиве `themes[]`).
+Список тем находится в `frontend/src/types/theme.ts`, а выбор и persistence —
+в `frontend/src/store/theme.ts`. **Тема карты по умолчанию — Midnight**;
+порядок элементов в `themes[]` больше не определяет дефолт.
 
 | ID | Название | Характер |
 |---|---|---|
-| `lumen` | **Lumen** | Indigo + Violet + Coral, нейтральный фон — **дефолт** |
+| `lumen` | Lumen | Indigo + Violet + Coral, нейтральный светлый фон |
 | `vivid` | Vivid | Purple + Pink + Blue |
 | `sunset` | Sunset | Orange + Red + Coral |
 | `ocean` | Ocean | Cyan + Blue + Teal |
 | `forest` | Forest | Green + Emerald + Yellow |
-| `midnight` | Midnight | Тёмный Indigo (для тёмной темы) |
+| `midnight` | **Midnight** | Тёмный Indigo — **дефолт** |
 | `silicon` | Silicon | Нейтральные серые |
 | `lavender` | Lavender | Purple + Indigo |
 | `peach` | Peach | Orange + Warm |
@@ -324,6 +326,16 @@ CSS variables дублируют TypeScript-токены — используй 
 
 **Dark mode:** переключается `[data-theme="dark"]` на `<html>` или `<body>`.
 
+В Gmind `App.tsx` синхронизирует DOM с темой карты: только `midnight` ставит
+`data-theme="dark"` и `color-scheme: dark`; остальные темы ставят `light`.
+Выбор хранится в `localStorage['gmind_theme']` и в `lastTheme` сессии.
+
+Логотип тоже зависит от темы: `/lumen-logo-dark.svg` используется в Header,
+Splash и на экране ошибки при Midnight, `/lumen-logo.svg` — при светлых темах.
+При этом текущие Header и Sidebar ещё используют общую светлую палитру Lumen:
+Midnight является тёмной темой холста и системной color-scheme, а не полностью
+отдельной тёмной оболочкой приложения.
+
 **Neumorphic shadows** (дополнительный набор для специальных компонентов):
 ```typescript
 shadows.neuSm        // 3px raised — мягкий объём
@@ -368,5 +380,6 @@ frontend/src/
 │   ├── Box.tsx              # Примитивы: Stack, Text, Button, Input, ...
 │   ├── Forms.tsx            # Формы: Select, Slider, ColorPicker, ...
 │   └── LumenIcon.tsx        # Кастомная иконная библиотека (35+ иконок)
-└── types/theme.ts           # Темы mindmap (10 тем, Lumen — дефолт)
+├── types/theme.ts           # Описания 10 тем mindmap
+└── store/theme.ts           # Midnight по умолчанию + localStorage persistence
 ```

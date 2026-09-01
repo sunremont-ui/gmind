@@ -153,8 +153,8 @@ func (h *AgentHandler) UpdateAgent(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req struct {
-		Provider     string `json:"provider,omitempty"`
-		Model        string `json:"model,omitempty"`
+		Provider     string  `json:"provider,omitempty"`
+		Model        string  `json:"model,omitempty"`
 		SystemPrompt *string `json:"system_prompt,omitempty"`
 	}
 	if err := decodeJSON(r, &req); err != nil {

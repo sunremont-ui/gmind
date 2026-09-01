@@ -10,7 +10,7 @@ import type { LayoutNode, CursorPosition, PresenceUser } from '../../types'
 import type { Topic } from '../../types'
 
 import type { StructureClass } from '../../types'
-import { LumenX, LumenChevronRight, LumenChevronLeft, LumenUndo, LumenRedo, LumenSearch, LumenInbox } from '../UI/LumenIcon'
+import { LumenX, LumenUndo, LumenRedo, LumenSearch, LumenInbox } from '../UI/LumenIcon'
 import { AnimatedMount } from '../UI/AnimatedMount'
 import { ErrorBoundary } from './ErrorBoundary'
 import { PropertiesPanel } from '../PropertiesPanel/PropertiesPanel'
@@ -30,16 +30,22 @@ import { RelationshipFilter } from './RelationshipFilter'
 import { useGraphDragTracking } from './useGraphDragTracking'
 import { useRelationshipsStore, type AnchorSide } from '../../store/relationships'
 import { KGSyncDialog } from '../MemoryWorkbench/KGSyncDialog'
+import { defaultPortForDirection, type ChildDirection, type NodeSide } from './nodeDirections'
+import { NodeStyleQuickPicker } from './NodeStyleQuickPicker'
+import { nearestNodeInDirection, type NavigationDirection } from './keyboardNavigation'
 
 import { colors, fonts, fontSizes, fontWeights, spacing, radii, shadows, transitions, z } from '../../styles/tokens'
 
 import { parseMarkdownToTopics } from '../../utils/markdown'
+import { RADIAL_KINDS } from '../../renderer/radialLayout'
 import { parseFreeMind } from '../../utils/freemind'
 import { offlineSettings, offlineQueue } from '../../utils/offline'
+import { openTopicLink } from '../../utils/openTopicLink'
 
 interface MindMapProps {
   workbookId: string
   onXMindImported?: (wbId: string) => void
+  onNavigateTopic?: (topicId: string) => void
 }
 
 const MAX_HISTORY = 50
@@ -56,7 +62,7 @@ function makeUserColor(): string {
   return USER_COLORS[Math.floor(Math.random() * USER_COLORS.length)]
 }
 
-export function MindMap({ workbookId, onXMindImported }: MindMapProps) {
+export function MindMap({ workbookId, onXMindImported, onNavigateTopic }: MindMapProps) {
   const {
     workbook,
     activeSheetId,
@@ -77,7 +83,10 @@ export function MindMap({ workbookId, onXMindImported }: MindMapProps) {
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; topicId: string } | null>(null)
   const [canvasMenu, setCanvasMenu] = useState<{ x: number; y: number } | null>(null)
   const [editingTopicId, setEditingTopicId] = useState<string | null>(null)
-  const [expandedTopicIds, setExpandedTopicIds] = useState<Set<string>>(new Set())
+  const [stylePicker, setStylePicker] = useState<{ topicId: string; x: number; y: number } | null>(null)
+  // Фактический размер узла в режиме правки (он расширяется под текст) —
+  // нужен, чтобы якоря EdgeAnchorsLayer сидели на гранях увеличенного узла.
+  const [editNodeSize, setEditNodeSize] = useState<{ width: number; height: number } | null>(null)
   const { theme } = useThemeStore()
   const userIdRef = useRef(localStorage.getItem('gmind_user_id') || 'user-' + Math.random().toString(36).slice(2, 8))
   const userNameRef = useRef(localStorage.getItem('gmind_user_name') || makeUserName())
@@ -99,6 +108,16 @@ export function MindMap({ workbookId, onXMindImported }: MindMapProps) {
   const [dragLine, setDragLine] = useState<{ x1: number; y1: number; x2: number; y2: number } | null>(null)
   const [connectLine, setConnectLine] = useState<{ x1: number; y1: number; x2: number; y2: number } | null>(null)
   const svgRef = useRef<SVGSVGElement>(null)
+  // Элемент холста держим ещё и в state. Нативные слушатели (колесо, курсор)
+  // вешаются в эффекте: если брать их из ref с пустыми зависимостями, эффект
+  // отработает один раз, и при любой пересборке <svg> (ремоунт, Fast Refresh)
+  // слушатель молча остаётся на оторванном узле — колесо перестаёт зумить до
+  // перезагрузки страницы. Callback-ref заставляет эффект перепривязаться.
+  const [svgEl, setSvgEl] = useState<SVGSVGElement | null>(null)
+  const attachSvg = useCallback((el: SVGSVGElement | null) => {
+    svgRef.current = el
+    setSvgEl(el)
+  }, [])
 
   // V5.0 relationships
   const fetchRelationships = useRelationshipsStore(s => s.fetch)
@@ -109,8 +128,19 @@ export function MindMap({ workbookId, onXMindImported }: MindMapProps) {
   const [zoom, setZoom] = useState(1)
   const [pan, setPan] = useState({ x: 0, y: 0 })
   const isPanning = useRef(false)
+  // Курсор «грабля» рисуется из state: ref во время рендера не читается заново,
+  // поэтому на одном isPanning.current курсор никогда не переключался.
+  const [panning, setPanning] = useState(false)
   const panStart = useRef({ x: 0, y: 0 })
   const panOrigin = useRef({ x: 0, y: 0 })
+  // Актуальные zoom/pan для нативных обработчиков (колесо), которые вешаются
+  // один раз и иначе читали бы значения из устаревшего замыкания. Обработчик
+  // колеса ведёт свою серию сам, поэтому обновляет их синхронно; здесь мы лишь
+  // подхватываем изменения извне (кнопки зума, сброс вида).
+  const zoomRef = useRef(zoom)
+  const panRef = useRef(pan)
+  useEffect(() => { zoomRef.current = zoom }, [zoom])
+  useEffect(() => { panRef.current = pan }, [pan])
 
   // Search
   const [showSearch, setShowSearch] = useState(false)
@@ -129,11 +159,16 @@ export function MindMap({ workbookId, onXMindImported }: MindMapProps) {
     image: topic.image,
     rich_text: topic.rich_text,
     structure_class: topic.structure_class,
+    child_dir: topic.child_dir,
+    parent_anchor: topic.parent_anchor,
     children: (topic.children || []).map(deepCloneForCopy),
   })
 
   const pasteTopicRecursive = async (parentId: string, data: Record<string, unknown>): Promise<void> => {
-    const result = await api.createTopic(workbookId, parentId, data.title as string)
+    const result = await api.createTopic(workbookId, parentId, data.title as string, undefined, {
+      childDir: data.child_dir as string | undefined,
+      parentAnchor: data.parent_anchor as string | undefined,
+    })
     const newId = result.id
     const updates: Record<string, unknown> = {}
     if (data.notes) updates.notes = data.notes
@@ -166,10 +201,11 @@ export function MindMap({ workbookId, onXMindImported }: MindMapProps) {
   // V6.1 — optimistic child/sibling creation: the node (with a client-generated
   // id) appears and enters edit mode immediately, while the server create runs
   // in the background. Offline → queued; online failure → rolled back.
-  const createChildOptimistic = useCallback((parentId: string, index?: number, childDir?: string) => {
+  const createChildOptimistic = useCallback((parentId: string, index?: number, childDir?: string, parentAnchor?: NodeSide) => {
     const id = crypto.randomUUID()
     const newTopic = { id, title: '', folded: false, children: [] } as Topic
     if (childDir) newTopic.child_dir = childDir
+    if (parentAnchor) newTopic.parent_anchor = parentAnchor
 
     // Memory Lab: type the new node by inheriting the parent's kind (default concept).
     const wb = useMindMapStore.getState().workbook
@@ -189,11 +225,11 @@ export function MindMap({ workbookId, onXMindImported }: MindMapProps) {
       offlineQueue.add({
         type: 'create',
         endpoint: `/workbooks/${workbookId}/topics`,
-        body: { title: '', parent_id: parentId, id, index, memory_kind: memoryKind, child_dir: childDir },
+        body: { title: '', parent_id: parentId, id, index, memory_kind: memoryKind, child_dir: childDir, parent_anchor: parentAnchor },
       }).catch(() => {})
       return
     }
-    api.createTopic(workbookId, parentId, '', undefined, { id, index, memoryKind, childDir })
+    api.createTopic(workbookId, parentId, '', undefined, { id, index, memoryKind, childDir, parentAnchor })
       .then(() => wsClient.sendOperation('topic_created', { parent_id: parentId, topic: newTopic }))
       .catch(err => {
         console.error('Failed to create topic:', err)
@@ -204,15 +240,38 @@ export function MindMap({ workbookId, onXMindImported }: MindMapProps) {
   // Клик/перетаскивание по точке узла → новый дочерний узел в этом направлении.
   // Направление хранится per-child (child_dir), поэтому остальные дети остаются
   // там, где были (раскладку родителя не меняем).
-  const createChildInDirection = useCallback((topicId: string, side: AnchorSide) => {
-    const dirBySide: Record<AnchorSide, string> = {
+  const createChildInDirection = useCallback((topicId: string, direction: AnchorSide | ChildDirection, sourceSide?: AnchorSide) => {
+    const dirBySide: Record<AnchorSide, ChildDirection> = {
       top: 'up',
       right: 'right',
       bottom: 'down',
       left: 'left',
     }
-    createChildOptimistic(topicId, undefined, dirBySide[side])
-  }, [createChildOptimistic])
+    const childDirection = direction in dirBySide
+      ? dirBySide[direction as AnchorSide]
+      : direction as ChildDirection
+    const parentAnchor = sourceSide
+      ?? (direction in dirBySide ? direction as AnchorSide : defaultPortForDirection(childDirection))
+    pushHistory()
+    createChildOptimistic(topicId, undefined, childDirection, parentAnchor)
+  }, [createChildOptimistic, pushHistory])
+
+  const handleTreeEdgeAnchorChange = useCallback((childId: string, parentSide: NodeSide, childDirection: ChildDirection) => {
+    const current = useMindMapStore.getState().getTopic(childId)
+    if (!current || (current.parent_anchor === parentSide && current.child_dir === childDirection)) return
+    pushHistory()
+    const update = { parent_anchor: parentSide, child_dir: childDirection }
+    updateTopicInTree(childId, update)
+    api.updateTopic(workbookId, childId, update)
+      .then(() => wsClient.sendOperation('topic_updated', { topic_id: childId, ...update }))
+      .catch(err => {
+        console.error('Failed to change tree edge port:', err)
+        updateTopicInTree(childId, {
+          parent_anchor: current.parent_anchor,
+          child_dir: current.child_dir,
+        })
+      })
+  }, [pushHistory, updateTopicInTree, workbookId])
 
   const undo = useCallback(async () => {
     const stack = undoStack.current
@@ -340,15 +399,28 @@ export function MindMap({ workbookId, onXMindImported }: MindMapProps) {
     return workbook.sheets.find(s => s.id === activeSheetId) ?? null
   }, [workbook, activeSheetId])
 
+  const noteTopicIds = useMemo(() => {
+    if (!activeSheet) return []
+    const ids: string[] = []
+    const collect = (topic: Topic) => {
+      if (topic.notes?.trim()) ids.push(topic.id)
+      topic.children?.forEach(collect)
+    }
+    collect(activeSheet.root_topic)
+    activeSheet.floating_topics?.forEach(collect)
+    return ids
+  }, [activeSheet])
+
   const levelGap = useLayoutStore(s => s.levelGap)
   const siblingGap = useLayoutStore(s => s.siblingGap)
   const childGap = useLayoutStore(s => s.childGap)
   const maxChars = useLayoutStore(s => s.maxChars)
   const fontSize = useLayoutStore(s => s.fontSize)
+  const nodePadding = useLayoutStore(s => s.nodePadding)
   const gaps = useMemo(() => ({ levelGap, siblingGap, childGap }), [levelGap, siblingGap, childGap])
   const layoutResult = useMemo((): LayoutNode | null => {
     if (!activeSheet) return null
-    const root = buildLayout(activeSheet.root_topic, 0, maxChars, fontSize)
+    const root = buildLayout(activeSheet.root_topic, 0, maxChars, fontSize, nodePadding)
 
     const structMap = new Map<string, StructureClass>()
     const collectStruct = (topic: import('../../types').Topic) => {
@@ -363,7 +435,7 @@ export function MindMap({ workbookId, onXMindImported }: MindMapProps) {
     const rootStruct = (activeSheet.root_topic.structure_class as StructureClass) || 'mindmap'
     const result = computeTreeLayout(root, rootStruct, structMap, gaps)
     return result.root
-  }, [activeSheet, gaps, maxChars, fontSize])
+  }, [activeSheet, gaps, maxChars, fontSize, nodePadding])
 
   // Floating topics are laid out as independent subtree roots anchored at their
   // stored position, so a node detached onto empty canvas keeps its children
@@ -371,7 +443,7 @@ export function MindMap({ workbookId, onXMindImported }: MindMapProps) {
   const floatingLayouts = useMemo((): LayoutNode[] => {
     if (!activeSheet?.floating_topics?.length) return []
     return activeSheet.floating_topics.map(ft => {
-      const root = buildLayout(ft, 0, maxChars, fontSize)
+      const root = buildLayout(ft, 0, maxChars, fontSize, nodePadding)
       const structMap = new Map<string, StructureClass>()
       const collect = (t: import('../../types').Topic) => {
         if (t.structure_class) structMap.set(t.id, t.structure_class as StructureClass)
@@ -384,7 +456,20 @@ export function MindMap({ workbookId, onXMindImported }: MindMapProps) {
       translate(laid, pos.x - laid.x, pos.y - laid.y)
       return laid
     })
-  }, [activeSheet, gaps, maxChars, fontSize])
+  }, [activeSheet, gaps, maxChars, fontSize, nodePadding])
+
+  const nodeClassOptions = useMemo(() => {
+    const result = new Set<string>()
+    const collect = (topic: Topic) => {
+      if (topic.memory_kind?.trim()) result.add(topic.memory_kind.trim())
+      topic.children?.forEach(collect)
+    }
+    workbook?.sheets.forEach(sheet => {
+      collect(sheet.root_topic)
+      sheet.floating_topics?.forEach(collect)
+    })
+    return [...result].sort((a, b) => a.localeCompare(b))
+  }, [workbook])
 
   // Node position map (SVG coords) from layout result + floating subtrees
   const nodePositions = useMemo(() => {
@@ -398,18 +483,36 @@ export function MindMap({ workbookId, onXMindImported }: MindMapProps) {
     return map
   }, [layoutResult, floatingLayouts])
 
+  // Размер холста держим в состоянии: раньше он читался из ref прямо в useMemo,
+  // поэтому на первом рендере был неизвестен, а после открытия панели или
+  // ресайза окна оставался старым — узлы отсекались по чужой рамке и не
+  // появлялись, пока карту не подвинешь.
+  const [canvasSize, setCanvasSize] = useState({ width: 0, height: 0 })
+  useEffect(() => {
+    const el = svgRef.current
+    if (!el) return
+    const update = () => {
+      const r = el.getBoundingClientRect()
+      setCanvasSize(prev => (
+        prev.width === r.width && prev.height === r.height ? prev : { width: r.width, height: r.height }
+      ))
+    }
+    update()
+    const observer = new ResizeObserver(update)
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [])
+
   // Viewport rect for culling
   const viewportRect = useMemo(() => {
-    const el = svgRef.current
-    if (!el) return null
-    const r = el.getBoundingClientRect()
+    if (!canvasSize.width || !canvasSize.height) return null
     return {
       left: -pan.x / zoom,
       top: -pan.y / zoom,
-      right: (-pan.x + r.width) / zoom,
-      bottom: (-pan.y + r.height) / zoom,
+      right: (canvasSize.width - pan.x) / zoom,
+      bottom: (canvasSize.height - pan.y) / zoom,
     }
-  }, [zoom, pan])
+  }, [zoom, pan, canvasSize])
 
   // Parent map for sibling lookup during reorder
   const parentMap = useMemo(() => {
@@ -529,21 +632,49 @@ export function MindMap({ workbookId, onXMindImported }: MindMapProps) {
   }, [toSvgPoint, nodePositions])
 
   useEffect(() => {
-    const svg = svgRef.current
+    const svg = svgEl
     if (!svg) return
     const handler = (e: WheelEvent) => {
+      // The note card owns the wheel while the pointer is over it. Let the
+      // browser scroll its text instead of turning the same gesture into zoom.
+      const target = e.target as Element | null
+      if (target?.closest?.('[data-note-scroll="true"]')) return
       e.preventDefault()
-      const delta = -e.deltaY * 0.001
-      setZoom(z => Math.max(0.1, Math.min(5, z + delta)))
+      const rect = svg.getBoundingClientRect()
+      const px = e.clientX - rect.left
+      const py = e.clientY - rect.top
+      // Масштаб множителем, а не слагаемым: шаг одинаково ощущается и на 20%,
+      // и на 300%. Пан подстраиваем так, чтобы точка под курсором осталась на
+      // месте — иначе карта уезжает из-под указателя на каждом тике колеса.
+      const factor = Math.exp(-e.deltaY * 0.0015)
+      const prevZoom = zoomRef.current
+      const next = Math.max(0.1, Math.min(5, prevZoom * factor))
+      if (next === prevZoom) return
+      const ratio = next / prevZoom
+      const prevPan = panRef.current
+      const nextPan = {
+        x: px - (px - prevPan.x) * ratio,
+        y: py - (py - prevPan.y) * ratio,
+      }
+      zoomRef.current = next
+      panRef.current = nextPan
+      setZoom(next)
+      setPan(nextPan)
     }
     svg.addEventListener('wheel', handler, { passive: false })
     return () => svg.removeEventListener('wheel', handler)
-  }, [])
+  }, [svgEl])
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    if (e.button === 1 || e.button === 0) {
+    // Средняя кнопка тянет холст откуда угодно. Левая — только с пустого места:
+    // иначе тот же жест одновременно тащит узел и всю карту, и перетаскивание
+    // выглядит как рывки.
+    const onBackground = e.target === e.currentTarget
+      || (e.target as Element | null)?.getAttribute?.('data-canvas-background') === 'true'
+    if (e.button === 1 || (e.button === 0 && onBackground)) {
       e.preventDefault()
       isPanning.current = true
+      setPanning(true)
       panStart.current = { x: e.clientX, y: e.clientY }
       panOrigin.current = { ...pan }
     }
@@ -557,7 +688,7 @@ export function MindMap({ workbookId, onXMindImported }: MindMapProps) {
         y: panOrigin.current.y + (e.clientY - panStart.current.y),
       })
     }
-    const handleUp = () => { isPanning.current = false }
+    const handleUp = () => { isPanning.current = false; setPanning(false) }
     window.addEventListener('pointermove', handleMove)
     window.addEventListener('pointerup', handleUp)
     return () => {
@@ -570,7 +701,7 @@ export function MindMap({ workbookId, onXMindImported }: MindMapProps) {
   const cursorThrottle = useRef(0)
   useEffect(() => {
     if (!broadcastCursor) return
-    const svg = svgRef.current
+    const svg = svgEl
     if (!svg) return
     const handler = (e: PointerEvent) => {
       const now = Date.now()
@@ -581,13 +712,9 @@ export function MindMap({ workbookId, onXMindImported }: MindMapProps) {
     }
     svg.addEventListener('pointermove', handler)
     return () => svg.removeEventListener('pointermove', handler)
-  }, [toSvgPoint, broadcastCursor])
+  }, [toSvgPoint, broadcastCursor, svgEl])
 
   const [activeTool, setActiveTool] = useState<Tool>('pointer')
-
-  // ---- View history ----
-  const viewHistory = useRef<string[]>([])
-  const viewHistoryIdx = useRef(-1)
 
   const [closeToken, setCloseToken] = useState(0)
   const [showHelp, setShowHelp] = useState(true)
@@ -603,12 +730,18 @@ export function MindMap({ workbookId, onXMindImported }: MindMapProps) {
   const [imagePrompt, setImagePrompt] = useState('')
   const [imageB64, setImageB64] = useState('')
   const [imageLoading, setImageLoading] = useState(false)
-  const [showNotesPopup, setShowNotesPopup] = useState(false)
-  const [notesPopupData, setNotesPopupData] = useState<{ topicId: string; text: string } | null>(null)
-  const [notesEditText, setNotesEditText] = useState('')
+  const [expandedNoteIds, setExpandedNoteIds] = useState<Set<string>>(() => new Set())
+  const [selectedNoteId, setSelectedNoteId] = useState<string | null>(null)
   const [commentsDialog, setCommentsDialog] = useState<{ topicId: string; title: string } | null>(null)
   const [showExportMenu, setShowExportMenu] = useState(false)
   const [showImportMenu, setShowImportMenu] = useState(false)
+
+  // Notes are a temporary canvas view. A new workbook or sheet always starts
+  // with the auxiliary note nodes hidden.
+  useEffect(() => {
+    setExpandedNoteIds(new Set())
+    setSelectedNoteId(null)
+  }, [workbookId, activeSheetId])
 
   // Auto-focus SVG on mount for immediate click handling
   useEffect(() => { svgRef.current?.focus() }, [])
@@ -619,27 +752,6 @@ export function MindMap({ workbookId, onXMindImported }: MindMapProps) {
       return () => clearTimeout(timer)
     }
   }, [showHelp])
-
-  const pushViewHistory = useCallback((topicId: string) => {
-    viewHistory.current = viewHistory.current.slice(0, viewHistoryIdx.current + 1)
-    viewHistory.current.push(topicId)
-    if (viewHistory.current.length > 50) viewHistory.current.shift()
-    viewHistoryIdx.current = viewHistory.current.length - 1
-  }, [])
-
-  const goBack = useCallback(() => {
-    if (viewHistoryIdx.current <= 0) return
-    viewHistoryIdx.current--
-    const id = viewHistory.current[viewHistoryIdx.current]
-    if (id) { setSelectedTopic(id); setShowProperties(true) }
-  }, [setSelectedTopic, setShowProperties])
-
-  const goForward = useCallback(() => {
-    if (viewHistoryIdx.current >= viewHistory.current.length - 1) return
-    viewHistoryIdx.current++
-    const id = viewHistory.current[viewHistoryIdx.current]
-    if (id) { setSelectedTopic(id); setShowProperties(true) }
-  }, [setSelectedTopic, setShowProperties])
 
   // ---- Tool panel handlers ----
   const handleCanvasToolClick = useCallback(async (e: React.MouseEvent) => {
@@ -653,7 +765,6 @@ export function MindMap({ workbookId, onXMindImported }: MindMapProps) {
     const y = (e.clientY - rect.top - pan.y) / zoom
 
     setContextMenu(null)
-    setShowProperties(true)
 
     try {
       if (activeTool === 'topic') {
@@ -732,11 +843,11 @@ export function MindMap({ workbookId, onXMindImported }: MindMapProps) {
         const side = zone?.side ?? 'right'
         const childDir = ({ top: 'up', right: 'right', bottom: 'down', left: 'left' } as Record<AnchorSide, string>)[side]
         pushHistory()
-        updateTopicInTree(sourceId, { child_dir: childDir })
+        updateTopicInTree(sourceId, { child_dir: childDir, parent_anchor: side })
         moveTopicInTree(sourceId, targetId, 0)
         wsClient.sendOperation('move', { topic_id: sourceId, new_parent_id: targetId })
         Promise.all([
-          api.updateTopic(workbookId, sourceId, { child_dir: childDir }),
+          api.updateTopic(workbookId, sourceId, { child_dir: childDir, parent_anchor: side }),
           api.moveTopic(workbookId, sourceId, targetId, 0),
         ]).catch(err => {
           console.error('Failed to reparent topic:', err)
@@ -840,26 +951,31 @@ export function MindMap({ workbookId, onXMindImported }: MindMapProps) {
 
   const handleTopicSelect = useCallback((topicId: string, e: React.MouseEvent) => {
     if (!draggingTopicId) {
+      setSelectedNoteId(null)
       if (e.metaKey || e.ctrlKey) {
         toggleSelectedTopic(topicId)
       } else {
         setSelectedTopic(topicId)
-        pushViewHistory(topicId)
+        onNavigateTopic?.(topicId)
       }
       setContextMenu(null)
-      setShowProperties(true)
     }
-  }, [draggingTopicId, setSelectedTopic, toggleSelectedTopic, pushViewHistory])
+  }, [draggingTopicId, onNavigateTopic, setSelectedTopic, toggleSelectedTopic])
 
   const handleTopicDoubleClick = useCallback((topicId: string) => {
     setEditingTopicId(topicId)
   }, [])
 
-  const handleTopicEditSave = useCallback(async (topicId: string, title: string, richText?: string) => {
+  const handleTopicEditResize = useCallback((topicId: string, width: number, height: number) => {
+    setEditNodeSize(prev => (prev && prev.width === width && prev.height === height ? prev : { width, height }))
+  }, [])
+
+  const handleTopicEditSave = useCallback(async (topicId: string, title: string, richText?: string, body?: string) => {
     if (!title.trim()) { setEditingTopicId(null); return }
     pushHistory()
-    const updates: Record<string, any> = { title: title.trim() }
-    if (richText !== undefined) updates.rich_text = richText
+    // rich_text/body отправляем всегда: пустая строка очищает поле на бэкенде
+    // (текст укоротили — тело узла должно исчезнуть, а не остаться от старой версии).
+    const updates: Record<string, any> = { title: title.trim(), rich_text: richText ?? '', body: body ?? '' }
     try {
       const isFloating = activeSheet?.floating_topics?.some(ft => ft.id === topicId)
       if (isFloating) {
@@ -875,44 +991,94 @@ export function MindMap({ workbookId, onXMindImported }: MindMapProps) {
       console.error('Failed to update topic:', err)
     }
     setEditingTopicId(null)
+    setEditNodeSize(null)
   }, [workbookId, activeSheet, updateTopicInTree, pushHistory])
+
+  const openNodeStylePicker = useCallback((topicId: string) => {
+    const node = findLayoutNode(layoutResult, topicId)
+      ?? floatingLayouts.reduce<LayoutNode | null>((found, root) => found ?? findLayoutNode(root, topicId), null)
+    const svgBox = svgRef.current?.getBoundingClientRect()
+    const panelWidth = 294
+    const gap = 14
+    const rightX = node && svgBox ? svgBox.left + pan.x + (node.x + node.width) * zoom + gap : window.innerWidth / 2 - panelWidth / 2
+    const leftX = node && svgBox ? svgBox.left + pan.x + node.x * zoom - panelWidth - gap : rightX
+    const x = rightX + panelWidth + 8 <= window.innerWidth ? rightX : leftX
+    const y = node && svgBox ? svgBox.top + pan.y + node.y * zoom : window.innerHeight / 2 - 180
+    setContextMenu(null)
+    setStylePicker({ topicId, x, y })
+  }, [findLayoutNode, floatingLayouts, layoutResult, pan.x, pan.y, zoom])
+
+  const handleTopicEditStyleRequest = useCallback((topicId: string, title: string, richText?: string, body?: string) => {
+    if (!title.trim()) {
+      setEditingTopicId(null)
+      return
+    }
+
+    // handleTopicEditSave делает history + серверную запись. Локальное дерево
+    // обновляем сразу, чтобы picker открылся без сетевой задержки.
+    void handleTopicEditSave(topicId, title, richText, body)
+    const updates = { title: title.trim(), rich_text: richText ?? '', body: body ?? '' }
+    const isFloating = activeSheet?.floating_topics?.some(topic => topic.id === topicId)
+    if (isFloating) useMindMapStore.getState().updateFloatingTopic(topicId, updates)
+    else updateTopicInTree(topicId, updates)
+    setEditingTopicId(null)
+    setEditNodeSize(null)
+    openNodeStylePicker(topicId)
+  }, [activeSheet, handleTopicEditSave, openNodeStylePicker, updateTopicInTree])
+
+  const handleQuickStyleChange = useCallback((updates: Partial<import('../../types').UpdateTopicRequest>) => {
+    if (!stylePicker) return
+    const topicId = stylePicker.topicId
+    const isFloating = activeSheet?.floating_topics?.some(topic => topic.id === topicId)
+    if (isFloating) useMindMapStore.getState().updateFloatingTopic(topicId, updates)
+    else updateTopicInTree(topicId, updates)
+    const request = isFloating
+      ? api.updateFloatingTopic(workbookId, topicId, updates)
+      : api.updateTopic(workbookId, topicId, updates)
+    request
+      .then(() => wsClient.sendOperation(isFloating ? 'floating_updated' : 'topic_updated', { topic_id: topicId, updates }))
+      .catch(err => console.error('Failed to update node style:', err))
+  }, [activeSheet, stylePicker, updateTopicInTree, workbookId])
+
+  const closeStylePicker = useCallback(() => {
+    setStylePicker(null)
+    requestAnimationFrame(() => svgRef.current?.focus())
+  }, [])
 
   const handleTopicEditCancel = useCallback(() => {
     setEditingTopicId(null)
+    setEditNodeSize(null)
   }, [])
 
-  const handleTopicNotesClick = useCallback((topicId: string, notes: string) => {
-    setNotesPopupData({ topicId, text: notes })
-    setNotesEditText(notes)
-    setShowNotesPopup(true)
+  const handleTopicNotesClick = useCallback((topicId: string) => {
+    setSelectedNoteId(null)
+    setExpandedNoteIds(current => {
+      const next = new Set(current)
+      if (next.has(topicId)) next.delete(topicId)
+      else next.add(topicId)
+      return next
+    })
   }, [])
+
+  const handleToggleAllNotes = useCallback(() => {
+    setSelectedNoteId(null)
+    setExpandedNoteIds(current => {
+      const allExpanded = noteTopicIds.length > 0 && noteTopicIds.every(id => current.has(id))
+      return allExpanded ? new Set() : new Set(noteTopicIds)
+    })
+  }, [noteTopicIds])
+
+  const handleNoteSelect = useCallback((topicId: string) => {
+    setSelectedNoteId(topicId)
+    setSelectedTopic(topicId)
+    onNavigateTopic?.(topicId)
+    setContextMenu(null)
+  }, [onNavigateTopic, setSelectedTopic])
 
   const handleTopicCommentsClick = useCallback((topicId: string) => {
     const topic = useMindMapStore.getState().getTopic(topicId)
     setCommentsDialog({ topicId, title: topic?.title || 'Topic' })
   }, [])
-
-  const handleNotesSave = useCallback(async () => {
-    if (!notesPopupData) return
-    pushHistory()
-    try {
-      const updates = { notes: notesEditText }
-      const isFloating = activeSheet?.floating_topics?.some(ft => ft.id === notesPopupData.topicId)
-      if (isFloating) {
-        await api.updateFloatingTopic(workbookId, notesPopupData.topicId, updates)
-        useMindMapStore.getState().updateFloatingTopic(notesPopupData.topicId, updates)
-        wsClient.sendOperation('floating_updated', { topic_id: notesPopupData.topicId, updates })
-      } else {
-        await api.updateTopic(workbookId, notesPopupData.topicId, updates)
-        updateTopicInTree(notesPopupData.topicId, updates)
-        wsClient.sendOperation('topic_updated', { topic_id: notesPopupData.topicId, updates })
-      }
-    } catch (err) {
-      console.error('Failed to save notes:', err)
-    }
-    setShowNotesPopup(false)
-    setNotesPopupData(null)
-  }, [notesPopupData, notesEditText, workbookId, activeSheet, updateTopicInTree, pushHistory])
 
   const handleTopicFoldToggle = useCallback(async (topicId: string) => {
     const topic = useMindMapStore.getState().getTopic(topicId)
@@ -944,15 +1110,6 @@ export function MindMap({ workbookId, onXMindImported }: MindMapProps) {
       console.error('Failed to toggle side fold:', err)
     }
   }, [workbookId, updateTopicInTree, pushHistory])
-
-  const handleTopicExpandToggle = useCallback((topicId: string, expanded: boolean) => {
-    setExpandedTopicIds(prev => {
-      const next = new Set(prev)
-      if (expanded) next.add(topicId)
-      else next.delete(topicId)
-      return next
-    })
-  }, [])
 
   const handleTogglePrivate = useCallback(async (v: boolean) => {
     if (!workbook) return
@@ -1369,7 +1526,10 @@ export function MindMap({ workbookId, onXMindImported }: MindMapProps) {
   // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      const tag = (e.target as HTMLElement)?.tagName
+      const target = e.target as HTMLElement
+      const tag = target?.tagName
+      const isUiControl = target?.isContentEditable
+        || tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || tag === 'BUTTON'
 
       if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
         e.preventDefault()
@@ -1392,7 +1552,7 @@ export function MindMap({ workbookId, onXMindImported }: MindMapProps) {
       }
 
       if ((e.ctrlKey || e.metaKey) && e.key === 'c') {
-        if (tag !== 'INPUT' && tag !== 'TEXTAREA' && selectedTopicId) {
+        if (!isUiControl && selectedTopicId) {
           e.preventDefault()
           const selIds = useMindMapStore.getState().selectedTopicIds
           const copyId = selIds[0] || selectedTopicId
@@ -1406,7 +1566,7 @@ export function MindMap({ workbookId, onXMindImported }: MindMapProps) {
       }
 
       if ((e.ctrlKey || e.metaKey) && e.key === 'v') {
-        if (tag !== 'INPUT' && tag !== 'TEXTAREA' && copiedTopicRef.current) {
+        if (!isUiControl && copiedTopicRef.current) {
           e.preventDefault()
           const parentId = selectedTopicId || activeSheet?.root_topic?.id
           if (!parentId) return
@@ -1419,30 +1579,71 @@ export function MindMap({ workbookId, onXMindImported }: MindMapProps) {
         return
       }
 
-      if ((e.altKey || e.metaKey) && e.key === 'ArrowLeft') {
-        e.preventDefault()
-        goBack()
-        return
-      }
-      if ((e.altKey || e.metaKey) && e.key === 'ArrowRight') {
-        e.preventDefault()
-        goForward()
-        return
-      }
-
-      if (e.key === 'Tab') {
-        if (tag !== 'INPUT' && tag !== 'TEXTAREA' && !editingTopicId) {
+      if (e.key === 'F2' && !isUiControl && !editingTopicId) {
+        const selectedId = useMindMapStore.getState().selectedTopicId
+        if (selectedId) {
           e.preventDefault()
-          const selId = useMindMapStore.getState().selectedTopicId || activeSheet?.root_topic?.id
-          if (!selId) return
-          pushHistory()
-          createChildOptimistic(selId)
+          setEditingTopicId(selectedId)
         }
         return
       }
 
-      if (e.key === 'Enter') {
-        if (tag !== 'INPUT' && tag !== 'TEXTAREA' && !editingTopicId) {
+      // Полная клавиатурная работа с геометрией карты:
+      // Arrow — перейти к ближайшему узлу, Shift+Arrow — создать ветку.
+      if (!isUiControl && !editingTopicId && !e.altKey && !e.metaKey && !e.ctrlKey
+        && ['ArrowUp', 'ArrowRight', 'ArrowDown', 'ArrowLeft'].includes(e.key)) {
+        e.preventDefault()
+        const direction = e.key.replace('Arrow', '').toLowerCase() as NavigationDirection
+        const selectedId = useMindMapStore.getState().selectedTopicId || activeSheet?.root_topic?.id
+        if (!selectedId) return
+        if (e.shiftKey) {
+          createChildInDirection(selectedId, direction)
+        } else {
+          const nextId = nearestNodeInDirection(nodePositions, selectedId, direction)
+          if (nextId) {
+            setSelectedTopic(nextId)
+            onNavigateTopic?.(nextId)
+          }
+        }
+        return
+      }
+
+      // Диагональные ветки с клавиатуры: Shift+Q/E/Z/C образуют четыре угла.
+      const diagonalKeys: Record<string, ChildDirection> = {
+        q: 'up-left', e: 'up-right', z: 'down-left', c: 'down-right',
+      }
+      const diagonalDirection = diagonalKeys[e.key.toLowerCase()]
+      if (e.shiftKey && diagonalDirection && !isUiControl && !editingTopicId
+        && !e.altKey && !e.metaKey && !e.ctrlKey) {
+        const selectedId = useMindMapStore.getState().selectedTopicId || activeSheet?.root_topic?.id
+        if (selectedId) {
+          e.preventDefault()
+          createChildInDirection(selectedId, diagonalDirection)
+        }
+        return
+      }
+
+      if (e.key === 'Tab' && !e.shiftKey) {
+        if (!isUiControl && !editingTopicId) {
+          e.preventDefault()
+          const selId = useMindMapStore.getState().selectedTopicId || activeSheet?.root_topic?.id
+          if (!selId) return
+          openNodeStylePicker(selId)
+        }
+        return
+      }
+
+      if ((e.key === 'Insert' || ((e.ctrlKey || e.metaKey) && e.key === 'Enter')) && !isUiControl && !editingTopicId) {
+        e.preventDefault()
+        const selId = useMindMapStore.getState().selectedTopicId || activeSheet?.root_topic?.id
+        if (!selId) return
+        pushHistory()
+        createChildOptimistic(selId)
+        return
+      }
+
+      if (e.key === 'Enter' && !e.ctrlKey && !e.metaKey) {
+        if (!isUiControl && !editingTopicId) {
           e.preventDefault()
           const selId = useMindMapStore.getState().selectedTopicId
           const rootId = activeSheet?.root_topic?.id
@@ -1468,7 +1669,7 @@ export function MindMap({ workbookId, onXMindImported }: MindMapProps) {
 
       // L — link the two most-recently selected topics (opens the connection popover).
       if ((e.key === 'l' || e.key === 'L') && !e.ctrlKey && !e.metaKey && !e.altKey) {
-        if (tag !== 'INPUT' && tag !== 'TEXTAREA' && !editingTopicId) {
+        if (!isUiControl && !editingTopicId) {
           const ids = useMindMapStore.getState().selectedTopicIds
           if (ids.length >= 2) {
             e.preventDefault()
@@ -1480,8 +1681,7 @@ export function MindMap({ workbookId, onXMindImported }: MindMapProps) {
 
       if (e.key === 'Delete' || e.key === 'Backspace') {
         const selIds = useMindMapStore.getState().selectedTopicIds
-        const isEditable = (e.target as HTMLElement).isContentEditable
-        if (tag !== 'INPUT' && tag !== 'TEXTAREA' && !isEditable && !editingTopicId && selIds.length > 0) {
+        if (!isUiControl && !editingTopicId && selIds.length > 0) {
           e.preventDefault()
           deleteSelectedTopic()
         }
@@ -1489,7 +1689,7 @@ export function MindMap({ workbookId, onXMindImported }: MindMapProps) {
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [selectedTopicIds, undo, redo, workbookId, activeSheet, activeTool, goBack, goForward, editingTopicId, addTopic, setSelectedTopic, pushHistory, createChildOptimistic, openConnectionPopover])
+  }, [selectedTopicIds, undo, redo, workbookId, activeSheet, activeTool, editingTopicId, addTopic, setSelectedTopic, pushHistory, createChildOptimistic, createChildInDirection, nodePositions, openConnectionPopover, openNodeStylePicker, onNavigateTopic])
 
   if (!workbook) {
     return (
@@ -1600,13 +1800,18 @@ export function MindMap({ workbookId, onXMindImported }: MindMapProps) {
           {showProperties ? 'Hide' : 'Props'}
         </ToolbarButton>
 
-        <ToolbarButton onClick={goBack}
-          disabled={viewHistoryIdx.current <= 0}
-          title="Back (Alt+Left)"><LumenChevronLeft size={14} strokeWidth={2.5} /></ToolbarButton>
-        <ToolbarButton onClick={goForward}
-          disabled={viewHistoryIdx.current >= viewHistory.current.length - 1}
-          title="Forward (Alt+Right)"><LumenChevronRight size={14} strokeWidth={2.5} /></ToolbarButton>
-        <span style={{ fontSize: fontSizes.caption, color: colors.separator, margin: `0 ${spacing.xxs}px` }}>|</span>
+        <ToolbarButton
+          onClick={handleToggleAllNotes}
+          disabled={noteTopicIds.length === 0}
+          title={noteTopicIds.length === 0
+            ? 'This sheet has no Notes'
+            : (noteTopicIds.every(id => expandedNoteIds.has(id)) ? 'Hide all Notes' : 'Show all Notes')}
+        >
+          {noteTopicIds.every(id => expandedNoteIds.has(id)) && noteTopicIds.length > 0
+            ? 'Hide all Notes'
+            : 'Show all Notes'}
+        </ToolbarButton>
+
         <ToolbarButton onClick={() => undoStack.current.length > 0 ? undo() : undefined}
           disabled={undoStack.current.length === 0}
           title="Undo (Ctrl+Z)"><LumenUndo size={14} strokeWidth={2.5} /></ToolbarButton>
@@ -1722,13 +1927,13 @@ export function MindMap({ workbookId, onXMindImported }: MindMapProps) {
         </div>
       )}
       <svg
-        ref={svgRef}
+        ref={attachSvg}
         width="100%"
         height="100%"
         tabIndex={0}
         style={{
           display: 'block', outline: 'none',
-          cursor: activeTool !== 'pointer' ? 'crosshair' : isPanning.current ? 'grabbing' : 'default',
+          cursor: activeTool !== 'pointer' ? 'crosshair' : panning ? 'grabbing' : 'default',
         }}
         onClick={(e) => {
           if (contextMenu) setContextMenu(null)
@@ -1742,6 +1947,7 @@ export function MindMap({ workbookId, onXMindImported }: MindMapProps) {
           const onNode = el?.closest?.('[data-topic-id]') || el?.closest?.('[data-anchor-side]')
           if (!onNode && activeTool === 'pointer') {
             setSelectedTopic(null)
+            setSelectedNoteId(null)
             setEditingTopicId(null)
             try { window.getSelection()?.removeAllRanges() } catch { /* ignore */ }
           }
@@ -1798,6 +2004,8 @@ export function MindMap({ workbookId, onXMindImported }: MindMapProps) {
             draggingTopicId={draggingTopicId}
             editingTopicId={editingTopicId}
             searchQuery={searchQuery}
+            expandedNoteIds={expandedNoteIds}
+            selectedNoteId={selectedNoteId}
             viewportRect={viewportRect}
             cursors={showRemoteCursors ? cursors : new Map()}
             onTopicSelect={handleTopicSelect}
@@ -1807,23 +2015,35 @@ export function MindMap({ workbookId, onXMindImported }: MindMapProps) {
             onTopicDragOver={handleTopicDragOver}
             onTopicDrop={handleTopicDrop}
             onTopicEditSave={handleTopicEditSave}
+            onTopicEditStyleRequest={handleTopicEditStyleRequest}
             onTopicEditCancel={handleTopicEditCancel}
+            onTopicEditResize={handleTopicEditResize}
             onTopicNotesClick={handleTopicNotesClick}
+            onNoteSelect={handleNoteSelect}
             onTopicCommentsClick={handleTopicCommentsClick}
             onTopicFoldToggle={handleTopicFoldToggle}
             onToggleChildSide={handleToggleChildSide}
-            onTopicExpandToggle={handleTopicExpandToggle}
+            onTreeEdgeAnchorChange={handleTreeEdgeAnchorChange}
             reorderTarget={reorderTarget}
           />
 
-          {/* V5.0: edge anchors on selected node */}
-          <EdgeAnchorsLayer
-            node={
-              findLayoutNode(layoutResult, selectedTopicId)
-              ?? floatingLayouts.reduce<LayoutNode | null>((acc, fl) => acc ?? findLayoutNode(fl, selectedTopicId), null)
-            }
-            onToggleSide={handleToggleChildSide}
-          />
+          {/* V5.0: edge anchors on selected node. В режиме правки якоря крепим
+              к редактируемому узлу и переопределяем размер на фактический
+              (узел расширился под текст), чтобы точки легли на грани. */}
+          {(() => {
+            const anchorId = editingTopicId ?? selectedTopicId
+            const anchorNode =
+              findLayoutNode(layoutResult, anchorId)
+              ?? floatingLayouts.reduce<LayoutNode | null>((acc, fl) => acc ?? findLayoutNode(fl, anchorId), null)
+            return (
+              <EdgeAnchorsLayer
+                node={anchorNode}
+                onToggleSide={handleToggleChildSide}
+                onCreateChild={createChildInDirection}
+                sizeOverride={editingTopicId ? editNodeSize : null}
+              />
+            )
+          })()}
 
           {/* Node-drag drop hint over the target: center=swap, edge=child-direction */}
           {dropZone && draggingTopicId && (() => {
@@ -1903,6 +2123,20 @@ export function MindMap({ workbookId, onXMindImported }: MindMapProps) {
       <AnchorActionMenu onCreateChild={createChildInDirection} />
       <RelationshipPanel />
       <RelationshipFilter />
+      {stylePicker && (() => {
+        const topic = useMindMapStore.getState().getTopic(stylePicker.topicId)
+        if (!topic) return null
+        return (
+          <NodeStyleQuickPicker
+            topic={topic}
+            classOptions={nodeClassOptions}
+            x={stylePicker.x}
+            y={stylePicker.y}
+            onChange={handleQuickStyleChange}
+            onClose={closeStylePicker}
+          />
+        )
+      })()}
 
       {/* V6.1 Memory Lab: sync MASys knowledge graph into this canvas. */}
       {workbook?.kind === 'memory_lab' && (
@@ -1925,7 +2159,7 @@ export function MindMap({ workbookId, onXMindImported }: MindMapProps) {
       <AnimatedMount
         show={showStyle}
         type="panel-left"
-        style={{ position: 'absolute', top: spacing.sm, left: spacing.sm, zIndex: 100, maxHeight: `calc(100% - ${spacing.sm * 2}px)`, display: 'flex' }}
+        style={{ position: 'absolute', top: spacing.sm, left: spacing.sm, zIndex: 100, height: `calc(100% - ${spacing.sm * 2}px)`, display: 'flex' }}
       >
         <StylePanel workbookId={workbookId} onClose={() => setShowStyle(false)} />
       </AnimatedMount>
@@ -1934,7 +2168,7 @@ export function MindMap({ workbookId, onXMindImported }: MindMapProps) {
       <AnimatedMount
         show={showProperties}
         type="panel-right"
-        style={{ position: 'absolute', top: spacing.sm, right: spacing.sm, zIndex: 100, maxHeight: `calc(100% - ${spacing.sm * 2}px)`, display: 'flex' }}
+        style={{ position: 'absolute', top: spacing.sm, right: spacing.sm, zIndex: 100, height: `calc(100% - ${spacing.sm * 2}px)`, display: 'flex' }}
       >
         <PropertiesPanel workbookId={workbookId} onClose={() => setShowProperties(false)} onCommentsClick={handleTopicCommentsClick} />
       </AnimatedMount>
@@ -1958,7 +2192,7 @@ export function MindMap({ workbookId, onXMindImported }: MindMapProps) {
             const t = useMindMapStore.getState().getTopic(contextMenu.topicId)
             return t?.hyperlink ? (
               <MenuItem onClick={() => {
-                window.open(t.hyperlink!, '_blank', 'noopener,noreferrer')
+                void openTopicLink(t.hyperlink!)
                 setContextMenu(null)
               }}>🔗 Open Link</MenuItem>
             ) : null
@@ -1994,11 +2228,14 @@ export function MindMap({ workbookId, onXMindImported }: MindMapProps) {
             loadWorkbook()
             setContextMenu(null)
           }}>Layout: Fishbone</MenuItem>
-          <MenuItem onClick={async () => {
-            await api.updateTopic(workbookId, contextMenu.topicId, { structure_class: 'radial' as StructureClass })
-            loadWorkbook()
-            setContextMenu(null)
-          }}>Layout: Radial</MenuItem>
+          {/* Радиальное семейство: разные способы разделить 360° вокруг узла */}
+          {RADIAL_KINDS.map(k => (
+            <MenuItem key={k.id} onClick={async () => {
+              await api.updateTopic(workbookId, contextMenu.topicId, { structure_class: k.id as StructureClass })
+              loadWorkbook()
+              setContextMenu(null)
+            }}>{k.label}</MenuItem>
+          ))}
           <div style={{ height: 1, background: colors.separator, margin: `${spacing.xs}px 0` }} />
           {activeSheet?.root_topic?.id !== contextMenu.topicId && (
             <MenuItem onClick={async () => {
@@ -2168,62 +2405,11 @@ export function MindMap({ workbookId, onXMindImported }: MindMapProps) {
           <div>🔄 <b>Right-click</b> for menu (add, rename, layout, delete)</div>
           <div>👇 <b>Long-press & drag</b> to move a topic</div>
           <div>⌨ <b>Ctrl+F</b> search &nbsp; <b>Ctrl+Z</b> undo &nbsp; <b>Ctrl+C/V</b> copy/paste &nbsp; <b>Alt+←→</b> history &nbsp; <b>Scroll</b> zoom</div>
-          <div>⌨ <b>Del</b> delete &nbsp; <b>Space+Drag</b> pan</div>
+          <div>⌨ <b>←↑↓→</b> select &nbsp; <b>Shift+←↑↓→</b> create &nbsp; <b>F2</b> edit &nbsp; <b>Tab</b> shape/class</div>
+          <div>⌨ <b>Insert / Ctrl+Enter</b> child &nbsp; <b>Enter</b> sibling</div>
+          <div>⌨ <b>Shift+Q/E/Z/C</b> diagonal branch &nbsp; <b>Del</b> delete &nbsp; <b>Space+Drag</b> pan</div>
         </div>
       )}
-
-      {/* Notes popup */}
-      <AnimatedMount show={showNotesPopup && !!notesPopupData} type="modal" style={{ position: 'fixed', inset: 0, zIndex: z.modal }}>
-        {showNotesPopup && notesPopupData && (
-        <div style={{ position: 'fixed', inset: 0, background: colors.scrim, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: fonts.ui }}
-          onClick={() => { setShowNotesPopup(false); setNotesPopupData(null) }}>
-          <div style={{ background: colors.bgTertiary, borderRadius: radii.lg, padding: spacing.xxxl, width: 480, boxShadow: shadows.neuLg, border: 'none' }}
-            onClick={e => e.stopPropagation()}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.xl }}>
-              <h2 style={{ fontSize: fontSizes.title, fontWeight: fontWeights.semibold, color: colors.text, margin: 0 }}>Notes</h2>
-              <button onClick={() => { setShowNotesPopup(false); setNotesPopupData(null) }}
-                style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: colors.textQuaternary, fontSize: fontSizes.title, padding: 0 }}
-                onMouseEnter={e => e.currentTarget.style.color = colors.text}
-                onMouseLeave={e => e.currentTarget.style.color = colors.textQuaternary}
-              ><LumenX size={18} strokeWidth={1.8} /></button>
-            </div>
-            <textarea
-              value={notesEditText}
-              onChange={e => setNotesEditText(e.target.value)}
-              placeholder="Add notes..."
-              rows={6}
-              style={{
-                width: '100%', padding: `${spacing.md}px ${spacing.lg}px`, fontSize: fontSizes.body,
-                border: 'none', borderRadius: radii.md,
-                resize: 'vertical', outline: 'none', marginBottom: spacing.lg,
-                fontFamily: fonts.ui, background: colors.bgTertiary, color: colors.text,
-                boxSizing: 'border-box', lineHeight: 1.5,
-                boxShadow: shadows.neuInsetSm,
-                transition: `box-shadow ${transitions.fast}`,
-              }}
-              onFocus={e => { e.currentTarget.style.boxShadow = `${shadows.neuInsetSm}, 0 0 0 3px ${colors.accentLight}` }}
-              onBlur={e => { e.currentTarget.style.boxShadow = shadows.neuInsetSm }}
-            />
-            <div style={{ display: 'flex', gap: spacing.md, justifyContent: 'flex-end' }}>
-              <button onClick={() => { setShowNotesPopup(false); setNotesPopupData(null) }}
-                style={{
-                  padding: `${spacing.lg}px ${spacing.xxl}px`,
-                  background: colors.bgTertiary, color: colors.textSecondary,
-                  border: 'none', borderRadius: radii.md, cursor: 'pointer',
-                  fontSize: fontSizes.body, fontWeight: fontWeights.semibold, fontFamily: fonts.ui,
-                }}>Cancel</button>
-              <button onClick={handleNotesSave}
-                style={{
-                  padding: `${spacing.lg}px ${spacing.xxl}px`,
-                  background: colors.accent, color: colors.textInverse,
-                  border: 'none', borderRadius: radii.md, cursor: 'pointer',
-                  fontSize: fontSizes.body, fontWeight: fontWeights.semibold, fontFamily: fonts.ui,
-                }}>Save</button>
-            </div>
-          </div>
-        </div>
-      )}
-      </AnimatedMount>
 
       {/* Comments dialog */}
       {commentsDialog && (

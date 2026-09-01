@@ -55,9 +55,9 @@
 
 ### Дизайн-система
 - [x] **Apple Design System** — SF Pro typography, 8px grid, frosted glass, macOS-style Header/Sidebar
-- [x] **10 тем mindmap** — Lumen (дефолт), Vivid, Sunset, Ocean, Forest, Midnight, Silicon, Lavender, Peach, Aurora
+- [x] **10 тем mindmap** — Midnight (дефолт), Lumen, Vivid, Sunset, Ocean, Forest, Silicon, Lavender, Peach, Aurora
 - [x] **Lumen Design System** — токены, UI-примитивы (Box, Forms), компонентный шаблон
-- [x] **Тёмная тема (системная)** — авто-переключение по `prefers-color-scheme`
+- [x] **Midnight integration** — выбор сохраняется, включает dark color-scheme и тёмный Lumen-логотип
 
 ### Модульная архитектура
 - [x] **Module System** — core.Module interface, Registry, EventBus, lifecycle с графом зависимостей
@@ -78,7 +78,9 @@
 - [x] **Sync on reconnect** — авто-воспроизведение pending_ops при возврате онлайн
 - [x] **Inbox Workbook** — авто-создание при старте, отдельная секция в Sidebar
 - [x] **Удаление дублирующейся панели** — всё перенесено в тулбар
-- [x] **Responsive sidebar** — toggle collapsible (≡/←), анимация ширины 260↔48px
+- [x] **Responsive sidebar** — 48px collapsed, 220–560px drag-resize expanded, keyboard + persistence
+- [x] **Корневая навигация** — история документов, breadcrumb, возврат к карте корня и reveal в дереве
+- [x] **ProjectTree** — default-collapsed папки, свернуть/развернуть всё, создать Markdown, удалить документ
 - [x] **Scrollable panels** — AIPanel/AgentPanel/PropertiesPanel скроллятся при переполнении
 - [x] **Comments on Nodes** — 💬 иконка на каждой ноде, модальный CommentsPanel
 - [x] **Agent Task Submission** — ⚡ кнопка "Submit Task →" на карточке агента

@@ -6,22 +6,68 @@ import { offlineStorage, offlineSettings } from '../../utils/offline'
 import type { Workbook } from '../../types'
 import { colors, fonts, fontSizes, fontWeights, spacing, radii, shadows, transitions, sizes } from '../../styles/tokens'
 import { Button, Text, Input } from '../UI/Box'
+import { ProjectTree } from './ProjectTree'
+import type { ProjectRootContext } from '../../utils/documentNavigation'
 
 const INBOX_WB_KEY = 'inbox_workbook_id'
+const SIDEBAR_WIDTH_KEY = 'gmind_sidebar_width'
+const SIDEBAR_MIN_WIDTH = 220
+const SIDEBAR_MAX_WIDTH = 560
+const SIDEBAR_KEYBOARD_STEP = 16
+
+function clampSidebarWidth(width: number): number {
+  const viewportMax = typeof window === 'undefined'
+    ? SIDEBAR_MAX_WIDTH
+    : Math.max(SIDEBAR_MIN_WIDTH, Math.floor(window.innerWidth * 0.55))
+  return Math.min(Math.max(Math.round(width), SIDEBAR_MIN_WIDTH), Math.min(SIDEBAR_MAX_WIDTH, viewportMax))
+}
+
+function readSidebarWidth(): number {
+  try {
+    const stored = Number(localStorage.getItem(SIDEBAR_WIDTH_KEY))
+    return Number.isFinite(stored) && stored > 0 ? clampSidebarWidth(stored) : sizes.sidebar
+  } catch {
+    return sizes.sidebar
+  }
+}
+
+function persistSidebarWidth(width: number) {
+  try {
+    localStorage.setItem(SIDEBAR_WIDTH_KEY, String(width))
+  } catch {
+    // В приватном режиме ширина просто не переживёт перезапуск.
+  }
+}
 
 interface SidebarProps {
   activeWorkbookId: string | null
   onSelectWorkbook: (id: string) => void
   collapsed?: boolean
   onToggle?: () => void
+  projectRoot?: ProjectRootContext | null
+  activeSourcePath?: string
+  onOpenProjectDocument?: (path: string) => void
+  onProjectChanged?: (workbook: Workbook, deletedPath?: string, deletedWorkbookIds?: string[]) => void
 }
 
-export function Sidebar({ activeWorkbookId, onSelectWorkbook, collapsed = false, onToggle }: SidebarProps) {
+export function Sidebar({
+  activeWorkbookId,
+  onSelectWorkbook,
+  collapsed = false,
+  projectRoot = null,
+  activeSourcePath,
+  onOpenProjectDocument,
+  onProjectChanged,
+}: SidebarProps) {
   const [workbooks, setWorkbooks] = useState<Workbook[]>([])
   const [inboxId, setInboxId] = useState<string | null>(null)
   const [showNewDialog, setShowNewDialog] = useState(false)
   const [newTitle, setNewTitle] = useState('')
+  const [sidebarWidth, setSidebarWidth] = useState(readSidebarWidth)
+  const [isResizing, setIsResizing] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const resizeStartRef = useRef({ x: 0, width: sizes.sidebar })
+  const sidebarWidthRef = useRef(sidebarWidth)
 
   const loadWorkbooks = async () => {
     try {
@@ -41,6 +87,45 @@ export function Sidebar({ activeWorkbookId, onSelectWorkbook, collapsed = false,
       if (id) setInboxId(id)
     })
   }, [workbooks])
+
+  useEffect(() => {
+    if (!isResizing) return
+
+    const previousCursor = document.body.style.cursor
+    const previousUserSelect = document.body.style.userSelect
+    document.body.style.cursor = 'col-resize'
+    document.body.style.userSelect = 'none'
+
+    const handlePointerMove = (event: PointerEvent) => {
+      const next = clampSidebarWidth(
+        resizeStartRef.current.width + event.clientX - resizeStartRef.current.x,
+      )
+      sidebarWidthRef.current = next
+      setSidebarWidth(next)
+    }
+    const finishResize = () => {
+      persistSidebarWidth(sidebarWidthRef.current)
+      setIsResizing(false)
+    }
+
+    window.addEventListener('pointermove', handlePointerMove)
+    window.addEventListener('pointerup', finishResize, { once: true })
+    window.addEventListener('pointercancel', finishResize, { once: true })
+    return () => {
+      window.removeEventListener('pointermove', handlePointerMove)
+      window.removeEventListener('pointerup', finishResize)
+      window.removeEventListener('pointercancel', finishResize)
+      document.body.style.cursor = previousCursor
+      document.body.style.userSelect = previousUserSelect
+    }
+  }, [isResizing])
+
+  const setAndPersistSidebarWidth = (width: number) => {
+    const next = clampSidebarWidth(width)
+    sidebarWidthRef.current = next
+    setSidebarWidth(next)
+    persistSidebarWidth(next)
+  }
 
   const createWorkbook = async () => {
     const title = newTitle.trim() || 'Untitled mind map'
@@ -71,7 +156,7 @@ export function Sidebar({ activeWorkbookId, onSelectWorkbook, collapsed = false,
 
   return (
     <div style={{
-      width: collapsed ? sizes.sidebarCollapsed : sizes.sidebar,
+      width: collapsed ? sizes.sidebarCollapsed : sidebarWidth,
       background: colors.bgTertiary,
       borderRight: 'none',
       boxShadow: shadows.neuInset,
@@ -80,7 +165,8 @@ export function Sidebar({ activeWorkbookId, onSelectWorkbook, collapsed = false,
       fontFamily: fonts.ui,
       flexShrink: 0,
       overflow: 'hidden',
-      transition: `width ${transitions.fast}`,
+      position: 'relative',
+      transition: isResizing ? 'none' : `width ${transitions.fast}`,
     }}>
       {!collapsed && (
         <>
@@ -163,6 +249,22 @@ export function Sidebar({ activeWorkbookId, onSelectWorkbook, collapsed = false,
 
           {/* Workbook list */}
           <div style={{ flex: 1, overflow: 'auto', padding: `${spacing.sm}px ${spacing.md}px` }}>
+            {projectRoot && onOpenProjectDocument && onProjectChanged && (
+              <ProjectTree
+                key={projectRoot.path}
+                projectRoot={projectRoot}
+                activeWorkbookId={activeWorkbookId}
+                activeSourcePath={activeSourcePath}
+                onOpenRoot={() => onSelectWorkbook(projectRoot.workbookId)}
+                onOpenDocument={onOpenProjectDocument}
+                onProjectChanged={onProjectChanged}
+              />
+            )}
+
+            <details key={projectRoot?.path ?? 'all-workbooks'} open={projectRoot ? undefined : true}>
+              <summary style={projectRoot ? otherWorkbooksSummaryStyle : hiddenSummaryStyle}>
+                Другие карты
+              </summary>
             {/* Inbox */}
             {inboxWb && (
               <div style={{ marginBottom: spacing.lg }}>
@@ -214,6 +316,7 @@ export function Sidebar({ activeWorkbookId, onSelectWorkbook, collapsed = false,
                 accent={false}
               />
             ))}
+            </details>
           </div>
         </>
       )}
@@ -263,8 +366,87 @@ export function Sidebar({ activeWorkbookId, onSelectWorkbook, collapsed = false,
           </div>
         </div>
       )}
+
+      {!collapsed && (
+        <div
+          role="separator"
+          aria-label="Изменить ширину боковой панели"
+          aria-orientation="vertical"
+          aria-valuemin={SIDEBAR_MIN_WIDTH}
+          aria-valuemax={SIDEBAR_MAX_WIDTH}
+          aria-valuenow={sidebarWidth}
+          tabIndex={0}
+          title="Потяните, чтобы изменить ширину · двойной щелчок — сбросить"
+          onPointerDown={event => {
+            if (event.button !== 0) return
+            event.preventDefault()
+            event.currentTarget.setPointerCapture?.(event.pointerId)
+            resizeStartRef.current = { x: event.clientX, width: sidebarWidth }
+            sidebarWidthRef.current = sidebarWidth
+            setIsResizing(true)
+          }}
+          onDoubleClick={() => setAndPersistSidebarWidth(sizes.sidebar)}
+          onKeyDown={event => {
+            if (event.key === 'ArrowLeft') {
+              event.preventDefault()
+              setAndPersistSidebarWidth(sidebarWidth - SIDEBAR_KEYBOARD_STEP)
+            } else if (event.key === 'ArrowRight') {
+              event.preventDefault()
+              setAndPersistSidebarWidth(sidebarWidth + SIDEBAR_KEYBOARD_STEP)
+            } else if (event.key === 'Home') {
+              event.preventDefault()
+              setAndPersistSidebarWidth(sizes.sidebar)
+            }
+          }}
+          style={{ ...resizeHandleStyle, ...(isResizing ? resizeHandleActiveStyle : {}) }}
+        >
+          <span aria-hidden="true" style={resizeGripStyle} />
+        </div>
+      )}
     </div>
   )
+}
+
+const resizeHandleStyle: React.CSSProperties = {
+  position: 'absolute',
+  top: 0,
+  right: 0,
+  bottom: 0,
+  width: 9,
+  zIndex: 20,
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  cursor: 'col-resize',
+  touchAction: 'none',
+  outline: 'none',
+}
+
+const resizeHandleActiveStyle: React.CSSProperties = {
+  background: colors.accentLight,
+}
+
+const resizeGripStyle: React.CSSProperties = {
+  width: 2,
+  height: 36,
+  borderRadius: 2,
+  background: colors.separatorThick,
+  boxShadow: shadows.neuSm,
+}
+
+const otherWorkbooksSummaryStyle: React.CSSProperties = {
+  padding: `${spacing.md}px`,
+  color: colors.textTertiary,
+  fontSize: fontSizes.caption,
+  fontWeight: fontWeights.semibold,
+  textTransform: 'uppercase',
+  letterSpacing: '0.06em',
+  cursor: 'pointer',
+  userSelect: 'none',
+}
+
+const hiddenSummaryStyle: React.CSSProperties = {
+  display: 'none',
 }
 
 interface WorkbookItemProps {

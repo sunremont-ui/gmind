@@ -8,8 +8,9 @@ import type {
   RelationshipDirection,
 } from '../types/api'
 import { relationshipsApi } from '../api/relationships'
+import type { NodeSide } from '../components/MindMap/nodeDirections'
 
-export type AnchorSide = 'top' | 'right' | 'bottom' | 'left'
+export type AnchorSide = NodeSide
 
 export interface DragState {
   isDragging: boolean
@@ -35,6 +36,7 @@ interface RelationshipsState {
   pendingConnection: {
     fromTopicId: string
     toTopicId: string
+    fromSide: AnchorSide | null
     screenX: number
     screenY: number
   } | null
@@ -61,7 +63,7 @@ interface RelationshipsState {
   cancelDrag: () => void
 
   // Popover (after drop)
-  openPopover: (fromTopicId: string, toTopicId: string, x: number, y: number) => void
+  openPopover: (fromTopicId: string, toTopicId: string, x: number, y: number, fromSide?: AnchorSide | null) => void
   closePopover: () => void
 
   // Anchor click menu
@@ -173,8 +175,8 @@ export const useRelationshipsStore = create<RelationshipsState>((set, get) => ({
 
   cancelDrag: () => set({ drag: initialDrag }),
 
-  openPopover: (fromTopicId, toTopicId, x, y) => set({
-    pendingConnection: { fromTopicId, toTopicId, screenX: x, screenY: y },
+  openPopover: (fromTopicId, toTopicId, x, y, fromSide = null) => set({
+    pendingConnection: { fromTopicId, toTopicId, fromSide, screenX: x, screenY: y },
   }),
 
   closePopover: () => set({ pendingConnection: null }),

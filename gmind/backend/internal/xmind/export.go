@@ -29,6 +29,12 @@ type XMindTopic struct {
 	Markers  []string       `json:"markers,omitempty"`
 	Labels   []string       `json:"labels,omitempty"`
 	Folded   bool           `json:"folded,omitempty"`
+	// Gmind — расширение под свою модель узла: тело, оформление, вид памяти,
+	// направление ветки, ссылка на файл. Стандартные поля выше остаются на
+	// местах (обычный XMind читает файл как раньше), а всё, чего в формате
+	// XMind нет, ездит здесь — иначе обмен через .xmind молча стирал тело
+	// узла и весь его вид.
+	Gmind *model.Topic `json:"gmind,omitempty"`
 }
 
 type XMindChildren struct {
@@ -40,6 +46,8 @@ type XMindRelationship struct {
 	Title  string `json:"title,omitempty"`
 	End1ID string `json:"end1_id"`
 	End2ID string `json:"end2_id"`
+	// Gmind — типизированная связь V5.0 целиком: тип, направление, вес, цвет.
+	Gmind *model.Relationship `json:"gmind,omitempty"`
 }
 
 type XMindManifest struct {
@@ -70,6 +78,7 @@ func Export(wb *model.Workbook) ([]byte, error) {
 				Title:  rel.Title,
 				End1ID: rel.End1ID,
 				End2ID: rel.End2ID,
+				Gmind:  rel,
 			})
 		}
 		xw.Sheets = append(xw.Sheets, xs)
@@ -111,6 +120,11 @@ func Export(wb *model.Workbook) ([]byte, error) {
 }
 
 func convertTopic(t *model.Topic) XMindTopic {
+	// Копия без детей: дерево живёт в стандартном children.attached, дублировать
+	// его внутри расширения незачем.
+	extras := *t
+	extras.Children = nil
+
 	xt := XMindTopic{
 		ID:      t.ID,
 		Title:   t.Title,
@@ -118,6 +132,7 @@ func convertTopic(t *model.Topic) XMindTopic {
 		Markers: t.Markers,
 		Labels:  t.Labels,
 		Folded:  t.Folded,
+		Gmind:   &extras,
 	}
 
 	if len(t.Children) > 0 {

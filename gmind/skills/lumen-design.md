@@ -208,7 +208,9 @@ onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
 
 ## Mindmap-темы
 
-Тема `lumen` — дефолт. Переключение через `useThemeStore`:
+Тема `midnight` — дефолт. Источник истины для дефолта и persistence —
+`frontend/src/store/theme.ts`, а не позиция темы в массиве `themes[]`.
+Переключение через `useThemeStore`:
 
 ```typescript
 import { useThemeStore } from '../../store/theme'
@@ -216,10 +218,19 @@ import { useThemeStore } from '../../store/theme'
 const { theme, setTheme } = useThemeStore()
 
 // Применить тему:
-setTheme('lumen')    // дефолт
-setTheme('midnight') // тёмная
+setTheme('midnight') // дефолт, тёмная
+setTheme('lumen')    // светлая Lumen
 setTheme('ocean')    // синяя
 ```
+
+Выбор сохраняется в `localStorage['gmind_theme']`. `App.tsx` при Midnight
+ставит на `<html>` `data-theme="dark"` и `color-scheme: dark`, а также выбирает
+`/lumen-logo-dark.svg` для Header, Splash и экрана ошибки. Для остальных тем
+используется `/lumen-logo.svg`.
+
+Не считай это полной dark-shell темой: сейчас Midnight затемняет карту и
+включает системную dark color-scheme, но Header/Sidebar используют общие
+Lumen-токены светлой оболочки.
 
 В SVG-рендерере темы определяют:
 - `theme.topic.fill/stroke/textColor` — стиль нод

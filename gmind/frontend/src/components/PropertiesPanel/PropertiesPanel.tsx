@@ -5,7 +5,9 @@ import { wsClient } from '../../api/ws'
 import type { Topic } from '../../types'
 import { colors, fonts, fontSizes, fontWeights, spacing, radii, shadows, transitions, sizes } from '../../styles/tokens'
 import { Button, Text, Input } from '../UI/Box'
-import { MEMORY_KINDS } from '../MindMap/memoryKinds'
+import { allPackages, memoryPackage } from '../../renderer/memoryPackages'
+import { RADIAL_KINDS, isRadialKind } from '../../renderer/radialLayout'
+import { ShapePicker, ShapePreview } from './ShapePicker'
 import { LumenStar, LumenHeart, LumenFlag, LumenLightbulb, LumenTarget, LumenCrown, LumenBrain, LumenRocket, LumenCode, LumenBookmark, LumenZap, LumenClock, LumenCheckCircle, LumenCloud, LumenSun, LumenGlobe, LumenLock, LumenKey, LumenMusic, LumenCamera, LumenImage, LumenUser, LumenBot, LumenHome, LumenFlame, LumenChevronRight, LumenX } from '../UI/LumenIcon'
 import type { IconProps } from '../UI/LumenIcon'
 
@@ -35,14 +37,6 @@ const FONT_WEIGHTS = [
   { value: 500, label: 'Medium' },
   { value: 600, label: 'Semibold' },
   { value: 700, label: 'Bold' },
-]
-
-const SHAPES = [
-  { value: 'rounded', label: 'Rounded' },
-  { value: 'rectangle', label: 'Rectangle' },
-  { value: 'pill', label: 'Pill' },
-  { value: 'diamond', label: 'Diamond' },
-  { value: 'cloud', label: 'Cloud' },
 ]
 
 const SHADOW_TYPES = [
@@ -133,7 +127,11 @@ export function PropertiesPanel({ workbookId, onClose, onCommentsClick }: Proper
   const [siblingGap, setSiblingGap] = useState<number | undefined>(undefined)
   const [commentIcon, setCommentIcon] = useState('💬')
   const [sections, setSections] = useState({ basic: true, notes: false, markers: false, advanced: false, style: false, comment: false });
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const pendingSavesRef = useRef(new Map<string, {
+    timer: ReturnType<typeof setTimeout>
+    updates: Partial<Topic>
+    isFloating: boolean
+  }>())
 
   useEffect(() => {
     if (!selectedTopicId) return
@@ -180,22 +178,41 @@ export function PropertiesPanel({ workbookId, onClose, onCommentsClick }: Proper
 
   const autoSave = useCallback((updates: Partial<Topic>) => {
     if (!selectedTopicId) return
-    if (debounceRef.current) clearTimeout(debounceRef.current)
-    debounceRef.current = setTimeout(async () => {
+    const topicId = selectedTopicId
+    const pending = pendingSavesRef.current.get(topicId)
+    if (pending) clearTimeout(pending.timer)
+
+    const mergedUpdates = { ...(pending?.updates || {}), ...updates }
+    const floating = isFloating
+    const timer = setTimeout(async () => {
+      const queued = pendingSavesRef.current.get(topicId)
+      if (!queued) return
+      pendingSavesRef.current.delete(topicId)
       try {
-        if (isFloating) {
-          await api.updateFloatingTopic(workbookId, selectedTopicId, updates)
-          updateFloatingTopic(selectedTopicId, updates)
+        if (queued.isFloating) {
+          await api.updateFloatingTopic(workbookId, topicId, queued.updates)
+          updateFloatingTopic(topicId, queued.updates)
         } else {
-          await api.updateTopic(workbookId, selectedTopicId, updates)
-          updateTopicInTree(selectedTopicId, updates)
+          await api.updateTopic(workbookId, topicId, queued.updates)
+          updateTopicInTree(topicId, queued.updates)
         }
-        wsClient.send({ type: 'update', payload: { topic_id: selectedTopicId } })
+        wsClient.send({ type: 'update', payload: { topic_id: topicId } })
       } catch (err) {
         console.error('Auto-save failed:', err)
       }
     }, 300)
+
+    pendingSavesRef.current.set(topicId, {
+      timer,
+      updates: mergedUpdates,
+      isFloating: floating,
+    })
   }, [selectedTopicId, isFloating, workbookId, updateTopicInTree, updateFloatingTopic])
+
+  useEffect(() => () => {
+    for (const pending of pendingSavesRef.current.values()) clearTimeout(pending.timer)
+    pendingSavesRef.current.clear()
+  }, [])
 
   const setAndSave = useCallback((field: string, value: unknown) => {
     if (field === 'title') setTitle(value as string)
@@ -349,11 +366,23 @@ export function PropertiesPanel({ workbookId, onClose, onCommentsClick }: Proper
                 }}
               >
                 <option value="">—</option>
-                {Object.entries(MEMORY_KINDS).map(([k, d]) => (
-                  <option key={k} value={k}>{d.icon} {d.label}</option>
+                {/* Список из реестра корпусов: сюда попадают и свои виды. */}
+                {allPackages().map(p => (
+                  <option key={p.kind} value={p.kind}>{p.icon} {p.label} · {p.code}</option>
                 ))}
               </select>
             ))}
+            {/* Какой корпус получил узел: форма и оформление по виду памяти. */}
+            {workbook?.kind === 'memory_lab' && topic.memory_kind && (() => {
+              const pkg = memoryPackage(topic.memory_kind)
+              if (!pkg) return null
+              return (
+                <div style={{ gridColumn: '1 / -1', fontSize: 10, color: colors.textTertiary }}>
+                  Корпус <code style={{ color: pkg.color }}>{pkg.code}</code>: {pkg.shape}
+                  {topic.shape ? ' (перекрыт своей формой)' : ''} · {pkg.hint}
+                </div>
+              )
+            })()}
             {topic && !workbook?.sheets.some(s => s.root_topic.id === selectedTopicId) && !isFloating && ctrl('Parent', (
               <div style={{ fontSize: fontSizes.label, color: colors.textSecondary, background: colors.fill, padding: `${spacing.sm}px ${spacing.md}px`, borderRadius: radii.sm, border: `1px solid ${colors.separator}` }}>
                 {findBreadcrumb(workbook?.sheets || [], selectedTopicId)}
@@ -454,9 +483,18 @@ export function PropertiesPanel({ workbookId, onClose, onCommentsClick }: Proper
                 <option value="tree-down">Tree Down</option>
                 <option value="tree-up">Tree Up</option>
                 <option value="fishbone">Fishbone</option>
-                <option value="radial">Radial</option>
+                {/* Радиальное семейство: разные способы разделить 360° вокруг узла */}
+                {RADIAL_KINDS.map(k => (
+                  <option key={k.id} value={k.id} title={k.hint}>{k.label}</option>
+                ))}
               </select>
             ))}
+            {!isFloating && isRadialKind(structureClass) && (
+              <div style={{ gridColumn: '1 / -1', fontSize: 10, color: colors.textTertiary }}>
+                {RADIAL_KINDS.find(k => k.id === structureClass)?.hint}
+                {' '}Узлы не перекрываются: сектор считается по габариту ветки.
+              </div>
+            )}
             {!isFloating && ctrl('Branch Side', (
               <select value={branchSide} onChange={e => setAndSave('branch_side', e.target.value)} style={selStyle}>
                 <option value="auto">Auto</option>
@@ -484,11 +522,12 @@ export function PropertiesPanel({ workbookId, onClose, onCommentsClick }: Proper
                 onChange={e => setAndSave('edge_weight', e.target.value ? parseFloat(e.target.value) : 0)}
                 style={numStyle} />
             ))}
-            {ctrl('Shape', (
-              <select value={shape} onChange={e => setAndSave('shape', e.target.value)} style={selStyle}>
-                {SHAPES.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
-              </select>
-            ))}
+            <div style={{ gridColumn: '1 / -1' }}>
+              <Text size={fontSizes.caption} color={colors.textTertiary} style={{ marginBottom: spacing.xs, display: 'block' }}>
+                Shape
+              </Text>
+              <ShapePicker value={shape} onChange={v => setAndSave('shape', v)} />
+            </div>
             {ctrl('Level Gap', (
               <input type="number" min={0} max={600} step={10}
                 value={levelGap ?? ''} placeholder="default"
@@ -732,19 +771,15 @@ export function PropertiesPanel({ workbookId, onClose, onCommentsClick }: Proper
           <Text size={fontSizes.caption} weight={fontWeights.semibold} color={colors.textTertiary} style={{ marginBottom: spacing.md, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
             Preview
           </Text>
-          <div style={{
-            display: 'inline-flex', alignItems: 'center', gap: spacing.sm,
-            padding: `${spacing.sm}px ${spacing.lg}px`,
-            background: colors.accentLight, border: `2px solid ${colors.accent}`,
-            borderRadius: shape === 'pill' ? radii.sm + 12 : shape === 'rectangle' ? 0 : radii.md,
-            fontSize: fontSize || fontSizes.body, fontWeight: fontWeight || fontWeights.medium,
-            color: fontColor || colors.accent,
-            fontFamily: fontFamily || fonts.ui,
-            opacity: opacity ?? 1,
-          }}>
-            {markers.slice(0, 2).join(' ')}
-            <span style={{ marginLeft: spacing.xxs }}>{title || 'Topic'}</span>
-          </div>
+          <ShapePreview
+            shape={shape}
+            label={`${markers.slice(0, 2).join(' ')} ${title || 'Topic'}`.trim()}
+            fontSize={fontSize || undefined}
+            fontWeight={fontWeight || undefined}
+            fontFamily={fontFamily || fonts.ui}
+            fontColor={fontColor || undefined}
+            opacity={opacity ?? 1}
+          />
           {labels.length > 0 && (
             <div style={{ marginTop: spacing.sm, display: 'flex', gap: spacing.xs, flexWrap: 'wrap' }}>
               {labels.map(l => (

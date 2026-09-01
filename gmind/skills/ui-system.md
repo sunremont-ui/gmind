@@ -42,7 +42,8 @@ transitions: fast(120ms ease-standard), normal(200ms ease-standard),
 
 gradients:   aurora, auroraSoft, tide, ember, forest
 
-sizes:       sidebar(260), propertiesPanel(280), aiPanel(320), headerHeight(48)
+sizes:       sidebar(260 default/reset; runtime 220–560), sidebarCollapsed(48),
+             propertiesPanel(280), aiPanel(320), headerHeight(48)
 ```
 
 ## Примитивы (`components/UI/Box.tsx`)
@@ -125,6 +126,9 @@ components/MyFeature/
 5. **Lumen Design** — Inter-типографика, 8px grid, frosted glass (backdrop-filter), большие radii, двухслойные тени
 6. **TypeScript** — всегда интерфейсы для props, никаких `any` в пропсах
 7. **Focus states** — `boxShadow: colors.focusInset`, не outline
+8. **Тема по умолчанию** — `midnight`; не выводи дефолт из порядка `themes[]`
+9. **Dark logo** — при `theme.id === 'midnight'` используй `/lumen-logo-dark.svg`, иначе `/lumen-logo.svg`
+10. **Resize handle** — интерактивная граница панели должна иметь `role="separator"`, ARIA-диапазон и управление клавиатурой
 
 ## Импорты (порядок)
 

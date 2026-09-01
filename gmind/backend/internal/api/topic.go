@@ -9,6 +9,10 @@ import (
 	"github.com/google/uuid"
 )
 
+func validNodeAnchor(side string) bool {
+	return side == "" || side == "top" || side == "right" || side == "bottom" || side == "left"
+}
+
 func (h *Handler) CreateTopic(w http.ResponseWriter, r *http.Request) {
 	workbookID := chi.URLParam(r, "workbookID")
 	wb, err := h.store.GetWorkbook(workbookID)
@@ -24,6 +28,10 @@ func (h *Handler) CreateTopic(w http.ResponseWriter, r *http.Request) {
 	var req model.CreateTopicRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	if !validNodeAnchor(req.ParentAnchor) {
+		writeError(w, http.StatusBadRequest, "invalid parent_anchor")
 		return
 	}
 
@@ -85,6 +93,9 @@ func (h *Handler) CreateTopic(w http.ResponseWriter, r *http.Request) {
 	if req.ChildDir != "" {
 		topic.ChildDir = req.ChildDir
 	}
+	if req.ParentAnchor != "" {
+		topic.ParentAnchor = req.ParentAnchor
+	}
 
 	found := false
 	for _, sheet := range wb.Sheets {
@@ -139,6 +150,10 @@ func (h *Handler) UpdateTopic(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
+	if !validNodeAnchor(req.ParentAnchor) {
+		writeError(w, http.StatusBadRequest, "invalid parent_anchor")
+		return
+	}
 
 	found := false
 	for _, sheet := range wb.Sheets {
@@ -146,6 +161,12 @@ func (h *Handler) UpdateTopic(w http.ResponseWriter, r *http.Request) {
 		if topic != nil {
 			if req.Title != "" {
 				topic.Title = req.Title
+			}
+			if req.Body != nil {
+				topic.Body = *req.Body // "" очищает тело
+			}
+			if req.RichText != nil {
+				topic.RichText = *req.RichText // "" очищает форматирование
 			}
 			if req.Notes != "" {
 				topic.Notes = req.Notes
@@ -179,6 +200,9 @@ func (h *Handler) UpdateTopic(w http.ResponseWriter, r *http.Request) {
 			}
 			if req.ChildDir != "" {
 				topic.ChildDir = req.ChildDir
+			}
+			if req.ParentAnchor != "" {
+				topic.ParentAnchor = req.ParentAnchor
 			}
 			if req.EdgeStyle != "" {
 				topic.EdgeStyle = req.EdgeStyle
@@ -248,6 +272,12 @@ func (h *Handler) UpdateTopic(w http.ResponseWriter, r *http.Request) {
 			}
 			if req.Icon != "" {
 				topic.Icon = req.Icon
+			}
+			if req.LevelGap > 0 {
+				topic.LevelGap = req.LevelGap
+			}
+			if req.SiblingGap > 0 {
+				topic.SiblingGap = req.SiblingGap
 			}
 			if req.CommentIcon != "" {
 				topic.CommentIcon = req.CommentIcon

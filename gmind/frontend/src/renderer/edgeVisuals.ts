@@ -1,5 +1,6 @@
 // Pure helpers for tree-edge visuals (extracted from renderer for testing).
 import type { LayoutNode } from '../types'
+import { defaultPortForDirection, isChildDirection, isNodeSide } from '../components/MindMap/nodeDirections'
 
 export type Side = 'top' | 'right' | 'bottom' | 'left'
 
@@ -17,9 +18,21 @@ export function thicknessForSubtree(size: number): number {
   return 1.5 + Math.min(size - 1, 40) * 0.15 // 1.5px (leaf) → ~7.5px
 }
 
-// Which side of `node` the `child` sits on, by laid-out geometry.
+// Which side of `node` the `child` sits on. The port the layout actually used
+// wins over geometry: a right-hand child far down the column reads as "bottom"
+// by coordinates alone, which then folds and routes it on the wrong side.
 export function sideOf(node: LayoutNode, child: LayoutNode): Side {
+  if (isNodeSide(child.topic?.parent_anchor)) return child.topic.parent_anchor
+  if (isChildDirection(child.topic?.child_dir)) return defaultPortForDirection(child.topic.child_dir)
+  if (child.placedDir) return defaultPortForDirection(child.placedDir)
   const dx = (child.x + child.width / 2) - (node.x + node.width / 2)
   const dy = (child.y + child.height / 2) - (node.y + node.height / 2)
   return Math.abs(dx) >= Math.abs(dy) ? (dx >= 0 ? 'right' : 'left') : (dy >= 0 ? 'bottom' : 'top')
+}
+
+/** Сколько детей уходит в каждую сторону — для бейджей и выводов узла. */
+export function childSideCounts(node: LayoutNode): Record<Side, number> {
+  const counts: Record<Side, number> = { top: 0, right: 0, bottom: 0, left: 0 }
+  for (const ch of node.children ?? []) counts[sideOf(node, ch)]++
+  return counts
 }

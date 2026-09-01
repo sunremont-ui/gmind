@@ -29,6 +29,9 @@ export function SaveStatusBar({ pendingCount }: SaveStatusBarProps) {
       backdropFilter: 'blur(12px)',
       WebkitBackdropFilter: 'blur(12px)',
       userSelect: 'none',
+      // Индикатор только сообщает статус: он висит над холстом и без этого
+      // молча съедает клики по узлам и лучам веера под собой.
+      pointerEvents: 'none',
       transition: `all ${transitions.normal}`,
     }}>
       <span style={{ width: 6, height: 6, borderRadius: '50%', background: fg, flexShrink: 0 }} />

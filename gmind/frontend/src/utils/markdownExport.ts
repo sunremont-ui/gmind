@@ -1,25 +1,39 @@
 import type { Topic } from '../types'
+import { serializeTopicsToMarkdown, type MdTopic, type MdMeta } from './markdown'
+
+/** Topic → узел Markdown-документа: голова, тело, заметка и визуальные свойства. */
+export function topicToMdNode(topic: Topic): MdTopic {
+  const meta: MdMeta = {
+    shape: topic.shape,
+    icon: topic.icon,
+    node_style: topic.node_style,
+    font_color: topic.font_color,
+    border_color: topic.border_color,
+    memory_kind: topic.memory_kind,
+    masys_ref: topic.masys_ref,
+    markers: topic.markers,
+    labels: topic.labels,
+    progress: topic.progress,
+    priority: topic.priority,
+    folded: topic.folded,
+    image: topic.image,
+    position: topic.position,
+    child_dir: topic.child_dir,
+    structure_class: topic.structure_class,
+    rich_text: topic.rich_text,
+  }
+  return {
+    title: topic.title,
+    body: topic.body,
+    notes: topic.notes,
+    meta,
+    md_form: topic.md_form,
+    children: (topic.children ?? []).map(topicToMdNode),
+  }
+}
 
 export function exportToMarkdown(root: Topic): string {
-  const lines: string[] = []
-
-  const walk = (topic: Topic, depth: number) => {
-    const prefix = '#'.repeat(Math.min(depth + 1, 6))
-    lines.push(`${prefix} ${topic.title}`)
-    lines.push('')
-    if (topic.notes) {
-      lines.push(topic.notes)
-      lines.push('')
-    }
-    if (topic.children) {
-      for (const child of topic.children) {
-        walk(child, depth + 1)
-      }
-    }
-  }
-
-  walk(root, 0)
-  return lines.join('\n')
+  return serializeTopicsToMarkdown(topicToMdNode(root))
 }
 
 export function downloadMarkdown(content: string, filename: string) {

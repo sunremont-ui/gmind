@@ -23,25 +23,28 @@ import (
 )
 
 type Handler struct {
-	store           *store.Store
-	scheduleStore   *store.ScheduledTaskStore
-	hub             *ws.Hub
-	llamaHandler    *LlamaHandler
-	llamaFleet      *LlamaFleetHandler
-	ollamaHandler   *OllamaHandler
-	registry        *core.Registry
-	agentModule     *agent.Module
-	ragService      *rag.Service
-	openAIEndpoint  string
-	openAIModel     string
-	openAIAPIKey    string
-	yandexAPIKey    string
-	yandexFolderID  string
-	yandexModel     string
-	mcpHandler      http.HandlerFunc
-	maSysBaseURL    string
-	webhooks        *webhook.Store
-	relationships   *store.RelationshipStore
+	store          *store.Store
+	scheduleStore  *store.ScheduledTaskStore
+	hub            *ws.Hub
+	llamaHandler   *LlamaHandler
+	llamaFleet     *LlamaFleetHandler
+	ollamaHandler  *OllamaHandler
+	registry       *core.Registry
+	agentModule    *agent.Module
+	ragService     *rag.Service
+	openAIEndpoint string
+	openAIModel    string
+	openAIAPIKey   string
+	yandexAPIKey   string
+	yandexFolderID string
+	yandexModel    string
+	mcpHandler     http.HandlerFunc
+	maSysBaseURL   string
+	masysMonitor   *masysMonitor
+	markdownPath   string
+	filesPath      string
+	webhooks       *webhook.Store
+	relationships  *store.RelationshipStore
 }
 
 // SetRAG wires a RAG service for semantic search endpoints and agent tools.
@@ -99,6 +102,19 @@ func (h *Handler) Router(cfg *config.Config) http.Handler {
 	h.yandexFolderID = cfg.YandexFolderID
 	h.yandexModel = cfg.YandexModel
 	h.maSysBaseURL = cfg.MASysBaseURL
+	h.markdownPath = cfg.MarkdownPath
+	h.filesPath = cfg.FilesPath
+
+	// MASys подключается сам: монитор находит живой адрес среди кандидатов и
+	// прокидывает его в инструменты агентов, чтобы run_masys_pipeline не бил в пустоту.
+	h.masysMonitor = newMASysMonitor(cfg.MASysBaseURL, cfg.MASysConfigPath, func(baseURL string) {
+		h.maSysBaseURL = baseURL
+		if h.agentModule != nil && h.agentModule.WorkerPool != nil {
+			h.agentModule.WorkerPool.SetMaSysBaseURL(baseURL)
+		}
+		log.Printf("masys: connected at %s", baseURL)
+	})
+	h.masysMonitor.Start()
 
 	r := chi.NewRouter()
 
@@ -119,6 +135,7 @@ func (h *Handler) Router(cfg *config.Config) http.Handler {
 			r.Get("/", h.ListWorkbooks)
 			r.Post("/", h.CreateWorkbook)
 			r.Post("/import", h.ImportXMind)
+			r.Post("/import/markdown", h.ImportMarkdown)
 			r.Route("/{workbookID}", func(r chi.Router) {
 				r.Get("/", h.GetWorkbook)
 				r.Put("/", h.UpdateWorkbook)
@@ -128,6 +145,8 @@ func (h *Handler) Router(cfg *config.Config) http.Handler {
 				r.Delete("/sheets/{sheetID}", h.DeleteSheet)
 				r.Post("/topics", h.CreateTopic)
 				r.Post("/topics/batch", h.BatchCreateTopics)
+				// Приём записей извне: опознание по внешнему ключу, без дублей.
+				r.Post("/topics/upsert", h.UpsertTopics)
 				r.Put("/topics/{topicID}", h.UpdateTopic)
 				r.Delete("/topics/{topicID}", h.DeleteTopic)
 				r.Post("/topics/{topicID}/move", h.MoveTopic)
@@ -144,6 +163,8 @@ func (h *Handler) Router(cfg *config.Config) http.Handler {
 				r.Get("/topics/{topicID}/related", h.RelatedTopics)
 				r.Get("/export", h.ExportXMind)
 				r.Get("/export/markdown", h.ExportMarkdown)
+				r.Post("/md/save", h.SaveWorkbookMarkdown)
+				r.Post("/md/reload", h.ReloadWorkbookMarkdown)
 				r.Get("/export/freemind", h.ExportFreeMind)
 				r.Post("/import-json", h.ImportJSONData)
 				r.Delete("/import-json", h.ClearImportedData)
@@ -159,7 +180,7 @@ func (h *Handler) Router(cfg *config.Config) http.Handler {
 		})
 	})
 
-// Module routes
+	// Module routes
 	r.Route("/api/v1/agents", func(r chi.Router) {
 		agentHandler := NewAgentHandler(h.store, nil, h.registry)
 		// Try to get agent module from registry
@@ -191,6 +212,32 @@ func (h *Handler) Router(cfg *config.Config) http.Handler {
 	// Full-text search (FTS5, always available — GI-7)
 	r.Get("/api/v1/search/text", h.SearchFullText)
 
+	// Markdown-хранилище: обзор каталога и открытие .md как карты.
+	r.Route("/api/v1/md", func(r chi.Router) {
+		r.Get("/files", h.ListMarkdownFiles)
+		r.Post("/open", h.OpenMarkdownFile)
+	})
+
+	// Локальные копии вложений: карта открывается без чужого сервера.
+	// Схема проекта: каталог на диске → карта (форматы .md и .xmind внутри
+	// отмечаются ссылкой на файл, поэтому такой узел открывается как карта).
+	r.Route("/api/v1/projects", func(r chi.Router) {
+		r.Get("/scan", h.ScanProject)
+		r.Post("/scan", h.ScanProject)
+		r.Post("/import", h.ImportProject)
+		r.Post("/open-doc", h.OpenProjectDoc)
+		r.Post("/files", h.CreateProjectFile)
+		r.Delete("/files", h.DeleteProjectFile)
+		r.Get("/dirs", h.BrowseProjectDirs)
+	})
+
+	r.Route("/api/v1/files", func(r chi.Router) {
+		r.Get("/*", h.GetFile)
+		r.Head("/*", h.HeadFile)
+		r.Put("/*", h.PutFile)
+		r.Delete("/*", h.DeleteFile)
+	})
+
 	r.Route("/api/v1/notes", func(r chi.Router) {
 		r.Get("/", h.ListNotes)
 		r.Post("/", h.CreateNote)
@@ -207,6 +254,7 @@ func (h *Handler) Router(cfg *config.Config) http.Handler {
 	// V6.0 MASys Memory Bridge — REST proxy to MASys tRPC + SSE bridge
 	r.Route("/api/v1/masys", func(r chi.Router) {
 		r.Get("/health", h.MASysHealth)
+		r.Put("/config", h.MASysSetConfig)
 		r.Route("/memory", func(r chi.Router) {
 			r.Get("/namespaces", h.MASysListNamespaces)
 			r.Get("/episodes", h.MASysListEpisodes)
@@ -226,14 +274,24 @@ func (h *Handler) Router(cfg *config.Config) http.Handler {
 			r.Post("/results/delete-expired", h.MASysDeleteExpiredResults)
 			r.Post("/wiki", h.MASysWriteWiki)
 			r.Delete("/wiki/{slug}", h.MASysDeleteWiki)
+			// Запись в память: работа с холста попадает в память MASys.
+			r.Post("/episodes", h.MASysLogEpisode)
+			r.Post("/remember", h.MASysRemember)
+			r.Post("/entities/upsert", h.MASysUpsertEntity)
+			r.Post("/relations", h.MASysAddRelation)
 			r.Post("/entities/delete", h.MASysDeleteEntity)
 			r.Post("/entities/merge", h.MASysMergeEntities)
 			r.Post("/skills/forget", h.MASysForgetSkills)
 			r.Post("/skills/acquire", h.MASysAcquireSkills)
 		})
 		r.Post("/kg-sync", h.MASysKGSync)
+		// Обратная сторона синка: узлы и связи холста уходят в граф MASys.
+		r.Post("/push", h.MASysPush)
 		r.Route("/runs", func(r chi.Router) {
 			r.Get("/", h.MASysListRuns)
+			// Постановка задач: из узла карты запускается работа в MASys.
+			r.Post("/start", h.MASysStartRun)
+			r.Post("/{runID}/stop", h.MASysStopRun)
 			r.Get("/{runID}", h.MASysGetRun)
 			r.Get("/{runID}/events", h.MASysGetRunEvents)
 			r.Get("/{runID}/stream", h.MASysRunStream)
@@ -245,7 +303,6 @@ func (h *Handler) Router(cfg *config.Config) http.Handler {
 		r.Get("/", h.ListWebhooks)
 		r.Delete("/{webhookID}", h.DeleteWebhook)
 	})
-
 
 	// MCP endpoint (if wiki module is available)
 	if h.mcpHandler != nil {

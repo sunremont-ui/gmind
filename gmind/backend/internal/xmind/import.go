@@ -26,6 +26,9 @@ type ImportedTopic struct {
 	Markers  []string          `json:"markers,omitempty"`
 	Labels   []string          `json:"labels,omitempty"`
 	Folded   bool              `json:"folded,omitempty"`
+	// Gmind — расширение своего экспорта (см. export.go). У файла из чужого
+	// XMind его просто нет, и узел собирается из стандартных полей.
+	Gmind *model.Topic `json:"gmind,omitempty"`
 }
 
 type ImportedChildren struct {
@@ -33,10 +36,11 @@ type ImportedChildren struct {
 }
 
 type ImportedRelationship struct {
-	ID     string `json:"id"`
-	Title  string `json:"title,omitempty"`
-	End1ID string `json:"end1_id"`
-	End2ID string `json:"end2_id"`
+	ID     string              `json:"id"`
+	Title  string              `json:"title,omitempty"`
+	End1ID string              `json:"end1_id"`
+	End2ID string              `json:"end2_id"`
+	Gmind  *model.Relationship `json:"gmind,omitempty"`
 }
 
 func ParseXMind(data []byte) ([]ImportedSheet, error) {
@@ -104,12 +108,14 @@ func ConvertToWorkbook(sheets []ImportedSheet, title string) *model.Workbook {
 		}
 
 		for _, ir := range is.Relationships {
-			sheet.Relationships = append(sheet.Relationships, &model.Relationship{
-				ID:     ir.ID,
-				Title:  ir.Title,
-				End1ID: ir.End1ID,
-				End2ID: ir.End2ID,
-			})
+			rel := &model.Relationship{}
+			if ir.Gmind != nil {
+				*rel = *ir.Gmind
+			}
+			// Стандартные поля главнее расширения: файл могли править снаружи.
+			rel.ID, rel.Title = ir.ID, ir.Title
+			rel.End1ID, rel.End2ID = ir.End1ID, ir.End2ID
+			sheet.Relationships = append(sheet.Relationships, rel)
 		}
 
 		wb.Sheets = append(wb.Sheets, sheet)
@@ -119,15 +125,19 @@ func ConvertToWorkbook(sheets []ImportedSheet, title string) *model.Workbook {
 }
 
 func convertImportedTopic(it *ImportedTopic) *model.Topic {
-	topic := &model.Topic{
-		ID:       it.ID,
-		Title:    it.Title,
-		Notes:    it.Notes,
-		Markers:  it.Markers,
-		Labels:   it.Labels,
-		Folded:   it.Folded,
-		Children: []*model.Topic{},
+	topic := &model.Topic{}
+	if it.Gmind != nil {
+		*topic = *it.Gmind
 	}
+	// Стандартные поля XMind главнее расширения: файл мог быть отредактирован
+	// в самом XMind, и там правились именно они.
+	topic.ID = it.ID
+	topic.Title = it.Title
+	topic.Notes = it.Notes
+	topic.Markers = it.Markers
+	topic.Labels = it.Labels
+	topic.Folded = it.Folded
+	topic.Children = []*model.Topic{}
 
 	if it.Children != nil {
 		for _, child := range it.Children.Attached {

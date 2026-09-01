@@ -1,23 +1,38 @@
 # Responsive Layout
 
-## Sidebar Toggle
+## Sidebar: сворачивание и изменение ширины
 
-The left sidebar can be collapsed/expanded via a toggle button at its top edge.
+Левая панель поддерживает два независимых действия: сворачивание до компактной
+полосы и изменение ширины развёрнутого состояния.
 
 ### Implementation
 
 - **State:** `sidebarOpen` in `App.tsx` (default `true`)
 - **Props:** `collapsed={!sidebarOpen}` + `onToggle` passed to `Sidebar`
 - **Sizes:**
-  - Expanded: `sizes.sidebar` (260px)
-  - Collapsed: `sizes.sidebarCollapsed` (48px) — shows only toggle button
+  - Expanded: 220–560px, стартовое/сброшенное значение `sizes.sidebar` (260px)
+  - Collapsed: `sizes.sidebarCollapsed` (48px) — видна только кнопка открытия
 - **Animation:** CSS `transition: width ${transitions.fast}` on the sidebar container
 - **Toggle icon:** Hamburger (≡) when collapsed, arrow (←) when expanded — inline SVG
+- **Persistence:** `localStorage['gmind_sidebar_width']`
+- **Viewport guard:** ширина не превышает 55% текущего окна
+
+### Resize handle
+
+Правый край `Sidebar` — интерактивный `role="separator"` с
+`aria-orientation="vertical"` и текущим значением в `aria-valuenow`.
+
+- drag мышью: непрерывно меняет ширину, на время drag отключает выделение текста;
+- `ArrowLeft` / `ArrowRight`: шаг 16px;
+- двойной щелчок или `Home`: сброс к 260px;
+- во время drag transition отключён, после отпускания значение сохраняется;
+- в collapsed-состоянии handle скрыт, а запомненная ширина не теряется.
 
 ### File Locations
 
-- `frontend/src/App.tsx` — state + toggle button trigger
-- `frontend/src/components/Sidebar/Sidebar.tsx` — collapsed state UI, toggle button, `overflowY: auto`
+- `frontend/src/App.tsx` — state сворачивания + toggle trigger
+- `frontend/src/components/Sidebar/Sidebar.tsx` — collapsed UI, resize state,
+  clamp/persist, accessible separator и вертикальный scroll
 
 ### Toggle Button
 
@@ -60,3 +75,11 @@ Panels are rendered inside `AnimatedMount` with `position: absolute; inset: 0`. 
 - `type="panel-left"` — slide in from left + fade
 - `type="modal"` — scale + fade
 - Delays unmount until exit transition completes (`anim.dur.normal` = 200ms)
+
+## Дерево документов
+
+При открытом корне проекта Sidebar содержит `ProjectTree` над списком обычных
+workbook. Дерево выводит только `.md`, `.markdown`, `.xmind` и их папки-предки.
+Все папки изначально свёрнуты; кнопки секции сворачивают и разворачивают всё
+дерево. Полное описание корневого контекста, CRUD файлов и навигации —
+в [18 — Корневая навигация и дерево документов](18-project-root-navigation.md).

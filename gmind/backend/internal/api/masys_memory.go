@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -27,17 +28,27 @@ const (
 	masysProxyTimeout = 15 * time.Second
 )
 
+// masysURL — адрес MASys: живой найденный монитором, иначе настроенный.
 func (h *Handler) masysURL() string {
+	if h.masysMonitor != nil {
+		if u := h.masysMonitor.EffectiveURL(); u != "" {
+			return u
+		}
+	}
 	if h.maSysBaseURL != "" {
 		return h.maSysBaseURL
 	}
-	return "http://localhost:3000"
+	return "http://localhost:5010"
 }
 
 // callTRPCQuery makes a GET request to MASys tRPC and unwraps result.data.
+//
+// Процедуры MASys объявлены через z.object({...}) — сам объект обязателен,
+// даже когда все его поля необязательные. Поэтому непустую карту (в т.ч.
+// пустой map) шлём как input={}; «совсем без input» — это input == nil.
 func (h *Handler) callTRPCQuery(ctx context.Context, method string, input map[string]any) (json.RawMessage, error) {
 	endpoint := h.masysURL() + "/trpc/" + method
-	if len(input) > 0 {
+	if input != nil {
 		raw, err := json.Marshal(input)
 		if err != nil {
 			return nil, fmt.Errorf("marshal input: %w", err)
@@ -148,8 +159,8 @@ func (h *Handler) MASysListEpisodes(w http.ResponseWriter, r *http.Request) {
 	if ns := r.URL.Query().Get("namespace"); ns != "" {
 		input["namespace"] = ns
 	}
-	if lim := r.URL.Query().Get("limit"); lim != "" {
-		// pass through as string; tRPC will coerce
+	// limit объявлен как z.number() — строка не пройдёт валидацию zod.
+	if lim, err := strconv.Atoi(r.URL.Query().Get("limit")); err == nil && lim > 0 {
 		input["limit"] = lim
 	}
 	data, err := h.callTRPCQuery(r.Context(), "memory.episode.recent", input)
@@ -281,21 +292,5 @@ func (h *Handler) MASysGetRunEvents(w http.ResponseWriter, r *http.Request) {
 	h.writeMASysJSON(w, data, err)
 }
 
-// MASysHealth — quick reachability check.
-func (h *Handler) MASysHealth(w http.ResponseWriter, r *http.Request) {
-	client := &http.Client{Timeout: 3 * time.Second}
-	req, _ := http.NewRequestWithContext(r.Context(), http.MethodGet, h.masysURL()+"/health", nil)
-	resp, err := client.Do(req)
-	status := map[string]any{"base_url": h.masysURL()}
-	if err != nil || resp.StatusCode != 200 {
-		status["reachable"] = false
-		if err != nil {
-			status["error"] = err.Error()
-		}
-	} else {
-		status["reachable"] = true
-		defer resp.Body.Close()
-	}
-	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(status)
-}
+// MASysHealth живёт в masys_status.go: статус берётся из фонового монитора,
+// который сам находит адрес MASys среди кандидатов.

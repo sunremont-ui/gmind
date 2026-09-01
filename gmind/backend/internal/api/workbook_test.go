@@ -668,6 +668,52 @@ func TestCreateTopicWithClientIDAndIndex(t *testing.T) {
 	}
 }
 
+func TestTopicParentAnchorCreateAndUpdate(t *testing.T) {
+	router, _ := newTestRouter(t)
+
+	createW := httptest.NewRecorder()
+	router.ServeHTTP(createW, requestJSON(t, "POST", "/api/v1/workbooks", map[string]string{"title": "WB"}))
+	var wb map[string]interface{}
+	json.Unmarshal(createW.Body.Bytes(), &wb)
+	wbID := wb["id"].(string)
+	rootID := wb["sheets"].([]interface{})[0].(map[string]interface{})["root_topic"].(map[string]interface{})["id"].(string)
+
+	childW := httptest.NewRecorder()
+	router.ServeHTTP(childW, requestJSON(t, "POST", "/api/v1/workbooks/"+wbID+"/topics", map[string]interface{}{
+		"title": "Diagonal", "parent_id": rootID, "child_dir": "up-left", "parent_anchor": "top",
+	}))
+	if childW.Code != http.StatusCreated {
+		t.Fatalf("create: status=%d body=%s", childW.Code, childW.Body.String())
+	}
+	var child map[string]interface{}
+	json.Unmarshal(childW.Body.Bytes(), &child)
+	if child["parent_anchor"] != "top" {
+		t.Fatalf("created parent_anchor=%v, want top", child["parent_anchor"])
+	}
+	childID := child["id"].(string)
+
+	updateW := httptest.NewRecorder()
+	router.ServeHTTP(updateW, requestJSON(t, "PUT", "/api/v1/workbooks/"+wbID+"/topics/"+childID, map[string]string{"parent_anchor": "left"}))
+	if updateW.Code != http.StatusOK {
+		t.Fatalf("update: status=%d body=%s", updateW.Code, updateW.Body.String())
+	}
+
+	getW := httptest.NewRecorder()
+	router.ServeHTTP(getW, requestJSON(t, "GET", "/api/v1/workbooks/"+wbID, nil))
+	var got map[string]interface{}
+	json.Unmarshal(getW.Body.Bytes(), &got)
+	stored := got["sheets"].([]interface{})[0].(map[string]interface{})["root_topic"].(map[string]interface{})["children"].([]interface{})[0].(map[string]interface{})
+	if stored["parent_anchor"] != "left" {
+		t.Errorf("stored parent_anchor=%v, want left", stored["parent_anchor"])
+	}
+
+	badW := httptest.NewRecorder()
+	router.ServeHTTP(badW, requestJSON(t, "PUT", "/api/v1/workbooks/"+wbID+"/topics/"+childID, map[string]string{"parent_anchor": "corner"}))
+	if badW.Code != http.StatusBadRequest {
+		t.Errorf("invalid anchor: status=%d, want 400", badW.Code)
+	}
+}
+
 func TestMoveFloatingTopicToParent(t *testing.T) {
 	router, _ := newTestRouter(t)
 
@@ -811,6 +857,35 @@ func TestUpdateTopicNonexistent(t *testing.T) {
 		t.Errorf("update nonexistent: status=%d, want %d", updW.Code, http.StatusNotFound)
 	}
 	_ = s
+}
+
+func TestUpdateTopicPersistsSpacingOverrides(t *testing.T) {
+	router, _ := newTestRouter(t)
+
+	createW := httptest.NewRecorder()
+	router.ServeHTTP(createW, requestJSON(t, "POST", "/api/v1/workbooks", map[string]string{"title": "WB"}))
+	var wb map[string]interface{}
+	json.Unmarshal(createW.Body.Bytes(), &wb)
+	wbID := wb["id"].(string)
+	rootID := wb["sheets"].([]interface{})[0].(map[string]interface{})["root_topic"].(map[string]interface{})["id"].(string)
+
+	updateW := httptest.NewRecorder()
+	router.ServeHTTP(updateW, requestJSON(t, "PUT", "/api/v1/workbooks/"+wbID+"/topics/"+rootID, map[string]interface{}{
+		"level_gap":   180,
+		"sibling_gap": 72,
+	}))
+	if updateW.Code != http.StatusOK {
+		t.Fatalf("update spacing: status=%d body=%s", updateW.Code, updateW.Body.String())
+	}
+
+	getW := httptest.NewRecorder()
+	router.ServeHTTP(getW, requestJSON(t, "GET", "/api/v1/workbooks/"+wbID, nil))
+	var got map[string]interface{}
+	json.Unmarshal(getW.Body.Bytes(), &got)
+	root := got["sheets"].([]interface{})[0].(map[string]interface{})["root_topic"].(map[string]interface{})
+	if root["level_gap"] != float64(180) || root["sibling_gap"] != float64(72) {
+		t.Fatalf("spacing overrides were not persisted: level=%v sibling=%v", root["level_gap"], root["sibling_gap"])
+	}
 }
 
 func TestDeleteTopicNonexistent(t *testing.T) {

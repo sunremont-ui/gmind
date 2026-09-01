@@ -28,12 +28,17 @@ type Workbook struct {
 	// Kind marks special workbook modes. "" / "mindmap" = ordinary map;
 	// "memory_lab" = typed memory-design canvas linked to MASys.
 	Kind string `json:"kind,omitempty"`
+	// SourcePath — абсолютный путь связанного Markdown-файла. Если он задан,
+	// карта считается представлением этого файла: «Сохранить» пишет обратно в него.
+	SourcePath string `json:"source_path,omitempty"`
+	// SourceSyncedAt — момент последней синхронизации с файлом (RFC3339).
+	SourceSyncedAt string `json:"source_synced_at,omitempty"`
 }
 
 const (
-	AccessModePublic       = "public"
-	AccessModePrivate      = "private"
-	AccessModeAgents       = "agents"
+	AccessModePublic        = "public"
+	AccessModePrivate       = "private"
+	AccessModeAgents        = "agents"
 	AccessModeCollaborators = "collaborators"
 )
 
@@ -52,56 +57,67 @@ type Sheet struct {
 }
 
 type Topic struct {
-	ID             string    `json:"id"`
-	Title          string    `json:"title"`
-	Notes          string    `json:"notes,omitempty"`
-	Markers        []string  `json:"markers,omitempty"`
-	Labels         []string  `json:"labels,omitempty"`
-	Hyperlink      string    `json:"hyperlink,omitempty"`
-	Image          string    `json:"image,omitempty"`
-	Folded         bool      `json:"folded"`
-	FoldedSides    []string  `json:"folded_sides,omitempty"`
-	Children       []*Topic  `json:"children,omitempty"`
-	Position       *Position `json:"position,omitempty"`
-	Structure      string    `json:"structure_class,omitempty"`
-	BranchSide     string    `json:"branch_side,omitempty"`
-	ChildDir       string    `json:"child_dir,omitempty"`
-	EdgeStyle      string    `json:"edge_style,omitempty"`
-	EdgeDash       string    `json:"edge_dash,omitempty"`
-	EdgeWeight     float64   `json:"edge_weight,omitempty"`
-	FontSize       int       `json:"font_size,omitempty"`
-	FontColor      string    `json:"font_color,omitempty"`
-	FontFamily     string    `json:"font_family,omitempty"`
-	FontWeight     int       `json:"font_weight,omitempty"`
-	TextAlign      string    `json:"text_align,omitempty"`
-	NodeWidth      int       `json:"node_width,omitempty"`
-	BorderWidth    int       `json:"border_width,omitempty"`
-	Padding        int       `json:"padding,omitempty"`
-	Opacity        float64   `json:"opacity,omitempty"`
-	Shape          string    `json:"shape,omitempty"`
-	Progress       int       `json:"progress,omitempty"`
-	Priority       int       `json:"priority,omitempty"`
-	NodeHeight     int       `json:"node_height,omitempty"`
-	BorderColor    string    `json:"border_color,omitempty"`
-	ConnColor      string    `json:"connection_color,omitempty"`
-	ShadowType     string    `json:"shadow_type,omitempty"`
-	NodeStyle      string    `json:"node_style,omitempty"`
-	FoldIcon       string    `json:"fold_icon,omitempty"`
-	ShowChildCount bool      `json:"show_child_count,omitempty"`
-	Icon           string    `json:"icon,omitempty"`
-	RichText       string    `json:"rich_text,omitempty"`
-	LevelGap       int       `json:"level_gap,omitempty"`
-	SiblingGap     int       `json:"sibling_gap,omitempty"`
-	CommentCount   int       `json:"comment_count,omitempty"`
-	CommentIcon    string    `json:"comment_icon,omitempty"`
+	ID    string `json:"id"`
+	Title string `json:"title"`
+	// Body — тело узла: длинный текст под заголовком (модель «голова + тело»).
+	Body        string    `json:"body,omitempty"`
+	Notes       string    `json:"notes,omitempty"`
+	Markers     []string  `json:"markers,omitempty"`
+	Labels      []string  `json:"labels,omitempty"`
+	Hyperlink   string    `json:"hyperlink,omitempty"`
+	Image       string    `json:"image,omitempty"`
+	Folded      bool      `json:"folded"`
+	FoldedSides []string  `json:"folded_sides,omitempty"`
+	Children    []*Topic  `json:"children,omitempty"`
+	Position    *Position `json:"position,omitempty"`
+	Structure   string    `json:"structure_class,omitempty"`
+	BranchSide  string    `json:"branch_side,omitempty"`
+	ChildDir    string    `json:"child_dir,omitempty"`
+	// ParentAnchor is the exact physical port on the parent used by this edge.
+	ParentAnchor   string  `json:"parent_anchor,omitempty"`
+	EdgeStyle      string  `json:"edge_style,omitempty"`
+	EdgeDash       string  `json:"edge_dash,omitempty"`
+	EdgeWeight     float64 `json:"edge_weight,omitempty"`
+	FontSize       int     `json:"font_size,omitempty"`
+	FontColor      string  `json:"font_color,omitempty"`
+	FontFamily     string  `json:"font_family,omitempty"`
+	FontWeight     int     `json:"font_weight,omitempty"`
+	TextAlign      string  `json:"text_align,omitempty"`
+	NodeWidth      int     `json:"node_width,omitempty"`
+	BorderWidth    int     `json:"border_width,omitempty"`
+	Padding        int     `json:"padding,omitempty"`
+	Opacity        float64 `json:"opacity,omitempty"`
+	Shape          string  `json:"shape,omitempty"`
+	Progress       int     `json:"progress,omitempty"`
+	Priority       int     `json:"priority,omitempty"`
+	NodeHeight     int     `json:"node_height,omitempty"`
+	BorderColor    string  `json:"border_color,omitempty"`
+	ConnColor      string  `json:"connection_color,omitempty"`
+	ShadowType     string  `json:"shadow_type,omitempty"`
+	NodeStyle      string  `json:"node_style,omitempty"`
+	FoldIcon       string  `json:"fold_icon,omitempty"`
+	ShowChildCount bool    `json:"show_child_count,omitempty"`
+	Icon           string  `json:"icon,omitempty"`
+	RichText       string  `json:"rich_text,omitempty"`
+	LevelGap       int     `json:"level_gap,omitempty"`
+	SiblingGap     int     `json:"sibling_gap,omitempty"`
+	CommentCount   int     `json:"comment_count,omitempty"`
+	CommentIcon    string  `json:"comment_icon,omitempty"`
 	// V6.1 Memory Lab ontology.
 	// MemoryKind classifies the node as a memory artifact (karp layer or MASys
 	// type): working|episodic|semantic|procedural|artifact|meta, or finer
 	// entity:person/place/org/concept, skill, episode, result, decision.
-	MemoryKind string    `json:"memory_kind,omitempty"`
+	MemoryKind string `json:"memory_kind,omitempty"`
 	// MasysRef is the stable external identity of the backing MASys record.
 	// Identity is by ref (not title), so renaming a node does not break round-trip.
-	MasysRef   *MasysRef `json:"masys_ref,omitempty"`
+	MasysRef *MasysRef `json:"masys_ref,omitempty"`
+	// MdForm — как узел записан в связанном Markdown-файле: "heading" (## Заголовок)
+	// или "list" (- пункт). Пусто = решает рендерер (заголовок, пока хватает уровней).
+	// Нужно, чтобы сохранение не переписывало авторские списки в заголовки.
+	MdForm string `json:"md_form,omitempty"`
+	// MasysRunID — прогон MASys, поставленный с этого узла. Карта помнит, где
+	// была поставлена задача, поэтому статус и логи видно там же.
+	MasysRunID string `json:"masys_run_id,omitempty"`
 }
 
 // MasysRef — stable pointer to a MASys memory record.
@@ -119,29 +135,29 @@ type Position struct {
 // Relationship — V5.0 graph edge with type, direction, cross-scope endpoints, multi-edge support.
 // Legacy End1ID/End2ID kept for backward compatibility; new code uses FromTopicID/ToTopicID.
 type Relationship struct {
-	ID     string `json:"id"`
-	Title  string `json:"title,omitempty"`
+	ID    string `json:"id"`
+	Title string `json:"title,omitempty"`
 	// Legacy fields (V4.x)
 	End1ID string `json:"end1_id"`
 	End2ID string `json:"end2_id"`
 	// V5.0 extended fields
-	WorkbookID      string  `json:"workbook_id,omitempty"`
-	FromWorkbookID  string  `json:"from_workbook_id,omitempty"`  // "" = same as WorkbookID
-	FromSheetID     string  `json:"from_sheet_id,omitempty"`     // "" = primary sheet
-	FromTopicID     string  `json:"from_topic_id,omitempty"`     // V5.0 canonical; mirrors End1ID for legacy
-	ToWorkbookID    string  `json:"to_workbook_id,omitempty"`
-	ToSheetID       string  `json:"to_sheet_id,omitempty"`
-	ToTopicID       string  `json:"to_topic_id,omitempty"`       // V5.0 canonical; mirrors End2ID for legacy
-	Type            string  `json:"type,omitempty"`              // relates_to|depends_on|supports|contradicts|references|blocks|custom
-	Direction       string  `json:"direction,omitempty"`         // forward|bidirectional|undirected
-	Weight          float64 `json:"weight,omitempty"`            // 0.0–1.0
-	Notes           string  `json:"notes,omitempty"`
-	Color           string  `json:"color,omitempty"`
-	Style           string  `json:"style,omitempty"`             // solid|dashed|dotted
-	CreatedBy       string  `json:"created_by,omitempty"`        // user|agent_<id>|legacy
-	CreatedAt       string  `json:"created_at,omitempty"`
-	UpdatedAt       string  `json:"updated_at,omitempty"`
-	Metadata        string  `json:"metadata,omitempty"`          // JSON string
+	WorkbookID     string  `json:"workbook_id,omitempty"`
+	FromWorkbookID string  `json:"from_workbook_id,omitempty"` // "" = same as WorkbookID
+	FromSheetID    string  `json:"from_sheet_id,omitempty"`    // "" = primary sheet
+	FromTopicID    string  `json:"from_topic_id,omitempty"`    // V5.0 canonical; mirrors End1ID for legacy
+	ToWorkbookID   string  `json:"to_workbook_id,omitempty"`
+	ToSheetID      string  `json:"to_sheet_id,omitempty"`
+	ToTopicID      string  `json:"to_topic_id,omitempty"` // V5.0 canonical; mirrors End2ID for legacy
+	Type           string  `json:"type,omitempty"`        // relates_to|depends_on|supports|contradicts|references|blocks|custom
+	Direction      string  `json:"direction,omitempty"`   // forward|bidirectional|undirected
+	Weight         float64 `json:"weight,omitempty"`      // 0.0–1.0
+	Notes          string  `json:"notes,omitempty"`
+	Color          string  `json:"color,omitempty"`
+	Style          string  `json:"style,omitempty"`      // solid|dashed|dotted
+	CreatedBy      string  `json:"created_by,omitempty"` // user|agent_<id>|legacy
+	CreatedAt      string  `json:"created_at,omitempty"`
+	UpdatedAt      string  `json:"updated_at,omitempty"`
+	Metadata       string  `json:"metadata,omitempty"` // JSON string
 }
 
 type CreateWorkbookRequest struct {
@@ -196,10 +212,15 @@ type CreateTopicRequest struct {
 	MemoryKind string `json:"memory_kind,omitempty"`
 	// ChildDir — per-child layout direction (up|down|left|right).
 	ChildDir string `json:"child_dir,omitempty"`
+	// ParentAnchor records the clicked top|right|bottom|left parent port.
+	ParentAnchor string `json:"parent_anchor,omitempty"`
 }
 
 type UpdateTopicRequest struct {
-	Title          string    `json:"title,omitempty"`
+	Title string `json:"title,omitempty"`
+	// Body/RichText — указатели: пустая строка должна очищать поле
+	// (текст укоротили — тело узла исчезает), отсутствие ключа — не трогать.
+	Body           *string   `json:"body,omitempty"`
 	Notes          string    `json:"notes,omitempty"`
 	Markers        []string  `json:"markers,omitempty"`
 	Labels         []string  `json:"labels,omitempty"`
@@ -211,6 +232,7 @@ type UpdateTopicRequest struct {
 	Structure      string    `json:"structure_class,omitempty"`
 	BranchSide     string    `json:"branch_side,omitempty"`
 	ChildDir       string    `json:"child_dir,omitempty"`
+	ParentAnchor   string    `json:"parent_anchor,omitempty"`
 	EdgeStyle      string    `json:"edge_style,omitempty"`
 	EdgeDash       string    `json:"edge_dash,omitempty"`
 	EdgeWeight     *float64  `json:"edge_weight,omitempty"`
@@ -234,7 +256,7 @@ type UpdateTopicRequest struct {
 	FoldIcon       string    `json:"fold_icon,omitempty"`
 	ShowChildCount *bool     `json:"show_child_count,omitempty"`
 	Icon           string    `json:"icon,omitempty"`
-	RichText       string    `json:"rich_text,omitempty"`
+	RichText       *string   `json:"rich_text,omitempty"`
 	LevelGap       int       `json:"level_gap,omitempty"`
 	SiblingGap     int       `json:"sibling_gap,omitempty"`
 	CommentIcon    string    `json:"comment_icon,omitempty"`
@@ -260,6 +282,7 @@ type CreateRelationshipRequest struct {
 	Color          string  `json:"color,omitempty"`
 	Style          string  `json:"style,omitempty"`
 	CreatedBy      string  `json:"created_by,omitempty"`
+	Metadata       string  `json:"metadata,omitempty"`
 }
 
 type UpdateRelationshipRequest struct {
@@ -270,6 +293,7 @@ type UpdateRelationshipRequest struct {
 	Notes     *string  `json:"notes,omitempty"`
 	Color     *string  `json:"color,omitempty"`
 	Style     *string  `json:"style,omitempty"`
+	Metadata  *string  `json:"metadata,omitempty"`
 }
 
 type MoveTopicRequest struct {

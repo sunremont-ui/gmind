@@ -6,11 +6,11 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/go-chi/chi/v5"
-	"github.com/google/uuid"
 	"github.com/gmind/backend/internal/agent"
 	"github.com/gmind/backend/internal/model"
 	"github.com/gmind/backend/internal/store"
+	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
 	cron "github.com/robfig/cron/v3"
 )
 

@@ -56,5 +56,19 @@
       "E:\\MASys\\apps\\web\\src\\pages",
       "E:\\MASys\\apps\\web\\src"
     ]
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"E:/MASys/tools/lab-brief-hook.mjs\"",
+            "timeout": 10,
+            "statusMessage": "Состояние трека из слоя лабы…"
+          }
+        ]
+      }
+    ]
   }
 }

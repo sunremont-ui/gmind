@@ -55,7 +55,7 @@ func NewToolExecutor(s *store.Store, eventBus core.EventBus, logger core.Logger,
 		logger:       logger,
 		searcher:     NewDuckDuckGoSearcher(),
 		wiki:         wikiStore,
-		maSysBaseURL: "http://localhost:3001",
+		maSysBaseURL: "http://localhost:5010",
 	}
 }
 
