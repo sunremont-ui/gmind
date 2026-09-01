@@ -166,3 +166,15 @@ export interface LabRunProcess {
   failure?: string
   lines: number
 }
+
+/** Шапка архивного отчёта: один прошлый прогон замера. */
+export interface LabHistoryEntry {
+  at: string
+  started_at?: string
+  finished_at?: string
+  gate: boolean
+  gate_failed: boolean
+  estimate_rub: number
+  rows: number
+  variants: number
+}

@@ -4,7 +4,7 @@
 import { API_ORIGIN } from './base'
 import type {
   LabProject, LabTrackState, LabEntry, LabRunSummary, LabRunReport, LabMemoryLayer,
-  LabRunProcess,
+  LabRunProcess, LabHistoryEntry,
 } from '../types/lab'
 
 const BASE = `${API_ORIGIN}/api/v1/lab`
@@ -65,6 +65,18 @@ export const labApi = {
 
   stopRun: (id: string) =>
     request<LabRunProcess>(`/runs/${encodeURIComponent(id)}/stop`, { method: 'POST' }),
+
+  /** Архив прогонов замера: lab-out держит только последний. */
+  history: (path: string, lab: string) =>
+    request<{ history: LabHistoryEntry[] }>(
+      `/history?path=${encodeURIComponent(path)}&lab=${encodeURIComponent(lab)}`
+    ).then(r => r.history),
+
+  historyReport: (path: string, lab: string, at: string) =>
+    request<LabRunReport>(
+      `/history/report?path=${encodeURIComponent(path)}&lab=${encodeURIComponent(lab)}`
+      + `&at=${encodeURIComponent(at)}`
+    ),
 
   /** Адрес потока вывода — читается через EventSource. */
   streamUrl: (id: string) => `${BASE}/runs/${encodeURIComponent(id)}/stream`,

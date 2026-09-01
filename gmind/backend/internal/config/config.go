@@ -31,6 +31,10 @@ type Config struct {
 	// лабы. Хранятся только пути: трек и namespace живут в lab.config.json
 	// самого проекта и второй копии в настройках Gmind иметь не должны.
 	LabRegistryPath string
+	// LabHistoryPath — архив отчётов замеров. lab-out хранит только последний
+	// прогон, а сравнивать надо два; архив ведёт Gmind у себя, чтобы не писать
+	// в каталоги чужих проектов.
+	LabHistoryPath string
 	// FilesPath — локальное хранилище вложений, пришедших из внешних систем.
 	// Карта должна открываться сама по себе, поэтому байты лежат рядом с Gmind,
 	// а не отдаются чужим сервером, который может быть выключен.
@@ -116,6 +120,11 @@ func Load() *Config {
 		labRegistryPath = filepath.Join(dataDir, "lab-projects.json")
 	}
 
+	labHistoryPath := os.Getenv("LAB_HISTORY")
+	if labHistoryPath == "" {
+		labHistoryPath = filepath.Join(dataDir, "lab-history")
+	}
+
 	modelServersCfg := os.Getenv("MODEL_SERVERS_CONFIG")
 	if modelServersCfg == "" {
 		modelServersCfg = filepath.Join(dataDir, "model-servers.json")
@@ -151,6 +160,7 @@ func Load() *Config {
 		MarkdownPath:           markdownPath,
 		MASysConfigPath:        maSysCfgPath,
 		LabRegistryPath:        labRegistryPath,
+		LabHistoryPath:         labHistoryPath,
 		FilesPath:              filesPath,
 	}
 }

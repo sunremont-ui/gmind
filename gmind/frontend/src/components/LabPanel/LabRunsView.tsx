@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { labApi } from '../../api/lab'
 import type { LabProject, LabRunReport, LabRunSummary } from '../../types/lab'
 import { buildMatrix, cellMatched, cellLabel } from './labMatrix'
+import { LabCompare } from './LabCompare'
 import { colors, fonts, fontSizes, fontWeights, spacing, radii, shadows } from '../../styles/tokens'
 
 interface Props { project: LabProject }
@@ -18,6 +19,7 @@ export function LabRunsView({ project }: Props) {
   const [runningLab, setRunningLab] = useState<string | null>(null)
   const [output, setOutput] = useState<string[]>([])
   const [runFinished, setRunFinished] = useState<string | null>(null)
+  const [comparing, setComparing] = useState<string | null>(null)
   const sourceRef = useRef<EventSource | null>(null)
 
   // Поток закрывается вместе с панелью: EventSource, оставшийся жить, держал бы
@@ -131,6 +133,20 @@ export function LabRunsView({ project }: Props) {
                   {run.started_at ? new Date(run.started_at).toLocaleDateString('ru-RU') : ''}
                   {run.estimate_rub ? ` · ${run.estimate_rub} ₽` : ''}
                 </span>
+                {run.has_report && (
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setComparing(comparing === run.lab ? null : run.lab) }}
+                    title="сравнить с прошлым прогоном"
+                    style={{
+                      padding: `2px ${spacing.sm}px`,
+                      background: comparing === run.lab ? colors.accentLight : colors.bgTertiary,
+                      boxShadow: comparing === run.lab ? shadows.neuInsetSm : shadows.neuSm,
+                      border: 'none', borderRadius: radii.sm,
+                      color: comparing === run.lab ? colors.accent : colors.text,
+                      fontSize: fontSizes.caption, fontFamily: fonts.ui, cursor: 'pointer',
+                    }}
+                  >Сравнить</button>
+                )}
                 {run.has_script && (
                   <button
                     onClick={(e) => { e.stopPropagation(); void (runningId && runningLab === run.lab ? stop() : start(run.lab)) }}
@@ -187,6 +203,8 @@ export function LabRunsView({ project }: Props) {
                 color: runFinished.includes('кодом') ? colors.orange : colors.green,
               }}>{runFinished}</div>
             )}
+
+            {comparing === run.lab && <LabCompare project={project} lab={run.lab} />}
 
             {open && report && <Matrix report={report} />}
           </div>

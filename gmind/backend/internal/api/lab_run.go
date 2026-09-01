@@ -232,6 +232,13 @@ func (h *Handler) StartLabRun(w http.ResponseWriter, r *http.Request) {
 				exitCode = -1
 			}
 		}
+		// Отчёт уходит в архив сразу: следующий прогон затрёт lab-out, и
+		// сравнивать станет не с чем.
+		if h.labHistoryPath != "" {
+			if _, err := archiveLabReport(h.labHistoryPath, dir, lab); err != nil {
+				proc.append("[gmind] отчёт не удалось положить в архив: " + err.Error())
+			}
+		}
 		proc.finish(exitCode, failure)
 	}()
 
